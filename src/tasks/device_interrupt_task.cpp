@@ -9,6 +9,42 @@
 #include <cmath>
 #include "globals.h"
 
+// Helper struct & task for safe power reads with timeout
+typedef struct PowerReadParams {
+    TaskHandle_t notifyTo;
+    float voltage;
+    int percentage;
+    bool isCharging;
+    volatile bool done;
+} PowerReadParams;
+
+static void powerReaderTask(void* pvParameters)
+{
+    PowerReadParams* p = (PowerReadParams*)pvParameters;
+    if (p == NULL)
+    {
+        vTaskDelete(NULL);
+        return;
+    }
+    // perform potentially blocking reads
+    p->voltage = M5.Power.getBatteryVoltage();
+    p->percentage = M5.Power.getBatteryLevel();
+    p->isCharging = M5.Power.isCharging();
+    p->done = true;
+    // notify the waiting task
+    if (p->notifyTo != NULL)
+    {
+        xTaskNotifyGive(p->notifyTo);
+    }
+    // give notifier a short window to copy results, then free params and delete self
+    vTaskDelay(pdMS_TO_TICKS(50));
+    if (p != NULL)
+    {
+        vPortFree(p);
+    }
+    vTaskDelete(NULL);
+}
+
 // 静态成员初始化
 TaskHandle_t DeviceInterruptTask::taskHandle_ = NULL;
 volatile bool DeviceInterruptTask::touchPressed_ = false;
@@ -320,9 +356,128 @@ void DeviceInterruptTask::checkTouchStatus()
 
 void DeviceInterruptTask::checkBatteryStatus()
 {
-    float voltage = M5.Power.getBatteryVoltage();
-    int percentage = M5.Power.getBatteryLevel();
-    bool isCharging = M5.Power.isCharging();
+    // Read power values in a helper task and wait up to 500ms
+    const TickType_t POWER_READ_TIMEOUT = pdMS_TO_TICKS(500);
+    PowerReadParams* params = (PowerReadParams*)pvPortMalloc(sizeof(PowerReadParams));
+    if (params == NULL)
+    {
+        // allocation failed, fall back to direct read (best-effort)
+        float voltage = M5.Power.getBatteryVoltage();
+        int percentage = M5.Power.getBatteryLevel();
+        bool isCharging = M5.Power.isCharging();
+        // existing logic continues with these values
+        
+        bool batteryChanged = (lastBatteryVoltage_ < 0 || abs(voltage - lastBatteryVoltage_) > 100.0f);
+        if (batteryChanged)
+        {
+            lastBatteryVoltage_ = voltage;
+            lastBatteryPercentage_ = percentage;
+
+            // 构造完整的电池消息
+            SystemMessage_t msg;
+            msg.type = MSG_BATTERY_STATUS_CHANGED;
+            msg.timestamp = millis();
+            msg.data.power.voltage = voltage;
+            msg.data.power.percentage = percentage;
+            msg.data.power.isCharging = isCharging;
+            msg.data.power.power_connected = isCharging; // 向后兼容
+            msg.data.power.battery_level = percentage;   // 向后兼容
+
+            // 发送电池状态变化消息给状态机
+            if (!sendStateMachineMessage(msg))
+            {
+#if DBG_DEVICE_INTERRUPT_TASK
+                Serial.printf("[%lu] [DEVICE_INTERRUPT] 发送电池状态消息失败\n", millis());
+#endif
+            }
+            else
+            {
+#if DBG_DEVICE_INTERRUPT_TASK
+                Serial.printf("[%lu] [DEVICE_INTERRUPT] 电池状态变化: %.2fV, %d%%\n", millis(), voltage, percentage);
+#endif
+            }
+        }
+
+        // 检查充电状态变化
+        if (lastChargingState_ != isCharging)
+        {
+            lastChargingState_ = isCharging;
+
+            // 构造完整的充电状态消息
+            SystemMessage_t msg;
+            msg.type = MSG_CHARGING_STATUS_CHANGED;
+            msg.timestamp = millis();
+            msg.data.power.voltage = voltage;
+            msg.data.power.percentage = percentage;
+            msg.data.power.isCharging = isCharging;
+            msg.data.power.power_connected = isCharging; // 向后兼容
+            msg.data.power.battery_level = percentage;   // 向后兼容
+
+            // 发送充电状态变化消息给状态机
+            if (!sendStateMachineMessage(msg))
+            {
+#if DBG_DEVICE_INTERRUPT_TASK
+                Serial.printf("[%lu] [DEVICE_INTERRUPT] 发送充电状态消息失败\n", millis());
+#endif
+            }
+            else
+            {
+#if DBG_DEVICE_INTERRUPT_TASK
+                Serial.printf("[%lu] [DEVICE_INTERRUPT] 充电状态变化: %s\n", millis(), isCharging ? "开始充电" : "停止充电");
+#endif
+            }
+        }
+
+        return;
+    }
+
+    // initialize params
+    params->notifyTo = xTaskGetCurrentTaskHandle();
+    params->done = false;
+
+    // create helper task
+    BaseType_t r = xTaskCreatePinnedToCore(
+        powerReaderTask,
+        "PowerReader",
+        2048,
+        params,
+        PRIO_DEVICE,
+        NULL,
+        0);
+
+    float voltage = 0.0f;
+    int percentage = -1;
+    bool isCharging = false;
+
+    if (r == pdPASS)
+    {
+        // wait for notification or timeout
+        if (ulTaskNotifyTake(pdTRUE, POWER_READ_TIMEOUT) > 0)
+        {
+            // copy results from params
+            voltage = params->voltage;
+            percentage = params->percentage;
+            isCharging = params->isCharging;
+        }
+        else
+        {
+            // timeout: helper may still be running; skip update
+#if DBG_DEVICE_INTERRUPT_TASK
+            Serial.println("[DEVICE_INTERRUPT] Power read timed out (>=500ms), skipping update");
+#endif
+            // let helper finish and free params; do not access params after this point
+            return;
+        }
+    }
+    else
+    {
+        // task creation failed, fall back to direct read
+        voltage = M5.Power.getBatteryVoltage();
+        percentage = M5.Power.getBatteryLevel();
+        isCharging = M5.Power.isCharging();
+    }
+
+    // params will be freed by helper task after a short delay
 
     // 检查电池电压变化 (变化超过0.1V) 实际上的单位是1mV！
     bool batteryChanged = (lastBatteryVoltage_ < 0 || abs(voltage - lastBatteryVoltage_) > 100.0f);
@@ -390,6 +545,12 @@ void DeviceInterruptTask::checkBatteryStatus()
 // ============================================================================
 // 便捷的全局访问函数实现
 // ============================================================================
+
+int DeviceInterruptTask::getLastBatteryPercentage()
+{
+    return lastBatteryPercentage_;
+}
+
 
 bool initializeDeviceInterrupt()
 {

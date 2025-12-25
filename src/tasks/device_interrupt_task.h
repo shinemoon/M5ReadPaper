@@ -68,6 +68,7 @@ public:
     static bool initialize();
     static void destroy();
     static TaskHandle_t getTaskHandle() { return taskHandle_; }
+    static int getLastBatteryPercentage();
 };
 
 // 便捷的全局访问函数

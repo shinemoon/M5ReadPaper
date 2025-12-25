@@ -14,6 +14,7 @@
 #include "text/font_buffer.h"
 #include <vector>
 #include <string>
+#include "tasks/device_interrupt_task.h"
 
 // RAII wrapper for File to ensure proper close
 class AutoCloseFile
@@ -338,7 +339,10 @@ void drawTopUI(M5Canvas *canvas, int16_t x, int16_t y)
     int y0 = y + 5;
 
     // 获取电池电量百分比
-    int batteryLevel = M5.Power.getBatteryLevel();
+    // int batteryLevel = M5.Power.getBatteryLevel(); // Dropped, to avoid the risk instability of power meter's query time;
+    // int batteryLevel = 100;
+    int batteryLevel = DeviceInterruptTask::getLastBatteryPercentage(); // Relying on periodly query result
+
     // 每20%电量代表一个格子 (0-20%:1格, 21-40%:2格, ..., 81-100%:5格)
     int batteryBars = (batteryLevel + 19) / 20; // 向上取整除法
     if (batteryBars > 5)
