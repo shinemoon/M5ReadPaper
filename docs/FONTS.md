@@ -37,40 +37,146 @@
 
 **三、固件端渲染流程（调用链与关键函数）**
 
-**注意，下面提到的整体缓存方式事实上已经废弃不用，仅存在于v1.6之前的老版本之上**
+**当前实现（V1.6+）：多级缓存架构**
 
-  - 检测格式（`detect_font_format`），读取并缓存头部（PSRAM 头缓存）。
-  - 两种运行模式：
-    - 流式模式（`g_font_stream_mode = true`）：只加载轻量索引（`GlyphIndex`），并建立 `indexMap`（hash map）用于 O(1) 查找。位图按需从文件/PROGMEM 读取。
-    - 缓存模式（非流式）：把整个字符表解析到 `g_bin_font.chars`（`BinFontChar` vector），并通过 `chunked_font_cache` 等组件缓存位图。 （Only in olderversions less than V1.6 ）
+固件端采用分层缓存策略以平衡内存占用与 I/O 性能：
+
+1. **字体索引层**：
+   - 检测格式（`detect_font_format`），读取并缓存 134 字节头部到 PSRAM（`g_font_header_cache`）。
+   - 流式模式（`g_font_stream_mode = true`，PROGMEM 字体强制启用）：只加载轻量索引（`GlyphIndex`），并建立 `indexMap`（hash map）用于 O(1) 查找字形度量与文件偏移。位图按需读取。
+   - 非流式/完整缓存模式（`g_font_stream_mode = false`，已基本废弃）：将整个字符表解析到 `g_bin_font.chars`（`BinFontChar` vector）并通过 `ChunkedFontCache` 缓存位图。**注意：此模式在 V1.6+ 已很少使用**。
+
+2. **位图读取层（SD 卡字体）**：
+   - **不再主要依赖** `GlyphReadWindow` 预读窗口（虽然代码中仍保留该实现）。
+   - 当前主流方案是 **各级 PageFontCache**：在渲染前为页面/场景预先构建字形缓存（见下节"四、字体缓存机制"），命中则直接从 PSRAM 读取，未命中才回退到 SD 卡单次读取。
+   - PROGMEM 字体（内置）：直接从 Flash 读取，无需 SD I/O。
 
 
-  - 若流式并使用外部存储（SPIFFS/SD），采用三段策略：
-    1. 字形预读窗口（`GlyphReadWindow`，PSRAM 缓冲，256KB 可配置）命中则 memcpy 返回。
-    2. 若窗口未命中，尝试 `reposition_window()` 将包含请求偏移的数据读入窗口，再 memcpy。
-    3. 若上述皆失败，直接 `readAtOffset` 从 SD/文件读取。
-  - 若使用 PROGMEM（内置字体），从 flash 读取；若使用缓存模式，走 `g_chunked_font_cache`。
 
+**四、字体缓存机制（当前 V1.6+ 架构）**
 
+**核心理念**：通过预构建多级字形缓存池，在 PSRAM 中存储完整位图索引，渲染时优先命中缓存避免 SD 卡随机读。
 
-**四、字体缓存机制（细节与路径）**
+**1. 头部缓存（Header Cache）**
+   - 在 `load_bin_font` 时将 134 字节头部缓存到 PSRAM（`g_font_header_cache`），避免频繁小 I/O。
 
-  1. 头部缓存（Header Cache）: 在 `load_bin_font` 里把 134 字节头部缓存到 PSRAM（`g_font_header_cache`），避免频繁的小量 I/O。
-  2. 流式索引（轻量索引）: `g_bin_font.index` 与 `indexMap`（`GlyphIndex`）仅包含每字形的度量与位图偏移/长度（内存占用小），用于按需读取位图。适合内存受限或大字符集场景。
-  3. 位图预读/分块缓存：
-     - `GlyphReadWindow`：预读窗口（默认 256KB）把文件的一段数据缓存到 PSRAM，显著减少 SD 卡随机 seek。
-     - `chunked_font_cache`（分块缓存）：在缓存模式下使用，能把位图拆分到较小块并放入 PSRAM，支持快速随机访问。
-     - `PageFontCache` / `FontBufferManager`：为当前页面或常用字符构建单页/通用缓存，把需要的字形打包成连续内存块（减少绘制时 IO），适合界面渲染场景（例如目录/书签页）。
+**2. 流式索引（轻量索引）**
+   - `g_bin_font.index` 与 `indexMap`（`GlyphIndex`）仅包含每字形的度量与位图偏移/长度（内存占用小），用于按需读取位图。
+   - 适合内存受限或大字符集场景（如 PROGMEM 字体）。
 
-  - 若可用且为默认字体且 `fontLoadLoc==1`，优先使用 PROGMEM（内置）字体以避免 I/O 开销（`load_bin_font_from_progmem`）。
-  - 对 SD 文件：优先使用 `GlyphReadWindow`（窗口命中）-> 重定位窗口 -> 直接读三段策略，结合互斥锁保护 `fontFile` 的并发访问。
-  - 页面渲染前可通过 `PageFontCache::build()` 提前把该页用到的字形拉入 PSRAM 缓冲。
+**3. 页面级缓存系统（主流方案，替代原窗口预读）**
+
+   实现于 [`src/text/font_buffer.h`](../src/text/font_buffer.h) 和 [`src/text/font_buffer.cpp`](../src/text/font_buffer.cpp)。
+
+   **3.1 核心组件**：
+   
+   - **`PageFontCache`**：单个页面/场景的字体缓存池，包含：
+     - 头部（`PageFontCacheHeader`）：字符数、总大小、索引/位图偏移等元数据。
+     - 索引区（`CharGlyphInfo[]`）：每字符的度量、位图偏移、尺寸等。
+     - 位图区：连续的位图字节流（1-bit 或灰度）。
+     - 分配在 PSRAM（优先）或内部 RAM，构建时从 SD 卡读取或复用其他缓存。
+   
+   - **`FontBufferManager`**（`g_font_buffer_manager`）：管理 5 页滑动窗口缓存：
+     - 当前页（center）+ 前后各 2 页（共 5 个 `PageFontCache`）。
+     - 翻页时通过 `scrollUpdate()` 滚动更新：复用已有缓存，只构建新页面。
+     - 查询接口：`hasChar()`, `getCharBitmap()` 等，支持按页面偏移（-2 ~ +2）查询。
+     - 优先级查找：先查通用缓存，再查 TOC/书名缓存，最后查 5 页窗口。
+
+   **3.2 全局专用缓存（用于特定场景）**：
+   
+   - **`g_common_char_cache`**（通用字符缓存）：
+     - 存储 UI 常用字符（数字、标点、常用汉字等，约 300 字符）。
+     - 在加载字体时调用 `buildCommonCharCache()` 构建。
+     - 所有场景均可复用，减少重复读取。
+   
+   - **`g_bookname_char_cache`**（书籍文件名缓存）：
+     - 为文件列表显示预构建所有书名中的字符。
+     - 调用 `addBookNamesToCache(const std::vector<std::string>& bookNames)` 构建。
+     - 加速文件浏览器渲染。
+   
+   - **`g_toc_char_cache`**（目录/TOC 缓存）：
+     - 为书籍目录显示预构建所有章节标题中的字符。
+     - 调用 `buildTocCharCache(const char* toc_file_path)` 从 TOC 文件构建。
+     - 加速目录浏览。
+   
+   - **`g_common_recycle_pool`**（通用回收池）：
+     - 当 `PageFontCache` 被释放时，将其中的字符回收到此池（上限 1000 字符）。
+     - 构建新缓存时优先从回收池复用，减少 SD 读取。
+
+   **3.3 缓存构建流程**（以 `PageFontCache::build()` 为例）：
+   
+   1. 提取页面文本中的唯一字符（`extractUniqueChars()`）。
+   2. 计算缓冲区大小（`calculateBufferSize()`），并分配 PSRAM/RAM。
+   3. 填充头部、索引区。
+   4. 加载位图（**关键优化**）：
+      - 优先从 `FontBufferManager::getCharBitmapAny()` 复用已有缓存（通用缓存、TOC 缓存、其他页面缓存、回收池）。
+      - 仅在未命中时才从 SD 卡读取（互斥锁保护文件访问）。
+   5. 统计构建耗时、SD 读取次数、复用率。
+
+   **3.4 使用场景**：
+   
+   - **阅读场景**：`FontBufferManager` 自动为当前页 ±2 页构建缓存，翻页时滚动更新。
+   - **菜单/界面**：`g_common_char_cache` 提供 UI 常用字符。
+   - **文件列表**：`g_bookname_char_cache` 加速书名渲染。
+   - **目录浏览**：`g_toc_char_cache` 加速章节标题渲染。
+
+**4. 遗留组件（V1.6+ 已较少使用）**
+
+   - **`GlyphReadWindow`**（字形预读窗口）：
+     - 流式模式下的 PSRAM 预读缓冲（默认 256KB）。
+     - 当前已被 `PageFontCache` 体系取代，但代码中仍保留作为回退方案。
+   
+   - **`ChunkedFontCache`**（分块缓存）：
+     - 非流式模式下将整个字体文件分块加载到 PSRAM，支持压缩。
+     - V1.6+ 已基本废弃，仅在特定配置下使用。
+
+**5. 性能优化要点**
+
+   - **缓存复用**：构建新缓存时，`getCharBitmapAny()` 会按优先级查找已有缓存（通用→TOC→书名→回收池→5 页窗口），显著减少 SD 读取。
+   - **回收池机制**：`g_common_recycle_pool` 收集释放的字符，最多保留 1000 个，供后续页面复用。
+   - **PSRAM 分配**：所有缓存优先使用 PSRAM（`heap_caps_malloc(MALLOC_CAP_SPIRAM)`），失败才回退到内部 RAM。
+   - **互斥锁保护**：SD 卡文件访问通过 `bin_font_get_file_mutex()` 保护，避免多任务竞态。
+   - **统计信息**：每个缓存记录构建耗时、SD 读取次数、复用率（见 `PageFontCacheStats`），便于性能分析。
 
 **五、注意事项与优化建议**
 
-  + From Ext V1.6.2, all charset is handled by JS (and then python is not useful anymore but just for archieve)
+  + From Ext V1.6.2, all charset is handled by JS (and then python is not useful anymore but just for archive)
+  + **缓存策略选择**：
+    - 阅读场景：启用 `FontBufferManager` 的 5 页滑动窗口（自动管理）。
+    - UI/菜单：使用 `g_common_char_cache`（启动时构建一次）。
+    - 文件浏览：调用 `addBookNamesToCache()` 为当前文件夹构建书名缓存。
+    - 目录浏览：调用 `buildTocCharCache()` 为当前书籍构建 TOC 缓存。
+  + **内存管理**：
+    - 所有缓存优先分配 PSRAM（ESP32-S3 通常有 2MB~8MB PSRAM），失败才用内部 RAM。
+    - 定期清理不需要的缓存（如切换书籍时调用 `g_font_buffer_manager.clearAll()`）。
+    - 回收池上限 1000 字符，避免无限增长。
+  + **性能监控**：
+    - 使用 `PageFontCacheStats` 查看构建耗时、SD 读取次数、复用率。
+    - 调用 `FontBufferManager::logStats()` 查看命中率统计。
+  + **PROGMEM 字体优先**：
+    - 若设备有足够 Flash 且为常用字体，优先烧录到 PROGMEM（`load_bin_font_from_progmem`），完全避免 SD I/O。
+  + **调试开关**：
+    - `#define DBG_FONT_BUFFER 1` 在 `font_buffer.cpp` 中启用详细日志（构建过程、复用统计等）。
 
 **六、快速参考（关键文件）**
+
+  - **字体生成**：
+    - `webapp/extension/pages/readpaper_renderer.js`：字体渲染与 1-bit 打包。
+    - `tools/generate_1bit_font_bin.py`：批量生成 `.bin` 字体文件（已较少使用，V1.6.2+ 推荐 JS）。
+  
+  - **固件端核心**：
+    - **索引与解码**：
+      - `src/text/bin_font_print.cpp` / `.h`：字体加载、索引构建、字形查找。
+      - `src/text/font_decoder.cpp` / `.h`：位图解码（1-bit、V3、Huffman）。
+    - **多级缓存系统**（**当前主流**）：
+      - `src/text/font_buffer.cpp` / `.h`：`PageFontCache`、`FontBufferManager`、全局缓存（通用/书名/TOC/回收池）。
+    - **遗留组件**（V1.6+ 较少使用）：
+      - `src/device/chunked_font_cache.cpp` / `.h`：分块缓存（非流式模式）。
+      - `GlyphReadWindow`（定义在 `bin_font_print.cpp`）：预读窗口（已被 `PageFontCache` 取代）。
+  
+  - **工具与映射表**：
+    - `tools/generate_gbk_table.py`：生成 GBK→Unicode 查找表（`src/text/gbk_unicode_data.cpp`）。
+    - `tools/gen_zh_table.py`：生成繁简转换表（`src/text/zh_conv_table_generated.cpp`）。
 
 
 
