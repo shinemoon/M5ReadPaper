@@ -3,6 +3,8 @@ Y.A.P.T.R. — Yet Another PaperS3 Text Reader
 
 *BTW. 知道Y.A.S.D这个梗的人应该都有点年龄了吧……*
 
+![Banner](/design/banner.png)
+
 ## 简介
 
 出于个人兴趣开发的轻量级阅读固件，针对 PaperS3 平台的文本阅读体验进行了优化，最主要的初心其实只是好奇。
