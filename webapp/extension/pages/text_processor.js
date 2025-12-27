@@ -494,7 +494,7 @@ document.addEventListener('DOMContentLoaded', () => {
 					});
 
 					// helper: run a single regex against all lines inside a Worker with timeout
-					const REGEX_WORKER_TIMEOUT = 400; // ms
+					const REGEX_WORKER_TIMEOUT = 8000; // Thanks for @哆啰啰哆啰啰（小红书）的发现和建议，从400ms把timeout提升到8s，以解决较大文本的正则耗时。
 					const runRegexInWorker = (regObj, lineInfos, timeoutMs)=>{
 						return new Promise((resolve)=>{
 							if(!regObj) return resolve([]);
