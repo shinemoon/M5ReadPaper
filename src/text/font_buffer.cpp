@@ -389,28 +389,27 @@ bool PageFontCache::hasChar(uint16_t unicode) const
     if (!header_ || !index_area_)
         return false;
 
-    // 二分查找（因为索引区已按Unicode排序）
-    size_t left = 0;
-    size_t right = header_->char_count;
-
-    while (left < right)
+    // 优化的二分查找（减少分支判断）
+    size_t count = header_->char_count;
+    size_t first = 0;
+    
+    while (count > 0)
     {
-        size_t mid = left + (right - left) / 2;
-        if (index_area_[mid].unicode == unicode)
+        size_t step = count >> 1;  // count / 2
+        size_t mid = first + step;
+        
+        if (index_area_[mid].unicode < unicode)
         {
-            return true;
-        }
-        else if (index_area_[mid].unicode < unicode)
-        {
-            left = mid + 1;
+            first = mid + 1;
+            count -= step + 1;
         }
         else
         {
-            right = mid;
+            count = step;
         }
     }
-
-    return false;
+    
+    return (first < header_->char_count && index_area_[first].unicode == unicode);
 }
 
 const CharGlyphInfo *PageFontCache::getCharGlyphInfo(uint16_t unicode) const
@@ -418,28 +417,27 @@ const CharGlyphInfo *PageFontCache::getCharGlyphInfo(uint16_t unicode) const
     if (!header_ || !index_area_)
         return nullptr;
 
-    // 二分查找
-    size_t left = 0;
-    size_t right = header_->char_count;
-
-    while (left < right)
+    // 优化的二分查找（减少分支判断）
+    size_t count = header_->char_count;
+    size_t first = 0;
+    
+    while (count > 0)
     {
-        size_t mid = left + (right - left) / 2;
-        if (index_area_[mid].unicode == unicode)
+        size_t step = count >> 1;  // count / 2
+        size_t mid = first + step;
+        
+        if (index_area_[mid].unicode < unicode)
         {
-            return &index_area_[mid];
-        }
-        else if (index_area_[mid].unicode < unicode)
-        {
-            left = mid + 1;
+            first = mid + 1;
+            count -= step + 1;
         }
         else
         {
-            right = mid;
+            count = step;
         }
     }
-
-    return nullptr;
+    
+    return (first < header_->char_count && index_area_[first].unicode == unicode) ? &index_area_[first] : nullptr;
 }
 
 const CharGlyphInfo *PageFontCache::getCharGlyphInfoByIndex(size_t index) const
@@ -719,7 +717,19 @@ const CharGlyphInfo *FontBufferManager::getCharGlyphInfo(uint16_t unicode, int p
 
 const uint8_t *FontBufferManager::getCharBitmap(uint16_t unicode, int page_offset) const
 {
-    // 优先查找通用缓存
+    // 优化：优先查找最可能命中的页面缓存（快速路径）
+    if (initialized_ && isValidPageOffset(page_offset))
+    {
+        int cache_idx = getCacheIndex(page_offset);
+        const uint8_t *bmp = caches_[cache_idx].getCharBitmap(unicode);
+        if (bmp)
+        {
+            stats_.hits++;
+            return bmp;
+        }
+    }
+
+    // 查找通用缓存（高频字符）
     if (g_common_char_cache.isValid())
     {
         const uint8_t *bmp = g_common_char_cache.getCharBitmap(unicode);
@@ -763,22 +773,8 @@ const uint8_t *FontBufferManager::getCharBitmap(uint16_t unicode, int page_offse
         }
     }
 
-    if (!initialized_ || !isValidPageOffset(page_offset))
-    {
-        return nullptr;
-    }
-
-    int cache_idx = getCacheIndex(page_offset);
-    const uint8_t *bmp = caches_[cache_idx].getCharBitmap(unicode);
-    if (bmp)
-    {
-        stats_.hits++;
-    }
-    else
-    {
-        stats_.misses++;
-    }
-    return bmp;
+    stats_.misses++;
+    return nullptr;
 } // 从任意有效缓存中查找位图（用于构建新缓存时复用）
 const uint8_t *FontBufferManager::getCharBitmapAny(uint16_t unicode) const
 {

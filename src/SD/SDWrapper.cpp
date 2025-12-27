@@ -18,7 +18,62 @@ namespace SDW
 
     SDWrapper SD;
 
-    SDWrapper::SDWrapper() : iface_(IF_SPI), initialized_(false) {}
+    SDWrapper::SDWrapper() : iface_(IF_SPI), initialized_(false) 
+    {
+        // 初始化DMA缓冲区池
+        for (size_t i = 0; i < DMA_POOL_SIZE; i++)
+        {
+            dma_pool_[i] = nullptr;
+            dma_pool_in_use_[i] = false;
+        }
+    }
+    
+    uint8_t* SDWrapper::allocate_dma_buffer()
+    {
+        // 尝试从池中获取
+        for (size_t i = 0; i < DMA_POOL_SIZE; i++)
+        {
+            if (dma_pool_[i] && !dma_pool_in_use_[i])
+            {
+                dma_pool_in_use_[i] = true;
+                return dma_pool_[i];
+            }
+        }
+        
+        // 池中没有可用的，尝试分配新的
+        for (size_t i = 0; i < DMA_POOL_SIZE; i++)
+        {
+            if (!dma_pool_[i])
+            {
+#if defined(ESP_PLATFORM) || defined(ESP32)
+                dma_pool_[i] = (uint8_t*)heap_caps_malloc(DMA_BUFFER_SIZE, MALLOC_CAP_DMA);
+                if (dma_pool_[i])
+                {
+                    dma_pool_in_use_[i] = true;
+                    return dma_pool_[i];
+                }
+#endif
+            }
+        }
+        
+        // 池已满或分配失败，返回nullptr让调用者使用fallback
+        return nullptr;
+    }
+    
+    void SDWrapper::free_dma_buffer(uint8_t* buf)
+    {
+        if (!buf) return;
+        
+        // 标记为可用，但不真正释放内存
+        for (size_t i = 0; i < DMA_POOL_SIZE; i++)
+        {
+            if (dma_pool_[i] == buf)
+            {
+                dma_pool_in_use_[i] = false;
+                return;
+            }
+        }
+    }
 
     bool SDWrapper::begin(uint8_t csPin, SPIClass &spi, uint32_t freq, Interface iface)
     {
@@ -261,88 +316,27 @@ namespace SDW
             // 计算需要读取的扇区数
             size_t bytes_needed = start_in_sector + read_len;
             size_t sectors_needed = (bytes_needed + SECTOR - 1) / SECTOR;
-            size_t aligned_size = sectors_needed * SECTOR;
             
-            // 尝试分配DMA缓冲区
-#if defined(ESP_PLATFORM) || defined(ESP32)
-            uint8_t *dma_buf = (uint8_t *)heap_caps_malloc(aligned_size, MALLOC_CAP_DMA);
-            if (dma_buf)
+            // 优先使用固定大小的DMA缓冲池（避免频繁分配）
+            if (sectors_needed <= 8)  // DMA_BUFFER_SIZE = 4096 = 8扇区
             {
-                // 成功分配，执行对齐读取
-                f.seek(aligned_offset);
-                uint32_t t_seek_end = micros();
-                
-                size_t got = f.read(dma_buf, aligned_size);
-                uint32_t t_read_end = micros();
-                
-                if (got >= start_in_sector + read_len)
+                uint8_t* dma_buf = allocate_dma_buffer();
+                if (dma_buf)
                 {
-                    // 读取成功，复制用户需要的部分
-                    memcpy(buffer, dma_buf + start_in_sector, read_len);
-                    heap_caps_free(dma_buf);
-                    
-                    uint32_t seek_us = t_seek_end - t_total_start;
-                    uint32_t read_us = t_read_end - t_seek_end;
-                    uint32_t total_us = t_read_end - t_total_start;
-                    
-                    g_readAtOffset_total_us += total_us;
-                    g_readAtOffset_seek_us += seek_us;
-                    g_readAtOffset_read_us += read_us;
-                    g_readAtOffset_count++;
-                    
-#if DBG_GLYPH_TIMING
-                    Serial.printf("[RO-DMA1] offset=%u size=%u aligned=%u dma_size=%u seek=%u us read=%u us total=%u us\n",
-                                 (unsigned)offset, (unsigned)read_len, (unsigned)aligned_offset,
-                                 (unsigned)aligned_size, seek_us, read_us, total_us);
-#endif
-                    return read_len;
-                }
-                heap_caps_free(dma_buf);
-            }
-            
-            // 单次DMA分配失败或读取不足，尝试两次扇区读取
-            if (sectors_needed >= 2)
-            {
-                uint8_t *sector1 = (uint8_t *)heap_caps_malloc(SECTOR, MALLOC_CAP_DMA);
-                uint8_t *sector2 = (uint8_t *)heap_caps_malloc(SECTOR, MALLOC_CAP_DMA);
-                
-                if (sector1 && sector2)
-                {
-                    // 读取第一个扇区
+                    // 成功获取DMA缓冲区
+                    size_t aligned_size = sectors_needed * SECTOR;
                     f.seek(aligned_offset);
                     uint32_t t_seek_end = micros();
                     
-                    size_t got1 = f.read(sector1, SECTOR);
-                    size_t copied = 0;
-                    
-                    if (got1 > start_in_sector)
-                    {
-                        size_t avail1 = got1 - start_in_sector;
-                        size_t take1 = (avail1 < read_len) ? avail1 : read_len;
-                        memcpy(buffer, sector1 + start_in_sector, take1);
-                        copied = take1;
-                    }
-                    
-                    // 如果需要，读取第二个扇区
-                    if (copied < read_len)
-                    {
-                        f.seek(aligned_offset + SECTOR);
-                        size_t got2 = f.read(sector2, SECTOR);
-                        size_t remaining = read_len - copied;
-                        size_t take2 = (got2 < remaining) ? got2 : remaining;
-                        if (take2 > 0)
-                        {
-                            memcpy(buffer + copied, sector2, take2);
-                            copied += take2;
-                        }
-                    }
-                    
+                    size_t got = f.read(dma_buf, aligned_size);
                     uint32_t t_read_end = micros();
-                    heap_caps_free(sector1);
-                    heap_caps_free(sector2);
                     
-                    if (copied == read_len)
+                    if (got >= start_in_sector + read_len)
                     {
+                        // 读取成功，复制用户需要的部分
+                        memcpy(buffer, dma_buf + start_in_sector, read_len);
+                        free_dma_buffer(dma_buf);  // 归还到池中
+                        
                         uint32_t seek_us = t_seek_end - t_total_start;
                         uint32_t read_us = t_read_end - t_seek_end;
                         uint32_t total_us = t_read_end - t_total_start;
@@ -353,21 +347,57 @@ namespace SDW
                         g_readAtOffset_count++;
                         
 #if DBG_GLYPH_TIMING
-                        Serial.printf("[RO-DMA2] offset=%u size=%u 2-sector seek=%u us read=%u us total=%u us\n",
-                                     (unsigned)offset, (unsigned)read_len, seek_us, read_us, total_us);
+                        Serial.printf("[RO-DMA-POOL] offset=%u size=%u aligned=%u dma_size=%u seek=%u us read=%u us total=%u us\n",
+                                     (unsigned)offset, (unsigned)read_len, (unsigned)aligned_offset,
+                                     (unsigned)aligned_size, seek_us, read_us, total_us);
 #endif
                         return read_len;
                     }
-                    // 读取失败，内存已在上面释放，继续到fallback
-                }
-                else
-                {
-                    // 内存分配失败，释放已分配的部分
-                    if (sector1) heap_caps_free(sector1);
-                    if (sector2) heap_caps_free(sector2);
+                    free_dma_buffer(dma_buf);  // 读取失败也要归还
                 }
             }
+            
+            // 如果DMA池不可用或扇区数太多，尝试动态分配（保留原有逻辑作为fallback）
+            if (sectors_needed > 8)
+            {
+                size_t aligned_size = sectors_needed * SECTOR;
+#if defined(ESP_PLATFORM) || defined(ESP32)
+                uint8_t *dma_buf = (uint8_t *)heap_caps_malloc(aligned_size, MALLOC_CAP_DMA);
+                if (dma_buf)
+                {
+                    // 成功分配，执行对齐读取
+                    f.seek(aligned_offset);
+                    uint32_t t_seek_end = micros();
+                    
+                    size_t got = f.read(dma_buf, aligned_size);
+                    uint32_t t_read_end = micros();
+                    
+                    if (got >= start_in_sector + read_len)
+                    {
+                        // 读取成功，复制用户需要的部分
+                        memcpy(buffer, dma_buf + start_in_sector, read_len);
+                        heap_caps_free(dma_buf);
+                        
+                        uint32_t seek_us = t_seek_end - t_total_start;
+                        uint32_t read_us = t_read_end - t_seek_end;
+                        uint32_t total_us = t_read_end - t_total_start;
+                        
+                        g_readAtOffset_total_us += total_us;
+                        g_readAtOffset_seek_us += seek_us;
+                        g_readAtOffset_read_us += read_us;
+                        g_readAtOffset_count++;
+                        
+#if DBG_GLYPH_TIMING
+                        Serial.printf("[RO-DMA-ALLOC] offset=%u size=%u aligned=%u dma_size=%u seek=%u us read=%u us total=%u us\n",
+                                     (unsigned)offset, (unsigned)read_len, (unsigned)aligned_offset,
+                                     (unsigned)aligned_size, seek_us, read_us, total_us);
 #endif
+                        return read_len;
+                    }
+                    heap_caps_free(dma_buf);
+                }
+#endif
+            }
         }
 #endif
         

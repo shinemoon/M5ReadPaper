@@ -70,6 +70,15 @@ namespace SDW
     private:
         Interface iface_;
         bool initialized_;
+        
+        // DMA缓冲区池，避免频繁分配
+        static constexpr size_t DMA_POOL_SIZE = 2;
+        static constexpr size_t DMA_BUFFER_SIZE = 4096; // 8个扇区
+        uint8_t* dma_pool_[DMA_POOL_SIZE];
+        bool dma_pool_in_use_[DMA_POOL_SIZE];
+        
+        uint8_t* allocate_dma_buffer();
+        void free_dma_buffer(uint8_t* buf);
     };
 
     extern SDWrapper SD;
