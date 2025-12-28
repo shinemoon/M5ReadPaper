@@ -725,6 +725,10 @@ bool runBackgroundIndexWorkCycle()
             extern void removeIndexFilesForBookForPath(const std::string &book_file_path);
             if (cur_sp)
             {
+                // 【安全保护】在删除索引文件前，确保tags缓存是最新的
+                // 虽然requestForceReindex已经保存了tags，但这里再次刷新缓存以确保一致性
+                cur_sp->refreshTagsCache();
+                
                 removeIndexFilesForBookForPath(cur_sp->filePath());
                 cur_sp->clearPagePositions();
                 cur_sp->setPagesLoaded(false);
@@ -738,6 +742,10 @@ bool runBackgroundIndexWorkCycle()
                 cur_sp->resetIndexCycleHeuristics();
                 // 同步书签：重置索引相关字段（不删除 bm 文件）
                 (void)saveBookmarkForFile(cur_sp.get());
+                
+                // 【安全保护】再次刷新tags缓存，确保UI可以正确显示tags
+                // 这样即使在重新索引过程中，用户也能看到保存的书签
+                cur_sp->refreshTagsCache();
             }
 
             // Do at most one incremental segment this cycle
@@ -782,17 +790,35 @@ void requestForceReindex()
     // Immediately clean up index files and reset state.
     if (g_current_book)
     {
-        // Before requesting stop/reindex, save an automatic tag for the current page into slot0
-        // so user can return to the current page after reindex.
+        // 【关键修复】在重新索引前，先确保当前页面的auto tag被保存
+        // 这样即使重新索引后，用户也可以通过书签返回到之前的阅读位置
         {
             TextPageResult tp = g_current_book->currentPage();
             if (tp.success)
             {
-                insertAutoTagForFile(g_current_book->filePath(), tp.file_pos);
-                // Refresh in-memory cache if book is open
-                g_current_book->refreshTagsCache();
+                // 保存当前页面位置到auto tag (slot0)
+                // 注意：insertAutoTagForFile会保留所有现有的manual tags，不会清除它们
+                bool tag_saved = insertAutoTagForFile(g_current_book->filePath(), tp.file_pos);
+                if (tag_saved)
+                {
+                    // 刷新内存缓存，确保BookHandle中的cached_tags是最新的
+                    g_current_book->refreshTagsCache();
+                }
+                else
+                {
+                }
+            }
+            else
+            {
             }
         }
+        
+        // 【关键修复】立即清空页面索引并设置pages_loaded=false，防止renderCurrentPage中的
+        // "对齐书签到页面开头"逻辑误删用户的手动书签
+        // 必须在保存书签后、requestStopIndexing前执行
+        g_current_book->clearPagePositions();
+        g_current_book->setPagesLoaded(false);
+        
         g_current_book->requestStopIndexing();
 
         // Immediate cleanup: reset index files and in-memory state

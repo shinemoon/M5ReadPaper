@@ -158,21 +158,54 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                                 TextPageResult tp = g_current_book->currentPage();
                                 if (tp.success)
                                 {
-                                        size_t pos = tp.file_pos;
-                                        // check cached tags for exact match at this position
-                                        bool exists = false;
+                                        size_t page_start = tp.file_pos;
+                                        size_t page_end = SIZE_MAX;
+                                        
+                                        // 计算页面结束位置
+                                        if (g_current_book->isPagesLoaded() && g_current_book->getTotalPages() > 0)
+                                        {
+                                                size_t cur_idx = g_current_book->getCurrentPageIndex();
+                                                if (cur_idx + 1 < g_current_book->getTotalPages())
+                                                {
+                                                        // 获取下一页的开始位置（即当前页的结束位置）
+                                                        // 使用nextPage会改变当前页，所以直接计算
+                                                        // 假设页面是连续的，下一页开始位置就是当前页的file_pos + page_text.size()
+                                                        // 但更准确的方法是使用文件大小或getPagePositions
+                                                        // 这里先尝试翻到下一页获取位置，然后翻回来
+                                                        size_t saved_idx = cur_idx;
+                                                        TextPageResult next = g_current_book->nextPage();
+                                                        if (next.success)
+                                                        {
+                                                                page_end = next.file_pos;
+                                                                // 翻回原页面
+                                                                g_current_book->jumpToPage(saved_idx);
+                                                        }
+                                                }
+                                                else
+                                                {
+                                                        // 最后一页，使用文件大小
+                                                        page_end = g_current_book->getFileSize();
+                                                }
+                                        }
+                                        
+                                        // 查找当前页面范围内的第一个manual tag（不包括auto tag）
+                                        size_t tag_to_delete = SIZE_MAX;
+                                        bool found = false;
                                         for (const TagEntry &te : g_current_book->getCachedTags())
                                         {
-                                                if (te.position == pos)
+                                                // 只删除manual tags，不删除auto tag
+                                                if (!te.is_auto && te.position >= page_start && te.position < page_end)
                                                 {
-                                                        exists = true;
+                                                        tag_to_delete = te.position;
+                                                        found = true;
                                                         break;
                                                 }
                                         }
 
-                                        if (exists)
+                                        if (found)
                                         {
-                                                if (deleteTagForFileByPosition(g_current_book->filePath(), pos))
+                                                // 删除找到的tag
+                                                if (deleteTagForFileByPosition(g_current_book->filePath(), tag_to_delete))
                                                 {
                                                         g_current_book->refreshTagsCache();
                                                         g_current_book->renderCurrentPage(font_size);
@@ -180,6 +213,7 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                                         }
                                         else
                                         {
+                                                // 当前页没有manual tag，创建新的tag
                                                 // compute preview from in-memory page text (same rules as menu)
                                                 auto make_preview_from_utf8 = [](const std::string &s) -> std::string
                                                 {
@@ -296,7 +330,8 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                                                 };
 
                                                 std::string preview = make_preview_from_utf8(tp.page_text);
-                                                if (insertTagForFile(g_current_book->filePath(), pos, preview))
+                                                // 创建新书签时使用页面开头位置
+                                                if (insertTagForFile(g_current_book->filePath(), page_start, preview))
                                                 {
                                                         g_current_book->refreshTagsCache();
                                                         g_current_book->renderCurrentPage(font_size);

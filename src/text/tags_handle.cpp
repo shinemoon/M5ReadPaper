@@ -21,11 +21,16 @@ static std::string getTagsFileName(const std::string &book_file_path)
     std::string bm = getBookmarkFileName(book_file_path);
     // 将后缀替换为 .tags
     size_t dot = bm.find_last_of('.');
+    std::string result;
     if (dot != std::string::npos)
     {
-        return bm.substr(0, dot) + ".tags";
+        result = bm.substr(0, dot) + ".tags";
     }
-    return bm + ".tags";
+    else
+    {
+        result = bm + ".tags";
+    }
+    return result;
 }
 
 // 从指定书籍文件读取预览：从 position 开始，取前 10 个非空字符（按字符计数，不是字节）
@@ -219,7 +224,7 @@ static std::string makePreviewFromBook(const std::string &book_file_path, size_t
 static bool writeTagsFile(const std::string &tags_fn, const std::vector<TagEntry> &entries)
 {
     // use SafeFS to write atomically
-    return SafeFS::safeWrite(tags_fn, [&](File &f)
+    bool result = SafeFS::safeWrite(tags_fn, [&](File &f)
                              {
                                  char linebuf[256];
                                  for (const auto &e : entries)
@@ -244,6 +249,18 @@ static bool writeTagsFile(const std::string &tags_fn, const std::vector<TagEntry
                                  }
                                  return true;
                              });
+    
+    // 【调试日志】记录tags文件写入结果
+    if (result)
+    {
+        Serial.printf("[Tags] writeTagsFile: 写入成功 (%zu tags)\n", entries.size());
+    }
+    else
+    {
+        Serial.println("[Tags] writeTagsFile: 写入失败！");
+    }
+    
+    return result;
 }
 
 std::vector<TagEntry> loadTagsForFile(const std::string &book_file_path)
@@ -252,11 +269,17 @@ std::vector<TagEntry> loadTagsForFile(const std::string &book_file_path)
     std::string tags_fn = getTagsFileName(book_file_path);
     SafeFS::restoreFromTmpIfNeeded(tags_fn);
     if (!SDW::SD.exists(tags_fn.c_str()))
+    {
+        // 【调试日志】文件不存在（正常情况，不需要警告）
         return out; // 文件不存在返回空
+    }
 
     File f = SDW::SD.open(tags_fn.c_str(), "r");
     if (!f)
+    {
+        Serial.printf("[Tags] loadTagsForFile: 警告 - 无法打开tags文件 %s\n", tags_fn.c_str());
         return out;
+    }
 
     std::vector<TagEntry> parsed;
     while (f.available())
@@ -271,6 +294,11 @@ std::vector<TagEntry> loadTagsForFile(const std::string &book_file_path)
         {
             is_auto = (s[0] == 'A');
             s = s.substr(2);
+        }
+        else
+        {
+            // 【警告】没有A:/M:前缀的行（旧格式或格式错误）
+            Serial.printf("[Tags] loadTagsForFile: 警告 - 行没有A:/M:前缀，默认为manual: %s\n", s.c_str());
         }
 
         // parse remaining as pos:"preview":percentage
@@ -375,6 +403,14 @@ std::vector<TagEntry> loadTagsForFile(const std::string &book_file_path)
             e.percentage = (float)((double)e.position * 100.0 / (double)total);
         }
     }
+    
+    // 【调试日志】记录加载的tags数量
+    if (!out.empty())
+    {
+        Serial.printf("[Tags] loadTagsForFile: 成功加载 %zu 个tags (文件: %s, 书籍大小: %zu bytes)\n", 
+                     out.size(), tags_fn.c_str(), total);
+    }
+    
     return out;
 }
 
@@ -537,10 +573,8 @@ bool insertAutoTagForFile(const std::string &book_file_path, size_t position)
     // 如果新位置比现有 auto tag 位置小，不更新（保护最大进度）
     if (have_auto && position < auto_entry.position)
     {
-#if DBG_BOOK_HANDLE
         Serial.printf("[Tags] insertAutoTagForFile: 保护最大进度，不更新 auto tag (new=%zu < existing=%zu)\n",
                       position, auto_entry.position);
-#endif
         return true; // 返回成功，但不更新
     }
 
@@ -555,6 +589,9 @@ bool insertAutoTagForFile(const std::string &book_file_path, size_t position)
 
     // replace auto
     have_auto = true; auto_entry = newe;
+    
+    Serial.printf("[Tags] insertAutoTagForFile: 更新auto tag, new_pos=%zu (old_pos=%s)\n", 
+                  position, have_auto ? "exists" : "none");
 
     std::sort(manual.begin(), manual.end(), [](const TagEntry &a, const TagEntry &b){ return a.position < b.position; });
     if (manual.size() > 0 && manual.size() > (MAX_TAG_LINES > 0 ? (MAX_TAG_LINES - 1) : 0)) manual.resize((MAX_TAG_LINES > 0) ? (MAX_TAG_LINES - 1) : 0);
@@ -563,6 +600,11 @@ bool insertAutoTagForFile(const std::string &book_file_path, size_t position)
     if (have_auto) combined.push_back(auto_entry);
     for (const auto &m : manual) combined.push_back(m);
     if (combined.size() > MAX_TAG_LINES) combined.resize(MAX_TAG_LINES);
+    
+    // 【调试日志】记录即将写入的tags信息
+    Serial.printf("[Tags] insertAutoTagForFile: 准备写入 %zu 个tags (auto=%s, manual=%zu, 调用者: insertAutoTagForFile)\n", 
+                  combined.size(), have_auto ? "yes" : "no", manual.size());
+    
     return writeTagsFile(tags_fn, combined);
 }
 
@@ -586,10 +628,6 @@ bool insertAutoTagForFile(const std::string &book_file_path, size_t position, co
     // 如果新位置比现有 auto tag 位置小，不更新（保护最大进度）
     if (have_auto && position < auto_entry.position)
     {
-#if DBG_BOOK_HANDLE
-        Serial.printf("[Tags] insertAutoTagForFile: 保护最大进度，不更新 auto tag (new=%zu < existing=%zu)\n",
-                      position, auto_entry.position);
-#endif
         return true; // 返回成功，但不更新
     }
 

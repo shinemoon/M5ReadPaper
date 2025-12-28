@@ -2893,59 +2893,24 @@ void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool
                   MARGIN_TOP, MARGIN_BOTTOM, MARGIN_LEFT, MARGIN_RIGHT, TFT_WHITE, true, dark);
 
     // If this page contains any tag start positions, draw a small black dot at top-right
-    if (g_canvas && pages_loaded && !cached_tags.empty() && current_page_index < page_positions.size())
+    // 【保护条件】只有在索引完全加载且有效时才检查和显示书签图标
+    // page_positions.size() > 1 确保至少有两个页面边界（首页和至少一个后续页面）
+    if (g_canvas && pages_loaded && !cached_tags.empty() && 
+        current_page_index < page_positions.size() && page_positions.size() > 1)
     {
         size_t page_start = page_positions[current_page_index];
         size_t page_end = (current_page_index + 1 < page_positions.size()) ? page_positions[current_page_index + 1] : getFileSize();
         bool has_tag_here = false;
-        bool tag_adjusted = false;
 
+        // 检查当前页面范围内是否有manual tag（不显示auto tag图标）
         for (const auto &t : cached_tags)
         {
             if (t.position >= page_start && t.position < page_end)
             {
-                has_tag_here = true;
-                if (!t.is_auto && t.position != page_start)
+                // 只有非自动书签才显示图标
+                if (!t.is_auto)
                 {
-                    // Move the tag to the page start so bookmarks align with rendered page header.
-                    bool removed = deleteTagForFileByPosition(file_path, t.position);
-                    bool inserted = false;
-                    if (removed)
-                    {
-                        inserted = insertTagForFile(file_path, page_start);
-
-                        if (!inserted)
-                        {
-                            // Attempt to restore original tag if the relocation failed.
-                            insertTagForFile(file_path, t.position);
-                        }
-                    }
-
-                    if (inserted)
-                        tag_adjusted = true;
-                }
-
-                // 如果是自动书签，不显示图标
-                if (t.is_auto)
-                {
-                    has_tag_here = false;
-                }
-            }
-        }
-
-        if (tag_adjusted)
-        {
-            refreshTagsCache();
-            has_tag_here = false;
-            for (const auto &t : cached_tags)
-            {
-                if (t.position >= page_start && t.position < page_end)
-                {
-                    // 只有非自动书签才显示图标
-                    if (!t.is_auto)
-                    {
-                        has_tag_here = true;
-                    }
+                    has_tag_here = true;
                     break;
                 }
             }
