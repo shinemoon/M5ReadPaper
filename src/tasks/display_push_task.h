@@ -22,3 +22,8 @@ static const uint8_t DISPLAY_PUSH_MSG_TYPE_FLUSH = 1;
 static const uint8_t DISPLAY_PUSH_MSG_TYPE_FLUSH_TRANS = 2;
 static const uint8_t DISPLAY_PUSH_MSG_TYPE_FLUSH_INVERT_TRANS = 3;
 static const uint8_t DISPLAY_PUSH_MSG_TYPE_FLUSH_QUALITY = 4;
+
+// Canvas FIFO：外部模块（如 bin_font_print）可以将克隆后的 M5Canvas* 推入此 FIFO。
+// 当 FIFO 满时，推入操作会阻塞直到有空位（按实现为阻塞调用）。
+// 注意：传入的 M5Canvas* 由接收方负责 delete。
+bool enqueueCanvasCloneBlocking(M5Canvas *canvas_clone);

@@ -2031,8 +2031,39 @@ void bin_font_flush_canvas(bool trans, bool invert, bool quality)
         {
             pushType = DISPLAY_PUSH_MSG_TYPE_FLUSH_QUALITY;
         }
-        // 将实际的 pushSprite 操作移到独立的 DisplayPushTask 中执行，
-        // 这里仅向队列中推入一个显示请求（非阻塞尝试）
+        // 先尝试克隆当前 canvas 并放入 canvas FIFO（阻塞直到有空位）
+        // 重要：必须先 setColorDepth 再 createSprite，否则会触发二次分配/重建，导致明显卡顿。
+        if (g_canvas)
+        {
+            M5Canvas *clone = new M5Canvas(&M5.Display);
+            if (clone)
+            {
+                // 尽量使用 PSRAM，降低内部 RAM 压力（若底层不支持也不会影响编译）
+                clone->setPsram(true);
+                clone->setColorDepth(g_canvas->getColorDepth());
+                clone->createSprite(PAPER_S3_WIDTH, PAPER_S3_HEIGHT);
+
+                // 复制内部缓冲区
+                void *src_buf = g_canvas->getBuffer();
+                void *dst_buf = clone->getBuffer();
+                size_t buf_len = g_canvas->bufferLength();
+                if (src_buf && dst_buf && buf_len > 0)
+                {
+                    memcpy(dst_buf, src_buf, buf_len);
+                    // 阻塞推入 FIFO，直到有空位（符合需求）
+                    if (!enqueueCanvasCloneBlocking(clone))
+                    {
+                        delete clone;
+                    }
+                }
+                else
+                {
+                    delete clone;
+                }
+            }
+        }
+
+        // 无论 clone 是否成功，都保留原有的信号队列行为（通知显示任务）
         if (!enqueueDisplayPush(pushType))
         {
 #if DBG_BIN_FONT_PRINT

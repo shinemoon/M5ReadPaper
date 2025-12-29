@@ -14,6 +14,8 @@ bool s_toggleFastMode = false;
 // 队列和任务句柄
 static QueueHandle_t s_displayQueue = NULL;
 static TaskHandle_t s_displayTaskHandle = NULL;
+// Canvas FIFO 用于存放 M5Canvas* 克隆（由渲染端创建，显示任务消费）
+static QueueHandle_t s_canvasQueue = NULL;
 
 // pushSprite 计数器
 static volatile uint32_t s_pushCount = 0;
@@ -36,7 +38,23 @@ static void displayTaskFunction(void *pvParameters)
             M5.Display.waitDisplay();
             if (msg == DISPLAY_PUSH_MSG_TYPE_FLUSH || msg == DISPLAY_PUSH_MSG_TYPE_FLUSH_TRANS || msg == DISPLAY_PUSH_MSG_TYPE_FLUSH_INVERT_TRANS || msg == DISPLAY_PUSH_MSG_TYPE_FLUSH_QUALITY)
             {
-                if (g_canvas)
+                // 从 canvas FIFO 中 pop 出一个克隆画布用于推送；若没有则立即回退到使用全局 g_canvas
+                M5Canvas *canvas_to_push = nullptr;
+                if (s_canvasQueue)
+                {
+                    // 正常流程为：先入队 canvas，再 enqueue 消息，因此这里不需要等待。
+                    (void)xQueueReceive(s_canvasQueue, &canvas_to_push, 0);
+                }
+
+                if (canvas_to_push == nullptr && g_canvas == nullptr)
+                {
+                    // 没有任何 canvas 可用，跳过本次
+                    continue;
+                }
+
+                M5Canvas *use_canvas = canvas_to_push ? canvas_to_push : g_canvas;
+
+                if (use_canvas)
                 {
                     // 累加计数器
 
@@ -98,13 +116,13 @@ static void displayTaskFunction(void *pvParameters)
                     Serial.printf("[DISPLAY_PUSH_TASK] pushSprite start ts=%lu\n", t0);
 #endif
                     if (msg == DISPLAY_PUSH_MSG_TYPE_FLUSH)
-                        g_canvas->pushSprite(0, 0);
+                        use_canvas->pushSprite(0, 0);
                     else if (msg == DISPLAY_PUSH_MSG_TYPE_FLUSH_TRANS)
-                        g_canvas->pushSprite(0, 0, TFT_WHITE);
+                        use_canvas->pushSprite(0, 0, TFT_WHITE);
                     else if (msg == DISPLAY_PUSH_MSG_TYPE_FLUSH_INVERT_TRANS)
-                        g_canvas->pushSprite(0, 0, TFT_BLACK);
+                        use_canvas->pushSprite(0, 0, TFT_BLACK);
                     else
-                        g_canvas->pushSprite(0, 0);
+                        use_canvas->pushSprite(0, 0);
 
                     // 如果使用了quality模式，推送后恢复fastest模式
                     // if (useQualityMode || useTextMode)
@@ -130,6 +148,12 @@ static void displayTaskFunction(void *pvParameters)
 #if DBG_BIN_FONT_PRINT
                     Serial.printf("[DISPLAY_PUSH_TASK] pushSprite end ts=%lu elapsed=%lu ms\n", t1, t1 - t0);
 #endif
+
+                    // 如果我们使用了克隆 canvas，释放它
+                    if (canvas_to_push)
+                    {
+                        delete canvas_to_push;
+                    }
                 }
             }
             // 如果未来有更多消息类型，在这里扩展
@@ -145,6 +169,19 @@ bool initializeDisplayPushTask(size_t queue_len)
     s_displayQueue = xQueueCreate(queue_len, sizeof(uint8_t));
     if (s_displayQueue == NULL)
         return false;
+
+    // 初始化 canvas FIFO（固定为 2 槽）
+    if (s_canvasQueue == NULL)
+    {
+        s_canvasQueue = xQueueCreate(2, sizeof(M5Canvas *));
+        if (s_canvasQueue == NULL)
+        {
+#if DBG_BIN_FONT_PRINT
+            Serial.println("[DISPLAY_PUSH_TASK] 警告：无法创建 canvas FIFO");
+#endif
+            // 不致命：继续仅使用全局 canvas 推送
+        }
+    }
 
     BaseType_t res = xTaskCreatePinnedToCore(
         displayTaskFunction,
@@ -177,6 +214,18 @@ void destroyDisplayPushTask()
         vQueueDelete(s_displayQueue);
         s_displayQueue = NULL;
     }
+    if (s_canvasQueue != NULL)
+    {
+        // 清理队列中可能残留的 canvas
+        M5Canvas *c = nullptr;
+        while (xQueueReceive(s_canvasQueue, &c, 0) == pdTRUE)
+        {
+            if (c)
+                delete c;
+        }
+        vQueueDelete(s_canvasQueue);
+        s_canvasQueue = NULL;
+    }
 }
 
 bool enqueueDisplayPush(uint8_t msgType)
@@ -184,6 +233,14 @@ bool enqueueDisplayPush(uint8_t msgType)
     if (s_displayQueue == NULL)
         return false;
     BaseType_t res = xQueueSendToBack(s_displayQueue, &msgType, 0);
+    return res == pdPASS;
+}
+
+bool enqueueCanvasCloneBlocking(M5Canvas *canvas_clone)
+{
+    if (s_canvasQueue == NULL || canvas_clone == nullptr)
+        return false;
+    BaseType_t res = xQueueSendToBack(s_canvasQueue, &canvas_clone, portMAX_DELAY);
     return res == pdPASS;
 }
 
