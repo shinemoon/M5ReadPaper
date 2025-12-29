@@ -173,7 +173,7 @@ static bool push_random_sd_image_if_available(const char *dirPath, int x, int y)
 // 绘制书名与页码的腰封（Name banner）
 static void draw_name_banner(M5Canvas *canvas, const char *name_with_page, int32_t basey, bool invert = false, int curp = 0, int totalp = 0)
 {
-    canvas->fillRect(0, basey + 2, 540, 56, invert ? TFT_BLACK : TFT_DARKGREY);
+    canvas->fillRect(0, basey + 2, 540, 56, invert ? TFT_BLACK : TFT_LIGHTGREY);
     canvas->fillRect(0, basey + 5, 540, 50, invert ? TFT_BLACK : TFT_WHITE);
 
     // Protect against divide-by-zero and clamp progress width to [0,540]

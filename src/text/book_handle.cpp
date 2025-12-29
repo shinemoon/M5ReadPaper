@@ -2984,10 +2984,10 @@ void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool
                 g_canvas->fillArc(cx, cy, r / 2, r + 4, 270, 360, TFT_BLACK);
                 g_canvas->fillArc(cx, cy, r / 2 + 2, r + 2, 270, 360, TFT_WHITE);
                 g_canvas->fillArc(cx, cy, r / 2 + 4, r, 270 + 90 * (prog / 100), 360, TFT_BLACK);
-                g_canvas->fillArc(cx, cy, 0, r / 2 - 2, 270 + 90 * (prog / 100), 360, TFT_DARKGREY);
+                g_canvas->fillArc(cx, cy, 0, r / 2 - 2, 270 + 90 * (prog / 100), 360, TFT_LIGHTGREY);
 
                 /* 左边条方案*/
-                // g_canvas->fillRect(0,0,12, 960,TFT_DARKGRAY);
+                // g_canvas->fillRect(0,0,12, 960,TFT_LIGHTGRAY);
                 // g_canvas->fillRect(1,0,10,960*(100-prog)/100,TFT_WHITE);
 
                 /*顶栏*/
@@ -3005,7 +3005,7 @@ void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool
         // 调试色带
         /*
         g_canvas -> fillRect(0,0, 20, 20, TFT_BLACK);
-        g_canvas -> fillRect(0,20, 20, 20, TFT_DARKGREY);
+        g_canvas -> fillRect(0,20, 20, 20, TFT_LIGHTGREY);
         g_canvas -> fillRect(0,40, 20, 20, GREY_MAP_COLOR);
         g_canvas -> fillRect(0,60, 20, 20, TFT_LIGHTGREY);
         */

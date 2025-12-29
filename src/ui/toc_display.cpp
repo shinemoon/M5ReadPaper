@@ -808,11 +808,11 @@ void show_toc_ui(M5Canvas *canvas)
     // Switcher (tab indicator)
     canvas->drawLine(225, 0, 235, 40, TFT_BLACK);
     canvas->drawLine(230, 0, 240, 40, TFT_BLACK);
-    canvas->floodFill(235, 10, TFT_LIGHTGRAY);
+    canvas->floodFill(220, 10, TFT_LIGHTGRAY);
 
     // Tab labels: "目录" active (darker), "书签" lighter
     bin_font_print("目录", 24, 0, 200, 140, 8, false, canvas);
-    bin_font_print("书签", 24, 2, 200, 270, 8, false, canvas);
+    bin_font_print("书签", 24, 0, 200, 270, 8, false, canvas);
 
     // Icon (same as tag UI)
     canvas->fillRect(450 + 35, 40, 20, 35, TFT_LIGHTGRAY);

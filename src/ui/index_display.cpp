@@ -100,12 +100,12 @@ void show_tag_ui(M5Canvas *canvas)
     // Switcher
     canvas->drawLine(225, 0, 235, 40, TFT_BLACK);
     canvas->drawLine(230, 0, 240, 40, TFT_BLACK);
-    canvas->floodFill(220, 10, TFT_LIGHTGRAY);
+    canvas->floodFill(240, 10, TFT_LIGHTGRAY);
 
     bin_font_print("书签", 24, 0, 200, 270, 8, false, canvas);
     if (g_current_book->isIndexed())
     {
-        bin_font_print("目录", 24, 2, 200, 140, 8, false, canvas);
+        bin_font_print("目录", 24, 0, 200, 140, 8, false, canvas);
     }
 
     // Icon

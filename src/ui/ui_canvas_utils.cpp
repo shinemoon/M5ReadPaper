@@ -499,7 +499,7 @@ void drawMiddleUI(M5Canvas *canvas, int16_t x, int16_t y)
     // 画弧形分割线，原点(0,480)，半径270，角度60-120
     // 左区淡灰
     //    canvas->fillArc(0, 480, 300, 602, 320, 400, !g_config.dark?TFT_WHITE:TFT_BLACK);
-    //   canvas->fillArc(0, 480, 301, 306, 320, 400, !g_config.dark?TFT_DARKGRAY:TFT_LIGHTGRAY);
+    //   canvas->fillArc(0, 480, 301, 306, 320, 400, !g_config.dark?TFT_LIGHTGRAY:TFT_LIGHTGRAY);
 
     /*
     canvas->fillCircle(280, 370, 32, TFT_WHITE);

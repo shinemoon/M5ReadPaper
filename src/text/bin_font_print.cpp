@@ -3198,7 +3198,7 @@ void bin_font_print(const std::string &text, uint8_t font_size, uint8_t color, i
                 {
                     // 质量
                     // color 有效
-                    M5.Display.setColorDepth(TEXT_COLORDEPTH_HIGH); // 4bit
+                    M5.Display.setColorDepth(TEXT_COLORDEPTH_HIGH); // 16
                     // 透明背景或缩放路径：保留原先逻辑
                     // 计算缩放后的位置和大小
                     int16_t scaled_width = (int16_t)(glyph->bitmapW * scale_factor);

@@ -26,13 +26,13 @@ void draw_reading_quick_menu(M5Canvas *canvas)
     canvas->fillRect(52+g_config.autospeed*100, 894, 100, 50, TFT_LIGHTGRAY);
 
     bin_font_print("I", 30, 0,100,52, 905,true,canvas,TEXT_ALIGN_CENTER,100);
-    canvas->fillRect(152, 894, 2, 50, TFT_DARKGRAY);
+    canvas->fillRect(152, 894, 2, 50, TFT_LIGHTGRAY);
     bin_font_print("II", 30, 0,100,152, 905,true,canvas,TEXT_ALIGN_CENTER,100);
-    canvas->fillRect(252, 894, 2, 50, TFT_DARKGRAY);
+    canvas->fillRect(252, 894, 2, 50, TFT_LIGHTGRAY);
     bin_font_print("III", 30, 0,100,252, 905,true,canvas,TEXT_ALIGN_CENTER,100);
-    canvas->fillRect(352, 894, 2, 50, TFT_DARKGRAY);
+    canvas->fillRect(352, 894, 2, 50, TFT_LIGHTGRAY);
     bin_font_print("IV", 30, 0,100,352, 905,true,canvas,TEXT_ALIGN_CENTER,100);
-    canvas->fillRect(452, 894, 2, 50, TFT_DARKGRAY);
+    canvas->fillRect(452, 894, 2, 50, TFT_LIGHTGRAY);
 
 
 
