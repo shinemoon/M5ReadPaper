@@ -107,6 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const row2 = document.createElement('div'); row2.className = 'row small-button-row'; row2.style.marginTop = '8px';
       const txtCol = document.createElement('div'); txtCol.className = 'col-4 small-button';
       const idxCol = document.createElement('div'); idxCol.className = 'col-4 small-button';
+      const imgCol = document.createElement('div'); imgCol.className = 'col-4 small-button';
       for (const f of g.outputs) {
         const url = URL.createObjectURL(f.blob);
         const a = document.createElement('a'); a.href = url; a.download = f.name; a.className="success";  a.style.marginRight = '8px';
@@ -116,6 +117,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (f.type === 'idx') {
           a.textContent = 'idx下载';
           idxCol.appendChild(a);
+        } else if (f.type === 'image' || (f.name && /cover|封面/i.test(f.name))) {
+          a.textContent = '封面下载';
+          imgCol.appendChild(a);
         } else {
           // fallback: show generic download label
           a.textContent = f.name + ' (' + fmtSize(f.size) + ')';
@@ -125,6 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       row2.appendChild(txtCol);
       row2.appendChild(idxCol);
+      row2.appendChild(imgCol);
       box.appendChild(row2);
       downloadArea.appendChild(box);
     }
@@ -1128,6 +1133,44 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    // 尝试提取封面图片（EPUB3: manifest item properties='cover-image'；EPUB2: metadata meta[name='cover'] 指向 id）
+    let coverInfo = null;
+    try {
+      let coverId = null;
+      try {
+        const metaCover = pkgDoc.querySelector('metadata > meta[name="cover"]');
+        if (metaCover) coverId = metaCover.getAttribute('content');
+      } catch (e) { }
+      // EPUB3 cover-image property
+      if (!coverId) {
+        for (const id in manifest) {
+          try { if (manifest[id].props && manifest[id].props.split && manifest[id].props.split(/\s+/).includes('cover-image')) { coverId = id; break; } } catch (e) { }
+        }
+      }
+      // fallback: manifest item with href or id contains 'cover' and is image
+      if (!coverId) {
+        for (const id in manifest) {
+          const m = manifest[id];
+          if (!m) continue;
+          const media = (m.media || '').toLowerCase();
+          if (media.startsWith('image/') && /cover|封面/i.test(m.href || id)) { coverId = id; break; }
+        }
+      }
+      if (coverId && manifest[coverId]) {
+        const chref = canonicalPath(baseOpf, manifest[coverId].href || '', zip);
+        const f = zip.file(chref);
+        if (f) {
+          try {
+            const arr = await f.async('uint8array');
+            const mediaType = manifest[coverId].media || (chref.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg');
+            const blob = new Blob([arr], { type: mediaType });
+            const origName = (chref.split('/').pop() || 'cover');
+            coverInfo = { name: origName, blob: blob, size: blob.size, media: mediaType };
+          } catch (e) { /* ignore */ }
+        }
+      }
+    } catch (e) { /* ignore */ }
+
     // 构建返回的meta信息，包含后处理统计
     const meta = {
       removalBytes,
@@ -1141,7 +1184,7 @@ document.addEventListener('DOMContentLoaded', () => {
       meta.postProcessStats = postProcessStats;
     }
 
-    return { text: finalText, idxEntries: idx, meta };
+    return { text: finalText, idxEntries: idx, meta, cover: coverInfo };
   }
 
   async function processQueue() {
@@ -1179,6 +1222,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const outputs = [];
         const txtBlob = new Blob([res.text], { type: 'text/plain;charset=utf-8' });
         outputs.push({ name: outName, blob: txtBlob, size: txtBlob.size, type: 'text' });
+        // 如果提取到了封面图片，则加入输出列表（文件名以 base 前缀）
+        if (res && res.cover && res.cover.blob) {
+          try {
+            const orig = res.cover.name || 'cover';
+            const dotIdx = orig.lastIndexOf('.');
+            const ext = dotIdx >= 0 ? orig.slice(dotIdx) : (res.cover.media && res.cover.media.indexOf('png')>=0?'.png':'.jpg');
+            const coverName = base + '_cover' + ext;
+            outputs.push({ name: coverName, blob: res.cover.blob, size: res.cover.blob.size, type: 'image' });
+          } catch (e) { /* ignore cover failures */ }
+        }
         if (optExtractToc && optExtractToc.checked && res.idxEntries && res.idxEntries.length) {
           const idxLines = res.idxEntries.map((e) => `#${e.index}#, #${e.title.replace(/[#\r\n]/g, '').trim()}#, #${e.bytePos}#, #${e.percent.toFixed(2)}#,`).join('\n');
           const idxBlob = new Blob([idxLines], { type: 'text/plain;charset=utf-8' });
