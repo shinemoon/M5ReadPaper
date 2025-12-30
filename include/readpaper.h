@@ -11,12 +11,12 @@
 // 显示设置
 
 #define QUALITY_REFRESH epd_mode_t::epd_quality
-#define MIDDLE_REFRESH epd_mode_t::epd_text
+#define MIDDLE_REFRESH epd_mode_t::epd_fast
 //#define NORMAL_REFRESH epd_mode_t::epd_quality //调试需要
 #define NORMAL_REFRESH epd_mode_t::epd_text
 #define LOW_REFRESH epd_mode_t::epd_fastest
 
-#define FIRST_REFRESH_TH 10
+#define FIRST_REFRESH_TH 8
 #define SECOND_REFRESH_TH 40
 
 

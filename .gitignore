@@ -12,3 +12,5 @@ tools/venv/*
 *.bak
 tools/__pycache__/*
 webapp/extension/*.zip
+*.swp
+*.*.swp
