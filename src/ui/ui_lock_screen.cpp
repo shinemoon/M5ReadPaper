@@ -143,6 +143,22 @@ static bool push_random_sd_image_if_available(const char *dirPath, int x, int y)
                 return true;
             }
         }
+
+        // Fuzzy match: if no exact same-name image found, try to find a candidate
+        // whose basename is a substring of the book basename (case-insensitive).
+        // This supports series like "<书名> 01.txt", "<书名> 02.txt" sharing one cover image.
+        String book_base_lower = book_base;
+        book_base_lower.toLowerCase();
+        for (const String &p : candidates)
+        {
+            String img_base = extract_basename_no_ext(p);
+            img_base.toLowerCase();
+            if (img_base.length() > 0 && book_base_lower.indexOf(img_base) >= 0)
+            {
+                ui_push_image_to_canvas(p.c_str(), x, y, nullptr, true);
+                return true;
+            }
+        }
     }
 
     if (g_config.defaultlock)
