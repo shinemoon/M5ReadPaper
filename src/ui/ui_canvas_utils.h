@@ -15,6 +15,10 @@ std::string get_cached_book_name(int page, int index);
 std::string get_selected_book_fullpath(int page, int index);
 // Toggle source for main menu: when true, show recent history from /history.list
 extern bool show_recent;
+// Shorten book name for display: if name has >=2 trailing ASCII digits and
+// length >= cutlength+4, move the last two digits to after the cutlength-th
+// character and append an ellipsis marker. UTF-8 safe.
+std::string shorten_book_name(const std::string &orig, size_t cutlength = 6);
 void drawTopUI(M5Canvas *canvas, int16_t x=0, int16_t  y=0);
 void drawBottomUI(M5Canvas *canvas, int16_t x=0, int16_t  y=0);
 void drawMiddleUI(M5Canvas *canvas, int16_t x=0, int16_t y=0);

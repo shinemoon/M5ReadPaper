@@ -14,6 +14,8 @@
 #include "text/font_buffer.h"
 #include <vector>
 #include <string>
+#include <cctype>
+#include <algorithm>
 #include "tasks/device_interrupt_task.h"
 
 // RAII wrapper for File to ensure proper close
@@ -51,6 +53,86 @@ static std::vector<std::string> cached_book_files;
 static bool file_list_cached = false;
 // 当为 true 时，主菜单文件列表来源于 SD 上的 /history.list
 bool show_recent = false;
+
+// Public helper: shorten book name for display.
+std::string shorten_book_name(const std::string &orig, size_t cutlength)
+{
+    const std::string &s = orig;
+    // collect UTF-8 codepoint start indices
+    std::vector<size_t> idx;
+    idx.reserve(s.size());
+    for (size_t i = 0; i < s.size();) {
+        idx.push_back(i);
+        unsigned char c = (unsigned char)s[i];
+        size_t adv = 1;
+        if ((c & 0x80) == 0) adv = 1;
+        else if ((c & 0xE0) == 0xC0) adv = 2;
+        else if ((c & 0xF0) == 0xE0) adv = 3;
+        else if ((c & 0xF8) == 0xF0) adv = 4;
+        else adv = 1;
+        i += adv;
+    }
+    size_t cp_count = idx.size();
+    if (cp_count < cutlength + 4) return orig; // too short to bother
+
+    // find last two ASCII digits by codepoint index
+    std::vector<int> digit_pos; // positions in idx
+    for (int i = (int)idx.size() - 1; i >= 0 && digit_pos.size() < 2; --i) {
+        size_t b = idx[i];
+        if ((unsigned char)s[b] < 0x80 && std::isdigit((unsigned char)s[b])) {
+            digit_pos.push_back(i);
+        }
+    }
+    if (digit_pos.size() < 2) return orig;
+
+    // build ab in original left-to-right order (earlier, later)
+    std::string ab;
+    ab.push_back(s[idx[digit_pos[1]]]);
+    ab.push_back(s[idx[digit_pos[0]]]);
+
+    // prepare byte ranges to remove (may be single-byte for ASCII digits)
+    std::vector<std::pair<size_t,size_t>> ranges;
+    for (int p : digit_pos) {
+        size_t b = idx[p];
+        size_t e = (p + 1 < (int)idx.size()) ? idx[p+1] : s.size();
+        ranges.emplace_back(b, e);
+    }
+    // sort ascending
+    std::sort(ranges.begin(), ranges.end());
+
+    // build a new string without those two codepoints
+    std::string no_digits;
+    size_t cur = 0;
+    for (auto &r : ranges) {
+        if (cur < r.first) no_digits.append(s.substr(cur, r.first - cur));
+        cur = r.second;
+    }
+    if (cur < s.size()) no_digits.append(s.substr(cur));
+
+    // collect codepoint starts for new string
+    std::vector<size_t> idx2;
+    idx2.reserve(no_digits.size());
+    for (size_t i = 0; i < no_digits.size();) {
+        idx2.push_back(i);
+        unsigned char c = (unsigned char)no_digits[i];
+        size_t adv = 1;
+        if ((c & 0x80) == 0) adv = 1;
+        else if ((c & 0xE0) == 0xC0) adv = 2;
+        else if ((c & 0xF0) == 0xE0) adv = 3;
+        else if ((c & 0xF8) == 0xF0) adv = 4;
+        else adv = 1;
+        i += adv;
+    }
+    if (idx2.empty()) return orig;
+
+    size_t take = cutlength;
+    if (take > idx2.size()) take = idx2.size();
+    size_t prefix_byte_len = (take < idx2.size()) ? idx2[take] : no_digits.size();
+    std::string prefix = no_digits.substr(0, prefix_byte_len);
+
+    std::string out = prefix + ".." + ab;
+    return out;
+}
 
 // 外部可能定义全局 canvas，show_reading_menu 接收 canvas 指针以保证可重入性
 // 打算用整张图片来取代界面
@@ -99,6 +181,8 @@ bool show_reading_menu(M5Canvas *canvas, bool refresh)
     size_t dot = name.find_last_of('.');
     if (dot != std::string::npos)
         name = name.substr(0, dot);
+    // 对书名做特殊短化以便区分同系列多卷（use public helper）
+    name = shorten_book_name(name, 12);
     // 拼接页码信息
     size_t cur_page = 1, total_page = 1;
     if (g_current_book)
@@ -268,8 +352,7 @@ void draw_label(M5Canvas *canvas, int16_t cx, int16_t cy, const char *text, bool
 
     // in label we don't need inverted.
     inverted = false;
-    const int16_t w = 164;
-    const int16_t h = 54;
+    (void)cx; (void)cy; (void)inverted; (void)second;
 
     // 文字颜色：反色时用白（15），否则用黑（0）
     int text_color = inverted ? 15 : 0;
@@ -952,8 +1035,9 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
 #endif
         }
 
-        // 显示文件名（去掉.txt后的名称）
-        bin_font_print(book_files[file_index].c_str(), 28, 0, 300, 15, text_y, true, g_canvas, TEXT_ALIGN_LEFT, 300);
+        // 显示文件名（去掉.txt后的名称），短名处理以便区分同系列卷次
+        std::string display_name = shorten_book_name(book_files[file_index], 8);
+        bin_font_print(display_name.c_str(), 28, 0, 320, 15, text_y, true, g_canvas, TEXT_ALIGN_LEFT, 320);
 
 #if DBG_UI_CANVAS_UTILS
         Serial.printf("[MAIN_MENU] 显示文件 %d (索引%d): %s at y=%d\n", i, file_index, book_files[file_index].c_str(), text_y);
