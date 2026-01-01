@@ -410,7 +410,7 @@ void drawTopUI(M5Canvas *canvas, int16_t x, int16_t y)
         const int16_t switch_y = 244;
 
         // 绘制竖排显示开关
-        drawSwitch(canvas, switch_x, switch_y - 5, g_current_book->getVerticalText(), "竖排显示", 26);
+        drawSwitch(canvas, switch_x, switch_y - 5, g_current_book->getVerticalText(), "竖排显示", 28);
     }
 
     // 右上方框
@@ -520,8 +520,8 @@ void drawBottomUI(M5Canvas *canvas, int16_t x, int16_t y)
     // 1. 顶部分隔线
     canvas->fillRect(x, y, 540, 2, TFT_BLACK);
     // Move the space
-    drawSwitch(canvas, x + 40, y + 40, g_config.dark, "深色模式", 26);
-    drawSwitch(canvas, x + 270, y + 40, g_config.fastrefresh, "快刷模式", 26);
+    drawSwitch(canvas, x + 40, y + 40, g_config.dark, "深色模式", 28);
+    drawSwitch(canvas, x + 270, y + 40, g_config.fastrefresh, "快刷模式", 28);
 
     // 5. 书签目录相关
     /*
@@ -794,9 +794,9 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
     if (g_config.zh_conv_mode == 2)
         zh_on = true;
     // draw the zh switch slightly to the left of the recent/files switch
-    drawSwitch(g_canvas, 373, 230, zh_on, zh_on ? "繁体" : "简体", 22, invertColor ? TFT_WHITE : TFT_BLACK);
+    drawSwitch(g_canvas, 373, 230, zh_on, zh_on ? "繁体" : "简体", 24, invertColor ? TFT_WHITE : TFT_BLACK);
 
-    drawSwitch(g_canvas, 373, 300, show_recent, show_recent ? "最近打开" : "按文件名", 22, invertColor ? TFT_WHITE : TFT_BLACK);
+    drawSwitch(g_canvas, 373, 300, show_recent, show_recent ? "最近" : "书名", 24, invertColor ? TFT_WHITE : TFT_BLACK);
 
     // SD status
 
