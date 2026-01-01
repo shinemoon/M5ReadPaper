@@ -92,7 +92,12 @@ export async function buildCharset({ includeGBK = true, includeTraditional = tru
   // 转为排序数组
   const arr = Array.from(set);
   arr.sort((a, b) => a - b);
-  return new Uint32Array(arr);
+  
+  // 过滤掉BMP之外的字符 (U+10000及以上)
+  // 因为.bin文件使用uint16存储码点，补充平面字符会被截断导致冲突
+  const bmpOnly = arr.filter(cp => cp <= 0xFFFF);
+  
+  return new Uint32Array(bmpOnly);
 }
 
 export default buildCharset;

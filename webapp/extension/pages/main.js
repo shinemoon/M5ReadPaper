@@ -1315,7 +1315,6 @@ document.addEventListener('DOMContentLoaded', () => {
         w.onmessage = (ev) => {
           const data = ev.data;
           if (data.progress) {
-            appendLog(`Worker 进度: ${data.progress}`);
             return;
           }
           if (data.error) {
@@ -1440,8 +1439,14 @@ document.addEventListener('DOMContentLoaded', () => {
           if (demo_added > 0) appendLog(`  Demo 文本添加字符: ${demo_added} 个`);
           const unique = Array.from(new Set(chars));
           unique.sort((a, b) => a.codePointAt(0) - b.codePointAt(0));
-          appendLog(`✅ 运行时生成完成，字符集大小: ${unique.length}`);
-          return unique;
+          // 过滤BMP之外的字符
+          const beforeFilter = unique.length;
+          const bmpOnly = unique.filter(ch => ch.codePointAt(0) <= 0xFFFF);
+          if (bmpOnly.length < beforeFilter) {
+            appendLog(`⚠️ 过滤掉 ${beforeFilter - bmpOnly.length} 个补充平面字符（U+10000以上）`);
+          }
+          appendLog(`✅ 运行时生成完成，字符集大小: ${bmpOnly.length}`);
+          return bmpOnly;
         }
       }
     } catch (e) {
@@ -1462,8 +1467,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // dedupe & sort
         const unique = Array.from(new Set(pre));
         unique.sort((a, b) => a.codePointAt(0) - b.codePointAt(0));
-        appendLog(`✅ 构建完成，字符集大小: ${unique.length}`);
-        return unique;
+        // 过滤BMP之外的字符
+        const beforeFilter = unique.length;
+        const bmpOnly = unique.filter(ch => ch.codePointAt(0) <= 0xFFFF);
+        if (bmpOnly.length < beforeFilter) {
+          appendLog(`⚠️ 过滤掉 ${beforeFilter - bmpOnly.length} 个补充平面字符（U+10000以上）`);
+        }
+        appendLog(`✅ 构建完成，字符集大小: ${bmpOnly.length}`);
+        return bmpOnly;
       }
     } catch (e) {
       // ignore and fall through to fallback
@@ -1504,8 +1515,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const unique = Array.from(new Set(chars));
     unique.sort((a, b) => a.codePointAt(0) - b.codePointAt(0));
-    appendLog(`✅ 本地构建完成，字符集大小: ${unique.length}`);
-    return unique;
+    // 过滤BMP之外的字符
+    const beforeFilter = unique.length;
+    const bmpOnly = unique.filter(ch => ch.codePointAt(0) <= 0xFFFF);
+    if (bmpOnly.length < beforeFilter) {
+      appendLog(`⚠️ 过滤掉 ${beforeFilter - bmpOnly.length} 个补充平面字符（U+10000以上）`);
+    }
+    appendLog(`✅ 本地构建完成，字符集大小: ${bmpOnly.length}`);
+    return bmpOnly;
   }
 
   // 解析自定义 Unicode 范围字符串（例如: 0x4E00-0x9FFF, 0x25A1）
@@ -1647,7 +1664,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = ev.data;
         if (data.progress) {
           progressBar.value = data.progress;
-          appendLog(`Worker 进度: ${data.progress}`);
           return;
         }
         if (data.error) {
@@ -2180,6 +2196,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // dedupe & sort
         charset = Array.from(new Set(charset));
         charset.sort((a, b) => a.codePointAt(0) - b.codePointAt(0));
+        
+        // 过滤掉BMP之外的字符以避免截断冲突
+        const beforeBmpFilter = charset.length;
+        charset = charset.filter(ch => ch.codePointAt(0) <= 0xFFFF);
+        if (charset.length < beforeBmpFilter) {
+          const filtered = beforeBmpFilter - charset.length;
+          appendLog(`⚠️ 过滤掉 ${filtered} 个补充平面字符（U+10000以上），避免与BMP字符冲突`);
+        }
       }
       appendLog(`总字符数: ${charset.length}`);
 
