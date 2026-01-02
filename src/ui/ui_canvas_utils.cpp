@@ -520,8 +520,8 @@ void drawBottomUI(M5Canvas *canvas, int16_t x, int16_t y)
     // 1. 顶部分隔线
     canvas->fillRect(x, y, 540, 2, TFT_BLACK);
     // Move the space
-    drawSwitch(canvas, x + 40, y + 40, g_config.dark, "深色模式", 28);
-    drawSwitch(canvas, x + 270, y + 40, g_config.fastrefresh, "快刷模式", 28);
+    drawSwitch(canvas, x + 40, y + 38, g_config.dark, "深色模式", 30);
+    drawSwitch(canvas, x + 260, y + 38, g_config.fastrefresh, "快刷模式", 30);
 
     // 5. 书签目录相关
     /*

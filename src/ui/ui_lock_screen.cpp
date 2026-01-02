@@ -210,7 +210,7 @@ static void draw_name_banner(M5Canvas *canvas, const char *name_with_page, int32
     canvas->drawLine(0, basey + 10, 540, basey + 10, invert ? TFT_WHITE : TFT_BLACK);
     canvas->drawLine(0, basey + 50, 540, basey + 50, invert ? TFT_WHITE : TFT_BLACK);
 
-    bin_font_print(name_with_page, 24, invert ? TFT_WHITE : TFT_BLACK, 480, 30, basey + 20 - 1, false, canvas, TEXT_ALIGN_CENTER, 440, g_current_book ? g_current_book->getKeepOrg() : false); // 0.7f * 30 = 21
+    bin_font_print(name_with_page, 24, invert ? TFT_WHITE : TFT_BLACK, 420, 50, basey + 20 - 1, false, canvas, TEXT_ALIGN_CENTER, 420, g_current_book ? g_current_book->getKeepOrg() : false); // 0.7f * 30 = 21
     drawScrew(g_canvas, 20, basey + 30);
     drawScrew(g_canvas, 520, basey + 30);
 }
