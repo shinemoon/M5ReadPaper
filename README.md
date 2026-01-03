@@ -17,6 +17,8 @@ Y.A.P.T.R. — Yet Another PaperS3 Text Reader
 - 左右翻页
 - 点击中心区域显示菜单
 
+**更详细的介绍和说明，参见[WIKI](https://github.com/shinemoon/M5ReadPaper/wiki)的细节**
+
 后续版本陆陆续续添加了诸如：
 
 - 自定义字体
