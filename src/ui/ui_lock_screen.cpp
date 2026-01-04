@@ -31,6 +31,12 @@ namespace
 
     LockImageCache g_lock_image_cache;
 
+    // Series queue cache: when multiple images belong to a series (same stripped base name),
+    // we shuffle them once and cycle through to avoid repeating the same pick.
+    static String g_last_series_key;
+    static std::vector<String> g_series_queue;
+    static int g_series_index = 0;
+
     inline void reset_lock_image_cache()
     {
         g_lock_image_cache.candidates.clear();
@@ -109,6 +115,31 @@ namespace
         return (ls >= 0) ? fn.substring(ls + 1) : fn;
     }
 }
+    // Remove trailing digits and trailing separators (space/_/-) from a filename base
+    inline String strip_trailing_digits_and_separators(const String &s)
+    {
+        String out = s;
+        // remove trailing digits
+        while (out.length() > 0)
+        {
+            char c = out.charAt(out.length() - 1);
+            if (c >= '0' && c <= '9')
+                out.remove(out.length() - 1);
+            else
+                break;
+        }
+        // remove trailing separators
+        while (out.length() > 0)
+        {
+            char c = out.charAt(out.length() - 1);
+            if (c == ' ' || c == '_' || c == '-')
+                out.remove(out.length() - 1);
+            else
+                break;
+        }
+        return out;
+    }
+
 
 static bool push_random_sd_image_if_available(const char *dirPath, int x, int y)
 {
@@ -135,27 +166,71 @@ static bool push_random_sd_image_if_available(const char *dirPath, int x, int y)
 
     if (book_base.length() > 0)
     {
-        for (const String &p : candidates)
-        {
-            if (extract_basename_no_ext(p) == book_base)
-            {
-                ui_push_image_to_canvas(p.c_str(), x, y, nullptr, true);
-                return true;
-            }
-        }
-
-        // Fuzzy match: if no exact same-name image found, try to find a candidate
-        // whose basename is a substring of the book basename (case-insensitive).
-        // This supports series like "<书名> 01.txt", "<书名> 02.txt" sharing one cover image.
+        // Normalize book base and strip trailing digits/separators
         String book_base_lower = book_base;
         book_base_lower.toLowerCase();
+        String book_base_stripped = strip_trailing_digits_and_separators(book_base_lower);
+
+        std::vector<String> matched;
+
         for (const String &p : candidates)
         {
             String img_base = extract_basename_no_ext(p);
-            img_base.toLowerCase();
-            if (img_base.length() > 0 && book_base_lower.indexOf(img_base) >= 0)
+            String img_base_lower = img_base;
+            img_base_lower.toLowerCase();
+            String img_base_stripped = strip_trailing_digits_and_separators(img_base_lower);
+
+            // Exact stripped-name match
+            if (img_base_stripped.length() > 0 && img_base_stripped == book_base_stripped)
             {
-                ui_push_image_to_canvas(p.c_str(), x, y, nullptr, true);
+                matched.push_back(p);
+                continue;
+            }
+
+            // Fuzzy: stripped image base contained in book base or vice versa
+            if (img_base_stripped.length() > 0 && (book_base_lower.indexOf(img_base_stripped) >= 0 || img_base_lower.indexOf(book_base_stripped) >= 0))
+            {
+                matched.push_back(p);
+                continue;
+            }
+        }
+
+        if (!matched.empty())
+        {
+            // Build a stable series key from the stripped book base
+            String series_key = book_base_stripped;
+
+            // If the same series as last time and queue exists, rotate
+            if (g_series_queue.size() > 0 && series_key == g_last_series_key)
+            {
+                if (g_series_index >= (int)g_series_queue.size())
+                    g_series_index = 0;
+                String pick = g_series_queue[g_series_index++];
+                ui_push_image_to_canvas(pick.c_str(), x, y, nullptr, true);
+                return true;
+            }
+
+            // Otherwise build a new shuffled queue from matched
+            g_series_queue.clear();
+            for (const String &p : matched)
+                g_series_queue.push_back(p);
+
+            // Shuffle queue
+            randomSeed(millis());
+            for (int i = (int)g_series_queue.size() - 1; i > 0; --i)
+            {
+                int j = random(i + 1);
+                if (j != i)
+                    std::swap(g_series_queue[i], g_series_queue[j]);
+            }
+
+            g_last_series_key = series_key;
+            g_series_index = 0;
+
+            if (g_series_queue.size() > 0)
+            {
+                String pick = g_series_queue[g_series_index++];
+                ui_push_image_to_canvas(pick.c_str(), x, y, nullptr, true);
                 return true;
             }
         }

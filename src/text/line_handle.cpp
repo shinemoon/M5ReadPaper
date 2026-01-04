@@ -61,27 +61,29 @@ static bool is_chinese_punctuation(uint32_t unicode)
 static bool is_forbidden_line_start_punctuation(uint32_t unicode)
 {
     return (
-        unicode == 0x002C ||  // ,
-        unicode == 0x002E ||  // .
-        unicode == 0x003B ||  // ;
-        unicode == 0x0021 ||  // !
-        unicode == 0x003F ||  // ?
-        unicode == 0x003E ||  // >
-        unicode == 0x005D ||  // ]
-        unicode == 0x007D ||  // }
-        unicode == 0x0029 ||  // )
-        unicode == 0xFF0C ||  // ，
-        unicode == 0x3002 ||  // 。
-        unicode == 0xFF01 ||  // ！
-        unicode == 0xFF1F ||  // ？
-        unicode == 0x300B ||  // 》
-        unicode == 0x201D ||  // "
-        unicode == 0x2019 ||  // '
-        unicode == 0x3001 ||  // 、
-        unicode == 0x003A ||  // :
-        unicode == 0xFF1A ||  // ：
-        unicode == 0x300F ||  // 』
-        unicode == 0x300D);   // 」
+        unicode == 0x002C || // ,
+        unicode == 0x002E || // .
+        unicode == 0x003B || // ;
+        unicode == 0x0021 || // !
+        unicode == 0x003F || // ?
+        unicode == 0x003E || // >
+        unicode == 0x005D || // ]
+        unicode == 0x007D || // }
+        unicode == 0x3015 || // 】
+        unicode == 0xFF09 || // )
+        unicode == 0x0029 || // )
+        unicode == 0xFF0C || // ，
+        unicode == 0x3002 || // 。
+        unicode == 0xFF01 || // ！
+        unicode == 0xFF1F || // ？
+        unicode == 0x300B || // 》
+        unicode == 0x201D || // "
+        unicode == 0x2019 || // '
+        unicode == 0x3001 || // 、
+        unicode == 0x003A || // :
+        unicode == 0xFF1A || // ：
+        unicode == 0x300F || // 』
+        unicode == 0x300D);  // 」
 }
 
 // 检测是否为更高优先级的禁止行首标点（这些标点更不应该出现在行首）
@@ -89,15 +91,17 @@ static bool is_forbidden_line_start_punctuation(uint32_t unicode)
 static bool is_high_priority_forbidden_line_start(uint32_t unicode)
 {
     return (
-        unicode == 0x003E ||  // >
-        unicode == 0x005D ||  // ]
-        unicode == 0x007D ||  // }
-        unicode == 0x0029 ||  // )
-        unicode == 0x300B ||  // 》
-        unicode == 0x201D ||  // "
-        unicode == 0x2019 ||  // '
-        unicode == 0x300F ||  // 』
-        unicode == 0x300D);   // 」
+        unicode == 0x003E || // >
+        unicode == 0x005D || // ]
+        unicode == 0x007D || // }
+        unicode == 0x0029 || // )
+        unicode == 0x300B || // 》
+        unicode == 0x201D || // "
+        unicode == 0x3015 || // 】
+        unicode == 0xFF09 || // )
+        unicode == 0x2019 || // '
+        unicode == 0x300F || // 』
+        unicode == 0x300D);  // 」
 }
 
 int16_t calculate_text_width(const std::string &text, size_t start_pos, size_t end_pos)
@@ -183,13 +187,13 @@ size_t find_break_position(const std::string &text, size_t start_pos, int16_t ma
                 // 当前字符是禁止行首标点，预读下一个字符（第二个字符）
                 const uint8_t *next_utf8 = utf8;
                 uint32_t next_unicode = utf8_decode(next_utf8, end);
-                
+
                 // 当且仅当第二个字符不是高优先级禁止行首标点时，才进行pullin
                 if (next_unicode == 0 || next_unicode == '\n' || !is_high_priority_forbidden_line_start(next_unicode))
                 {
                     // 检查强行加入该标点后是否在可接受范围内（允许稍微超出，例如不超过1.15倍）
                     int16_t total_width_with_punct = current_width + char_dimension + char_spacing;
-                    
+
                     if (total_width_with_punct <= max_width * 1.15f)
                     {
                         // 将该禁止行首标点强行包含进当前行
@@ -199,7 +203,7 @@ size_t find_break_position(const std::string &text, size_t start_pos, int16_t ma
                 }
                 // 如果第二个字符是高优先级禁止行首标点，或者超出太多，则放弃pullin，正常断行
             }
-            
+
             if (best_break > start_pos)
             {
                 size_t piece_len = best_break - start_pos;

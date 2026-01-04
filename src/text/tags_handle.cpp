@@ -277,7 +277,7 @@ std::vector<TagEntry> loadTagsForFile(const std::string &book_file_path)
     File f = SDW::SD.open(tags_fn.c_str(), "r");
     if (!f)
     {
-        Serial.printf("[Tags] loadTagsForFile: 警告 - 无法打开tags文件 %s\n", tags_fn.c_str());
+//        Serial.printf("[Tags] loadTagsForFile: 警告 - 无法打开tags文件 %s\n", tags_fn.c_str());
         return out;
     }
 
@@ -298,7 +298,7 @@ std::vector<TagEntry> loadTagsForFile(const std::string &book_file_path)
         else
         {
             // 【警告】没有A:/M:前缀的行（旧格式或格式错误）
-            Serial.printf("[Tags] loadTagsForFile: 警告 - 行没有A:/M:前缀，默认为manual: %s\n", s.c_str());
+          //  Serial.printf("[Tags] loadTagsForFile: 警告 - 行没有A:/M:前缀，默认为manual: %s\n", s.c_str());
         }
 
         // parse remaining as pos:"preview":percentage
@@ -407,8 +407,8 @@ std::vector<TagEntry> loadTagsForFile(const std::string &book_file_path)
     // 【调试日志】记录加载的tags数量
     if (!out.empty())
     {
-        Serial.printf("[Tags] loadTagsForFile: 成功加载 %zu 个tags (文件: %s, 书籍大小: %zu bytes)\n", 
-                     out.size(), tags_fn.c_str(), total);
+//        Serial.printf("[Tags] loadTagsForFile: 成功加载 %zu 个tags (文件: %s, 书籍大小: %zu bytes)\n", 
+ //                    out.size(), tags_fn.c_str(), total);
     }
     
     return out;

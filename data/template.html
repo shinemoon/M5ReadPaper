@@ -39,7 +39,7 @@
         /* Fixed top banner recommending browser extension */
         .fixed-banner {
             position: fixed;
-            top: 0;
+            bottom: 0;
             left: 0;
             right: 0;
             background: #fff8e1;
@@ -845,7 +845,7 @@
                     <span class='sync-desc'>用本机时间为PaperS3同步</span>
                 </div>
                 <div class='sync-item'>
-                    <a id='repoBtn' class='btn top-action link' href='https://github.com/shinemoon/releaseReadPaper'
+                    <a id='repoBtn' class='btn top-action link' href='https://github.com/shinemoon/M5ReadPaper'
                         target='_blank' rel='noopener noreferrer'>支持仓库</a>
                     <span class='sync-desc'>GitHub仓库(字体、壁纸相关)</span>
                 </div>
@@ -880,10 +880,6 @@
                 <div class='card-body'>
                     <form id='uploadForm' enctype='multipart/form-data'>
                         <div class='upload-area' id='uploadArea'>
-                            <div
-                                style='background: #fff3cd; border: 1px solid #ffeaa7; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 0.9rem; color: #856404;'>
-                                ⚠️ <strong>文件限制:</strong> 单个文件最大20MB，总计不超过50MB，目前单目录最多支持99文件。
-                            </div>
                             <div class='file-input-wrapper'>
                                 <input type='file' name='data' id='fileInput' multiple class='file-input'>
                                 <label for='fileInput' class='file-input-label'>
@@ -994,7 +990,7 @@
             const hints = {
                 'book': '支持unicode/GBK编码的txt',
                 'font': '请确认上传的是专用工具生成的font.bin文件(部分推荐字体可于上方仓库链接直接下载 ), V1.2.9之前生成的字体，建议重新生成更新。',
-                'image': '尽量避免使用大图片，体积太大可能会导致无法使用并回退系统锁屏，540x960尺寸为佳 （建议用上方仓库提供工具生成），锁屏优先选择文件同名图片，其次default.png，之后回退系统自带。'
+                'image': '尽量避免使用大图片，体积太大可能会导致无法使用并回退系统锁屏，540x960尺寸为佳 （建议用上方仓库提供工具生成），锁屏优先选择文件同名图片，其次可部分匹配文件名（但可以带额外数字结尾）的图片，再次default.png，之后回退系统自带。'
             };
             hintElement.textContent = hints[tabName] || '';
 
