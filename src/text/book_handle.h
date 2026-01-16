@@ -387,5 +387,6 @@ BookmarkConfig loadBookmarkForFile(const std::string &book_file_path); // 根据
 bool isFileModified(const std::string &book_file_path);                // 检查文件是否被修改过（基于文件大小）
 bool ensureBookmarksFolder();                                          // 确保SD卡上存在bookmarks文件夹
 std::string getBookmarkFileName(const std::string &book_file_path);    // 获取书签文件名
+std::string getRecordFileName(const std::string &book_file_path);      // 获取阅读记录文件名（.rec）
 // Remove index files (page/progress/complete) for a given book path. Public so UI can call it too.
 void removeIndexFilesForBookForPath(const std::string &book_file_path);

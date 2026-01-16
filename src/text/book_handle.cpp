@@ -10,6 +10,8 @@
 #include <cstdlib>
 #include <algorithm>
 #include <vector>
+#include <map>
+#include <ctime>
 #include "text_handle.h"
 #include "book_handle.h"
 #include "ui/ui_canvas_image.h"
@@ -191,6 +193,7 @@ void removeIndexFilesForBookForPath(const std::string &book_file_path)
     std::string page_file = std::string("/bookmarks/") + safe + ".page";
     std::string progress_file = std::string("/bookmarks/") + safe + ".progress";
     std::string complete_file = std::string("/bookmarks/") + safe + ".complete";
+    std::string rec_file = std::string("/bookmarks/") + safe + ".rec";
 
     // Only remove the explicit index-related artifacts. Avoid sweeping /bookmarks
     // to prevent accidental deletion of unrelated user files (e.g. .bm or .tags).
@@ -206,11 +209,13 @@ void removeIndexFilesForBookForPath(const std::string &book_file_path)
     try_remove_if_exists(page_file);
     try_remove_if_exists(progress_file);
     try_remove_if_exists(complete_file);
+    try_remove_if_exists(rec_file);
 
     // also remove tmp variants created by SafeFS (if any)
     try_remove_if_exists(SafeFS::tmpPathFor(page_file));
     try_remove_if_exists(SafeFS::tmpPathFor(progress_file));
     try_remove_if_exists(SafeFS::tmpPathFor(complete_file));
+    try_remove_if_exists(SafeFS::tmpPathFor(rec_file));
 
 #if DBG_BOOK_HANDLE
     Serial.printf("[BH] removeIndexFilesForBookForPath: 完成索引文件清理 (sanitized:%s)\n", safe.c_str());
@@ -1610,6 +1615,32 @@ std::string getBookmarkFileName(const std::string &book_file_path)
     return std::string("/bookmarks/") + safe_path + ".bm";
 }
 
+std::string getRecordFileName(const std::string &book_file_path)
+{
+    // 复用 getBookmarkFileName 的路径转换逻辑，只是后缀改为 .rec
+    std::string safe_path = book_file_path;
+
+    for (char &c : safe_path)
+    {
+        if (c == '/' || c == '\\')
+        {
+            c = '_';
+        }
+        else if (c == ':' || c == '?' || c == '*' || c == '<' || c == '>' || c == '|')
+        {
+            c = '_';
+        }
+    }
+
+    size_t dot = safe_path.find_last_of('.');
+    if (dot != std::string::npos)
+    {
+        safe_path = safe_path.substr(0, dot);
+    }
+
+    return std::string("/bookmarks/") + safe_path + ".rec";
+}
+
 bool saveBookmarkForFile(const BookHandle *book)
 {
     if (!book)
@@ -1657,6 +1688,114 @@ bool saveBookmarkForFile(const BookHandle *book)
 
         f.println("valid=true");
         return true; });
+    
+    // 同步更新 .rec 文件：记录阅读时长历史
+    if (ok)
+    {
+        std::string rec_fn = getRecordFileName(book->filePath());
+        
+        // 读取旧的 bm 获取之前的阅读时长
+        BookmarkConfig old_cfg = loadBookmarkForFile(book->filePath());
+        int16_t old_hour = old_cfg.valid ? old_cfg.readhour : 0;
+        int16_t old_min = old_cfg.valid ? old_cfg.readmin : 0;
+        
+        int16_t new_hour = book->getReadHour();
+        int16_t new_min = book->getReadMin();
+        
+        // 计算增量（分钟数）
+        int32_t old_total_mins = old_hour * 60 + old_min;
+        int32_t new_total_mins = new_hour * 60 + new_min;
+        int32_t delta_mins = new_total_mins - old_total_mins;
+        
+        // 仅当有增量时才更新 rec 文件
+        if (delta_mins > 0)
+        {
+            // 获取当前时间戳（YYYYMMDDHH 格式）
+            struct tm timeinfo;
+            time_t now = time(nullptr);
+            localtime_r(&now, &timeinfo);
+            char timestamp_hour[32];
+            char timestamp_day[32];
+            snprintf(timestamp_hour, sizeof(timestamp_hour), "%04d%02d%02d%02d",
+                     timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour);
+            snprintf(timestamp_day, sizeof(timestamp_day), "%04d%02d%02d",
+                     timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+            
+            // 读取现有的 rec 文件
+            std::map<std::string, int32_t> records; // key: timestamp, value: mins
+            SafeFS::restoreFromTmpIfNeeded(rec_fn);
+            if (SDW::SD.exists(rec_fn.c_str()))
+            {
+                File rf = SDW::SD.open(rec_fn.c_str(), "r");
+                if (rf)
+                {
+                    // 跳过第一行（总时间）
+                    if (rf.available())
+                        rf.readStringUntil('\n');
+                    
+                    // 读取后续记录
+                    while (rf.available())
+                    {
+                        String line = rf.readStringUntil('\n');
+                        line.trim();
+                        if (line.length() == 0)
+                            continue;
+                        int colon = line.indexOf(':');
+                        if (colon > 0)
+                        {
+                            String ts = line.substring(0, colon);
+                            String val = line.substring(colon + 1);
+                            // 解析 xxm 或 xxhxxm
+                            int32_t mins = 0;
+                            int h_pos = val.indexOf('h');
+                            if (h_pos > 0)
+                            {
+                                int hours = val.substring(0, h_pos).toInt();
+                                int m_pos = val.indexOf('m', h_pos);
+                                int minutes = 0;
+                                if (m_pos > h_pos + 1)
+                                    minutes = val.substring(h_pos + 1, m_pos).toInt();
+                                mins = hours * 60 + minutes;
+                            }
+                            else
+                            {
+                                int m_pos = val.indexOf('m');
+                                if (m_pos > 0)
+                                    mins = val.substring(0, m_pos).toInt();
+                            }
+                            records[ts.c_str()] = mins;
+                        }
+                    }
+                    rf.close();
+                }
+            }
+            
+            // 更新当前小时的记录
+            records[timestamp_hour] += delta_mins;
+            
+            // 写回 rec 文件
+            SafeFS::safeWrite(rec_fn, [&](File &f)
+            {
+                // 第一行：总时间
+                f.printf("%dh%dm\n", new_hour, new_min);
+                
+                // 后续行：按时间戳排序输出
+                for (const auto &entry : records)
+                {
+                    int32_t total_mins = entry.second;
+                    int32_t hours = total_mins / 60;
+                    int32_t mins = total_mins % 60;
+                    
+                    if (hours > 0)
+                        f.printf("%s:%dh%dm\n", entry.first.c_str(), hours, mins);
+                    else
+                        f.printf("%s:%dm\n", entry.first.c_str(), mins);
+                }
+                return true;
+            });
+        }
+    }
+    
     return ok;
 }
 
