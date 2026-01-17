@@ -726,6 +726,29 @@ std::string BookHandle::getCompleteFileName() const
     return complete_filename_for(file_path);
 }
 
+std::string BookHandle::getBookName() const
+{
+    // 从文件路径中提取文件名
+    size_t last_slash = file_path.find_last_of('/');
+    std::string filename;
+    if (last_slash != std::string::npos && last_slash + 1 < file_path.length())
+    {
+        filename = file_path.substr(last_slash + 1);
+    }
+    else
+    {
+        filename = file_path; // 如果没有斜杠，使用整个路径
+    }
+    
+    // 去掉扩展名
+    size_t last_dot = filename.find_last_of('.');
+    if (last_dot != std::string::npos && last_dot > 0)
+    {
+        return filename.substr(0, last_dot);
+    }
+    return filename;
+}
+
 bool BookHandle::isOpen() const { return (bool)file_handle; }
 
 void BookHandle::setPosition(size_t pos)

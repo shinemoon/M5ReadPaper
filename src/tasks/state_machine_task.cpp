@@ -169,6 +169,9 @@ void StateMachineTask::taskFunction(void *pvParameters)
             case STATE_SHUTDOWN:
                 handleShutdownState(&msg);
                 break;
+            case STATE_SHOW_TIME_REC:
+                handleShowTimeRecState(&msg);
+                break;
             default:
                 sm_dbg_printf("未知状态: %d\n", currentState_);
                 break;

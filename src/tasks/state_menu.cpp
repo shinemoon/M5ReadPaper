@@ -218,6 +218,18 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
         // In show_reading_menu that corresponds to an absolute rect: left=330, top=327, w=164, h=54
         int16_t tx = msg->data.touch.x;
         int16_t ty = msg->data.touch.y;
+        
+        // 检查是否点击了阅读时间区域 (x: 300-540, y: 140-178)
+        if (tx >= 300 && tx < 540 && ty >= 140 && ty < 178)
+        {
+#if DBG_STATE_MACHINE_TASK
+            sm_dbg_printf("MENU状态：点击阅读时间区域，进入 SHOW_TIME_REC\n");
+#endif
+            // 进入阅读时间记录显示状态
+            currentState_ = STATE_SHOW_TIME_REC;
+            return;
+        }
+        
         const int16_t tag_left = 450;
         const int16_t tag_top = 640 + 40;
         const int16_t tag_w = 90;

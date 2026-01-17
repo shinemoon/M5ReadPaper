@@ -20,7 +20,8 @@ typedef enum {
     STATE_2ND_LEVEL_MENU,
     STATE_WIRE_CONNECT,
     STATE_USB_CONNECT,
-    STATE_SHUTDOWN
+    STATE_SHUTDOWN,
+    STATE_SHOW_TIME_REC
 } SystemState_t;
 
 // 二级菜单类型枚举（用于 main 菜单触发的二级菜单场景）
@@ -97,6 +98,7 @@ private:
     static void handleWireConnectState(const SystemMessage_t* msg);
     static void handleUsbConnectState(const SystemMessage_t* msg);
     static void handleShutdownState(const SystemMessage_t* msg);
+    static void handleShowTimeRecState(const SystemMessage_t* msg);
     
     // 内部任务函数
     static void taskFunction(void* pvParameters);

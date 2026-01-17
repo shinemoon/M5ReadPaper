@@ -29,6 +29,7 @@ public:
     size_t position() const;
     size_t getFileSize() const; // 获取文件大小
     const std::string &filePath() const { return file_path; }
+    std::string getBookName() const; // 获取书名（从文件路径中提取文件名）
 
     // 翻页操作
     // nextPage: 从当前位置读取下一页并前进；返回的 result.page_end_pos 为下一次调用的起点
