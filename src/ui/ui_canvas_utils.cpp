@@ -61,29 +61,39 @@ std::string shorten_book_name(const std::string &orig, size_t cutlength)
     // collect UTF-8 codepoint start indices
     std::vector<size_t> idx;
     idx.reserve(s.size());
-    for (size_t i = 0; i < s.size();) {
+    for (size_t i = 0; i < s.size();)
+    {
         idx.push_back(i);
         unsigned char c = (unsigned char)s[i];
         size_t adv = 1;
-        if ((c & 0x80) == 0) adv = 1;
-        else if ((c & 0xE0) == 0xC0) adv = 2;
-        else if ((c & 0xF0) == 0xE0) adv = 3;
-        else if ((c & 0xF8) == 0xF0) adv = 4;
-        else adv = 1;
+        if ((c & 0x80) == 0)
+            adv = 1;
+        else if ((c & 0xE0) == 0xC0)
+            adv = 2;
+        else if ((c & 0xF0) == 0xE0)
+            adv = 3;
+        else if ((c & 0xF8) == 0xF0)
+            adv = 4;
+        else
+            adv = 1;
         i += adv;
     }
     size_t cp_count = idx.size();
-    if (cp_count < cutlength + 4) return orig; // too short to bother
+    if (cp_count < cutlength + 4)
+        return orig; // too short to bother
 
     // find last two ASCII digits by codepoint index
     std::vector<int> digit_pos; // positions in idx
-    for (int i = (int)idx.size() - 1; i >= 0 && digit_pos.size() < 2; --i) {
+    for (int i = (int)idx.size() - 1; i >= 0 && digit_pos.size() < 2; --i)
+    {
         size_t b = idx[i];
-        if ((unsigned char)s[b] < 0x80 && std::isdigit((unsigned char)s[b])) {
+        if ((unsigned char)s[b] < 0x80 && std::isdigit((unsigned char)s[b]))
+        {
             digit_pos.push_back(i);
         }
     }
-    if (digit_pos.size() < 2) return orig;
+    if (digit_pos.size() < 2)
+        return orig;
 
     // build ab in original left-to-right order (earlier, later)
     std::string ab;
@@ -91,10 +101,11 @@ std::string shorten_book_name(const std::string &orig, size_t cutlength)
     ab.push_back(s[idx[digit_pos[0]]]);
 
     // prepare byte ranges to remove (may be single-byte for ASCII digits)
-    std::vector<std::pair<size_t,size_t>> ranges;
-    for (int p : digit_pos) {
+    std::vector<std::pair<size_t, size_t>> ranges;
+    for (int p : digit_pos)
+    {
         size_t b = idx[p];
-        size_t e = (p + 1 < (int)idx.size()) ? idx[p+1] : s.size();
+        size_t e = (p + 1 < (int)idx.size()) ? idx[p + 1] : s.size();
         ranges.emplace_back(b, e);
     }
     // sort ascending
@@ -103,30 +114,41 @@ std::string shorten_book_name(const std::string &orig, size_t cutlength)
     // build a new string without those two codepoints
     std::string no_digits;
     size_t cur = 0;
-    for (auto &r : ranges) {
-        if (cur < r.first) no_digits.append(s.substr(cur, r.first - cur));
+    for (auto &r : ranges)
+    {
+        if (cur < r.first)
+            no_digits.append(s.substr(cur, r.first - cur));
         cur = r.second;
     }
-    if (cur < s.size()) no_digits.append(s.substr(cur));
+    if (cur < s.size())
+        no_digits.append(s.substr(cur));
 
     // collect codepoint starts for new string
     std::vector<size_t> idx2;
     idx2.reserve(no_digits.size());
-    for (size_t i = 0; i < no_digits.size();) {
+    for (size_t i = 0; i < no_digits.size();)
+    {
         idx2.push_back(i);
         unsigned char c = (unsigned char)no_digits[i];
         size_t adv = 1;
-        if ((c & 0x80) == 0) adv = 1;
-        else if ((c & 0xE0) == 0xC0) adv = 2;
-        else if ((c & 0xF0) == 0xE0) adv = 3;
-        else if ((c & 0xF8) == 0xF0) adv = 4;
-        else adv = 1;
+        if ((c & 0x80) == 0)
+            adv = 1;
+        else if ((c & 0xE0) == 0xC0)
+            adv = 2;
+        else if ((c & 0xF0) == 0xE0)
+            adv = 3;
+        else if ((c & 0xF8) == 0xF0)
+            adv = 4;
+        else
+            adv = 1;
         i += adv;
     }
-    if (idx2.empty()) return orig;
+    if (idx2.empty())
+        return orig;
 
     size_t take = cutlength;
-    if (take > idx2.size()) take = idx2.size();
+    if (take > idx2.size())
+        take = idx2.size();
     size_t prefix_byte_len = (take < idx2.size()) ? idx2[take] : no_digits.size();
     std::string prefix = no_digits.substr(0, prefix_byte_len);
 
@@ -352,7 +374,10 @@ void draw_label(M5Canvas *canvas, int16_t cx, int16_t cy, const char *text, bool
 
     // in label we don't need inverted.
     inverted = false;
-    (void)cx; (void)cy; (void)inverted; (void)second;
+    (void)cx;
+    (void)cy;
+    (void)inverted;
+    (void)second;
 
     // 文字颜色：反色时用白（15），否则用黑（0）
     int text_color = inverted ? 15 : 0;
@@ -1063,6 +1088,15 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
         // （原本在顶部绘制的分割线与按钮，通过覆盖左侧360px区域即可）
     }
 
+    drawScrew(canvas, 375, 12);
+    drawScrew(canvas, 525, 12);
+
+    drawScrew(canvas, 375, 96 * 4);
+    drawScrew(canvas, 525, 96 * 4);
+
+    drawScrew(canvas, 375, 948);
+    drawScrew(canvas, 525, 948);
+
     if (refresh) // Proactive refresh
     {
         M5.Display.powerSaveOff();
@@ -1081,16 +1115,6 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
     Serial.printf("[MAIN_MENU] === 主菜单加载完成，总耗时: %lu ms ===\n",
                   menu_end_time - menu_start_time);
 #endif
-
-    drawScrew(canvas, 375, 12);
-    drawScrew(canvas, 525, 12);
-
-    drawScrew(canvas, 375, 96 * 4);
-    drawScrew(canvas, 525, 96 * 4);
-
-    drawScrew(canvas, 375, 948);
-    drawScrew(canvas, 525, 948);
-
     return true;
 }
 
