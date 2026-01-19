@@ -657,7 +657,7 @@ function renderFullRecordList(data) {
 
                 const label = document.createElement('div');
                 label.className = 'hour-label';
-                label.textContent = minutes > 0 ? `${hour}h` : hour;
+                label.textContent = String(hour);
                 
                 // If opacity < 0.4, use black text for better readability
                 if (minutes > 0 && opacity < 0.4) {
