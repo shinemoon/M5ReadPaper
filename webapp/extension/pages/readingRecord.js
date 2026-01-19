@@ -849,7 +849,7 @@ async function generateExportImage(mode) {
                 sectionsToInclude = [0, 1, 2];
                 break;
             case 'detailed':
-                // 详细: section[0] + section[1] + section[2] + section[3] (前5个record-item)
+                // 详细: section[0] + section[1] + section[2] + section[3] (当前可见的所有record-item)
                 sectionsToInclude = [0, 1, 2, 3];
                 break;
         }
@@ -859,15 +859,8 @@ async function generateExportImage(mode) {
             if (sections[index]) {
                 const sectionClone = sections[index].cloneNode(true);
                 
-                // For detailed mode, limit record-item to 5
+                // For detailed mode, hide load more button in export
                 if (mode === 'detailed' && index === 3) {
-                    const recordItems = sectionClone.querySelectorAll('.record-item');
-                    recordItems.forEach((item, i) => {
-                        if (i >= 5) {
-                            item.remove();
-                        }
-                    });
-                    // Hide load more button
                     const loadMoreWrap = sectionClone.querySelector('.load-more-wrap');
                     if (loadMoreWrap) loadMoreWrap.remove();
                 }
