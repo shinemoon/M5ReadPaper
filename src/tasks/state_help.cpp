@@ -8,6 +8,8 @@
 #include "ui/ui_canvas_image.h"
 #include "test/per_file_debug.h"
 #include <cstring>
+// for screenshot
+#include "ui/screenshot.h"
 
 #include "current_book.h"
 extern M5Canvas *g_canvas;
@@ -75,6 +77,22 @@ void StateMachineTask::handleHelpState(const SystemMessage_t *msg)
 
     case MSG_USER_ACTIVITY:
         lastActivityTime_ = millis();
+        break;
+
+    case MSG_DOUBLE_TOUCH_PRESSED:
+        // 检查是否在截图区域
+        if (isInScreenshotArea(msg->data.touch.x, msg->data.touch.y))
+        {
+#if DBG_STATE_MACHINE_TASK
+            sm_dbg_printf("双击截图区域，开始截图\n");
+#endif
+            if (screenShot())
+            {
+#if DBG_STATE_MACHINE_TASK
+                sm_dbg_printf("截图成功\n");
+#endif
+            }
+        }
         break;
 
     default:

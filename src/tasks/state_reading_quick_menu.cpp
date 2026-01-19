@@ -4,6 +4,8 @@
 #include "device/ui_display.h"
 #include "ui/ui_lock_screen.h"
 #include "test/per_file_debug.h"
+// for screenshot
+#include "ui/screenshot.h"
 
 #include "current_book.h"
 extern M5Canvas *g_canvas;
@@ -161,6 +163,22 @@ void StateMachineTask::handleReadingQuickMenuState(const SystemMessage_t *msg)
 #if DBG_STATE_MACHINE_TASK
         sm_dbg_printf("READING_QUICK_MENU 充电状态变化: %d\n", msg->data.power.isCharging);
 #endif
+        break;
+
+    case MSG_DOUBLE_TOUCH_PRESSED:
+        // 检查是否在截图区域
+        if (isInScreenshotArea(msg->data.touch.x, msg->data.touch.y))
+        {
+#if DBG_STATE_MACHINE_TASK
+            sm_dbg_printf("双击截图区域，开始截图\n");
+#endif
+            if (screenShot())
+            {
+#if DBG_STATE_MACHINE_TASK
+                sm_dbg_printf("截图成功\n");
+#endif
+            }
+        }
         break;
 
     default:

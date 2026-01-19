@@ -3,7 +3,7 @@
   const PAGE_SIZE = 10;
   let currentCat = 'book';
   let currentPage = 1;
-  let cache = { book:null, font:null, image:null };
+  let cache = { book:null, font:null, image:null, screenshot:null };
   let selectedFiles = [];
   let selectedForDelete = new Set();
   
@@ -28,9 +28,10 @@
   const hints = {
     book:'支持 unicode/GBK 编码的 txt 文件。',
     font:'请上传工具生成的 font.bin；<1.2.9 旧版本字体建议重新生成。',
-    image:'锁屏图片建议 540x960，支持透明 png，优先同名图片 > default.png > 系统自带。'
+    image:'锁屏图片建议 540x960，支持透明 png，优先同名图片 > default.png > 系统自带。',
+    screenshot:'设备截图存储目录。双击屏幕左上角(230,0)-(310,80)区域可触发截图。仅支持下载和删除，不支持上传。'
   };
-  const catNames = { book:'书籍', font:'字体', image:'锁屏' };
+  const catNames = { book:'书籍', font:'字体', image:'锁屏', screenshot:'截图' };
 
   function toast(msg, type='info', ms=3000){
     const box = document.getElementById('toasts');
@@ -70,6 +71,16 @@
     selectedForDelete.clear();
     const delBtn = document.getElementById('btnDeleteSelected'); if(delBtn) delBtn.disabled = true;
     const selAll = document.getElementById('selectAll'); if(selAll){ selAll.checked=false; selAll.indeterminate=false; }
+    
+    // 对于screenshot tab，隐藏上传区域
+    if(uploadBox){
+      if(cat === 'screenshot'){
+        uploadBox.style.display = 'none';
+      } else {
+        uploadBox.style.display = 'block';
+      }
+    }
+    
     loadList();
   }
 

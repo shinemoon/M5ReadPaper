@@ -20,6 +20,8 @@
 #include <functional>
 #include "test/per_file_debug.h"
 #include "tasks/background_index_task.h"
+// for screenshot
+#include "ui/screenshot.h"
 
 extern M5Canvas *g_canvas;
 extern int current_file_page; // 当前文件列表页数
@@ -358,46 +360,50 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                 // 显示等待图片
                 ui_push_image_to_display_direct("/spiffs/wait.png", 240, 450);
                 M5.Display.waitDisplay();
-                // 复用已有的清理逻辑：删除 /bookmarks 下所有文件，并删除根目录下 history.list 和 readpaper.cfg
+                // 复用已有的清理逻辑：删除 /bookmarks 和 /screenshot 下所有文件，并删除根目录下 history.list 和 readpaper.cfg
                 const char *bmDir = "/bookmarks";
+                const char *ssDir = "/screenshot";
 #if DBG_STATE_MACHINE_TASK
-                sm_dbg_printf("恢复出厂: 开始清理 %s 目录\n", bmDir);
+                sm_dbg_printf("恢复出厂: 开始清理 %s 和 %s 目录\n", bmDir, ssDir);
 #endif
-                if (SDW::SD.exists(bmDir))
+                // 定义通用的清理函数
+                auto cleanDirectory = [&](const char *dirPath)
                 {
-                    // 递归删除所有文件
-                    std::function<void(const char *)> removeAllFiles = [&](const char *dirPath)
+                    if (SDW::SD.exists(dirPath))
                     {
-                        File dir = SDW::SD.open(dirPath);
-                        if (!dir)
+                        // 递归删除所有文件
+                        std::function<void(const char *)> removeAllFiles = [&](const char *subDirPath)
                         {
+                            File dir = SDW::SD.open(subDirPath);
+                            if (!dir)
+                            {
 #if DBG_STATE_MACHINE_TASK
-                            sm_dbg_printf("恢复出厂: 无法打开目录 %s\n", dirPath);
+                                sm_dbg_printf("恢复出厂: 无法打开目录 %s\n", subDirPath);
 #endif
-                            return;
-                        }
-
-                        File entry;
-                        int count = 0;
-                        while (entry = dir.openNextFile())
-                        {
-                            const char *entryName = entry.name();
-                            if (!entryName)
-                            {
-                                entry.close();
-                                continue;
+                                return;
                             }
 
-                            std::string name(entryName);
-                            std::string fullPath = name;
-
-                            // 如果名称不包含完整路径，构建它
-                            if (fullPath.find(dirPath) == std::string::npos)
+                            File entry;
+                            int count = 0;
+                            while (entry = dir.openNextFile())
                             {
-                                fullPath = std::string(dirPath) + "/" + name.substr(name.find_last_of('/') + 1);
-                            }
+                                const char *entryName = entry.name();
+                                if (!entryName)
+                                {
+                                    entry.close();
+                                    continue;
+                                }
 
-                            bool isDir = entry.isDirectory();
+                                std::string name(entryName);
+                                std::string fullPath = name;
+
+                                // 如果名称不包含完整路径，构建它
+                                if (fullPath.find(subDirPath) == std::string::npos)
+                                {
+                                    fullPath = std::string(subDirPath) + "/" + name.substr(name.find_last_of('/') + 1);
+                                }
+
+                                bool isDir = entry.isDirectory();
                             entry.close();
 
                             if (isDir)
@@ -419,12 +425,17 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                         }
                         dir.close();
 #if DBG_STATE_MACHINE_TASK
-                        sm_dbg_printf("恢复出厂: 目录 %s 共删除 %d 个文件\n", dirPath, count);
+                        sm_dbg_printf("恢复出厂: 目录 %s 共删除 %d 个文件\n", subDirPath, count);
 #endif
                     };
 
-                    removeAllFiles(bmDir);
+                    removeAllFiles(dirPath);
                 }
+            };
+
+            // 清理 /bookmarks 和 /screenshot 目录
+            cleanDirectory(bmDir);
+            cleanDirectory(ssDir);
 
                 // 删除根目录下的 history.list 和 readpaper.cfg 相关文件
                 const char *hist = "/history.list";
@@ -766,7 +777,26 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
         }
     }
     break;
+
     case MSG_TOUCH_RELEASED:
+        break;
+
+    case MSG_DOUBLE_TOUCH_PRESSED:
+        // 检查是否在截图区域
+        if (isInScreenshotArea(msg->data.touch.x, msg->data.touch.y))
+        {
+#if DBG_STATE_MACHINE_TASK
+            sm_dbg_printf("双击截图区域，开始截图\n");
+#endif
+            if (screenShot())
+            {
+#if DBG_STATE_MACHINE_TASK
+                sm_dbg_printf("截图成功\n");
+#endif
+            }
+        }
+        break;
+
     default:
         // 其他消息在二级菜单下暂时忽略
         break;

@@ -308,6 +308,8 @@ void WiFiHotspotManager::handleFileList(String category) {
         path = "/font";
     } else if (category == "image") {
         path = "/image";
+    } else if (category == "screenshot") {
+        path = "/screenshot";
     } else {
         path = "/";
     }

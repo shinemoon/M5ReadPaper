@@ -7,6 +7,7 @@
 #include "test/per_file_debug.h"
 #include "ui/ui_lock_screen.h"
 #include "ui/ui_control.h"
+#include "ui/screenshot.h"
 #include <cstring>
 
 #include <esp_heap_caps.h>
@@ -90,11 +91,26 @@ void StateMachineTask::handleIdleState(const SystemMessage_t *msg)
         lastActivityTime_ = millis();
         break;
         //    case MSG_TOUCH_RELEASED:
-    case MSG_DOUBLE_TOUCH_PRESSED: //  双击解锁
+    case MSG_DOUBLE_TOUCH_PRESSED: //  双击解锁或截图
 #if DBG_STATE_MACHINE_TASK
-        sm_dbg_printf("IDLE状态收到Double Click: (%d, %d)，进入READING状态\n", msg->data.touch.x, msg->data.touch.y);
+        sm_dbg_printf("IDLE状态收到Double Click: (%d, %d)\n", msg->data.touch.x, msg->data.touch.y);
 #endif
         lastActivityTime_ = millis();
+        // 优先检查是否在截图区域
+        if (isInScreenshotArea(msg->data.touch.x, msg->data.touch.y))
+        {
+#if DBG_STATE_MACHINE_TASK
+            sm_dbg_printf("双击截图区域，开始截图\n");
+#endif
+            if (screenShot())
+            {
+#if DBG_STATE_MACHINE_TASK
+                sm_dbg_printf("截图成功\n");
+#endif
+            }
+            break; // 截图后不解锁
+        }
+        // 不在截图区域，执行解锁
         currentState_ = STATE_READING;
         /*Initial Load book*/
         if (g_current_book == nullptr)

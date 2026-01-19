@@ -8,6 +8,8 @@
 #include "text/tags_handle.h"
 #include "ui/ui_time_rec.h"
 #include "text/bin_font_print.h"
+// for screenshot
+#include "ui/screenshot.h"
 
 extern M5Canvas *g_canvas;
 extern float font_size;
@@ -115,6 +117,22 @@ void StateMachineTask::handleShowTimeRecState(const SystemMessage_t *msg)
 #if DBG_STATE_MACHINE_TASK
         sm_dbg_printf("SHOW_TIME_REC 充电状态变化: %d\n", msg->data.power.isCharging);
 #endif
+        break;
+
+    case MSG_DOUBLE_TOUCH_PRESSED:
+        // 检查是否在截图区域
+        if (isInScreenshotArea(msg->data.touch.x, msg->data.touch.y))
+        {
+#if DBG_STATE_MACHINE_TASK
+            sm_dbg_printf("双击截图区域，开始截图\n");
+#endif
+            if (screenShot())
+            {
+#if DBG_STATE_MACHINE_TASK
+                sm_dbg_printf("截图成功\n");
+#endif
+            }
+        }
         break;
 
     default:

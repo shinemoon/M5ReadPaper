@@ -19,12 +19,14 @@ void ApiRouter::registerRoutes(WebServer& server, WiFiHotspotManager& mgr) {
     server.on("/list/book", [&](){ add_cors_headers(server); mgr.handleFileList("book"); });
     server.on("/list/font", [&](){ add_cors_headers(server); mgr.handleFileList("font"); });
     server.on("/list/image", [&](){ add_cors_headers(server); mgr.handleFileList("image"); });
+    server.on("/list/screenshot", [&](){ add_cors_headers(server); mgr.handleFileList("screenshot"); });
 
     // OPTIONS 预检支持（Chrome 扩展场景下某些 fetch 可能触发）
     server.on("/list", HTTP_OPTIONS, [&](){ add_cors_headers(server); server.send(204); });
     server.on("/list/book", HTTP_OPTIONS, [&](){ add_cors_headers(server); server.send(204); });
     server.on("/list/font", HTTP_OPTIONS, [&](){ add_cors_headers(server); server.send(204); });
     server.on("/list/image", HTTP_OPTIONS, [&](){ add_cors_headers(server); server.send(204); });
+    server.on("/list/screenshot", HTTP_OPTIONS, [&](){ add_cors_headers(server); server.send(204); });
 
     // 上传：GET 提示、POST 实际上传（回调在 mgr.handleFileUploadPost 中完成响应）
     server.on("/upload", HTTP_GET, [&](){

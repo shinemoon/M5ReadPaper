@@ -1506,6 +1506,16 @@ bool ensureBookmarksFolder()
     return true;
 }
 
+// Screenshot folder helper
+bool ensureScreenshotFolder()
+{
+    if (!SDW::SD.exists("/screenshot"))
+    {
+        return SDW::SD.mkdir("/screenshot");
+    }
+    return true;
+}
+
 // 更新 /history.list：把当前打开的书路径插到文件头，去重并移除不存在的条目
 // 仅接受以 /sd/book/ 开头的路径
 static bool updateHistoryList(const std::string &book_file_path)

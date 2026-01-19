@@ -207,15 +207,15 @@ void draw_time_rec_screen(M5Canvas *canvas)
         // chart box (the big box drawn earlier) defines left/top/bottom
         const int box_left = 30;
         const int box_top = 100;
-        const int box_width = 480;
+        // const int box_width = 480;
         const int box_height = 600;
-        const int box_bottom = box_top + box_height;
+        // const int box_bottom = box_top + box_height;
 
         const int chart_left = box_left + 50; // 内部左边距，给日期留出宽度
         const int chart_width = PAPER_S3_WIDTH - 120;
         const int bar_height = 28;
         const int row_gap = 10;
-        const int total_height = 7 * bar_height + (7 - 1) * row_gap;
+        // const int total_height = 7 * bar_height + (7 - 1) * row_gap;
         const int chart_top = box_top + 20; //
 
         for (int i = 0; i < 7; ++i)
@@ -394,9 +394,9 @@ void draw_time_rec_screen(M5Canvas *canvas)
 
         // 在月度图下方绘制时段分布图（高100，宽500）
         // 统计四个时段：04:00-12:00, 12:00-20:00, 20:00-04:00, 无小时信息
-        const int dist_w = 440;
-        const int dist_h = 60;
-        const int dist_left = month_left;
+        // const int dist_w = 440;
+        // const int dist_h = 60;
+        // const int dist_left = month_left;
         const int dist_top = chart_bottom + 30; // 在月度图下方
 
         // 统计四个时段的分钟数
@@ -494,7 +494,7 @@ void draw_time_rec_screen(M5Canvas *canvas)
 
         // 添加标签说明
         char label[64];
-        int label_y = pie_center_y + pie_radius + 20;
+        // int label_y = pie_center_y + pie_radius + 20;
 
         /*
         snprintf(label, sizeof(label), "04-12: %d%% | 12-20: %d%% | 20-04: %d%% | 未知: %d%%",

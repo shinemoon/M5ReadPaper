@@ -859,6 +859,7 @@
                     <button class='tab-btn active' onclick='switchTab("book")'>书籍</button>
                     <button class='tab-btn' onclick='switchTab("font")'>字体</button>
                     <button class='tab-btn' onclick='switchTab("image")'>屏保</button>
+                    <button class='tab-btn' onclick='switchTab("screenshot")'>截图</button>
                 </div>
             </div>
             <div class='card-body'>
@@ -976,7 +977,7 @@
         let selectedFiles = [];
         let currentTab = 'book'; // 当前选中的tab
         let currentPage = 1; // 当前页码
-        let fileCache = { book: null, font: null, image: null };
+        let fileCache = { book: null, font: null, image: null, screenshot: null };
         const PAGE_SIZE = 10;
 
         // Tab切换功能
@@ -984,13 +985,22 @@
             // ev is optional; when provided, use it to update active button
             currentTab = tabName;
             currentPage = 1;
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            try { if (ev && ev.target) ev.target.classList.add('active'); } catch (e) { }
+            
+            // 更新active按钮状态
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+                // 通过按钮的onclick属性匹配当前tab
+                if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(`"${tabName}"`)) {
+                    btn.classList.add('active');
+                }
+            });
+            
             const hintElement = document.getElementById('tabHint');
             const hints = {
                 'book': '支持unicode/GBK编码的txt',
                 'font': '请确认上传的是专用工具生成的font.bin文件(部分推荐字体可于上方仓库链接直接下载 ), V1.2.9之前生成的字体，建议重新生成更新。',
-                'image': '尽量避免使用大图片，体积太大可能会导致无法使用并回退系统锁屏，540x960尺寸为佳 （建议用上方仓库提供工具生成），锁屏优先选择文件同名图片，其次可部分匹配文件名（但可以带额外数字结尾）的图片，再次default.png，之后回退系统自带。'
+                'image': '尽量避免使用大图片，体积太大可能会导致无法使用并回退系统锁屏，540x960尺寸为佳 （建议用上方仓库提供工具生成），锁屏优先选择文件同名图片，其次可部分匹配文件名（但可以带额外数字结尾）的图片，再次default.png，之后回退系统自带。',
+                'screenshot': '设备截图存储目录。双击屏幕左上角(230,0)-(310,80)区域可触发截图。此目录仅支持下载和删除，不支持上传。'
             };
             hintElement.textContent = hints[tabName] || '';
 
@@ -998,10 +1008,25 @@
             const tabNames = {
                 'book': '书籍',
                 'font': '字体',
-                'image': '锁屏'
+                'image': '锁屏',
+                'screenshot': '截图'
             };
             const uploadTitle = document.getElementById('uploadTitle');
             uploadTitle.textContent = `${tabNames[tabName] || tabName}-文件上传`;
+
+            // 对于screenshot tab，隐藏上传区域（找到uploadForm的祖父元素.card）
+            const uploadForm = document.getElementById('uploadForm');
+            if (uploadForm) {
+                // uploadForm -> .card-body -> .card
+                const uploadCard = uploadForm.closest('.card');
+                if (uploadCard) {
+                    if (tabName === 'screenshot') {
+                        uploadCard.style.display = 'none';
+                    } else {
+                        uploadCard.style.display = 'block';
+                    }
+                }
+            }
 
             loadFileList();
         }
@@ -1335,17 +1360,23 @@
             const pagination = document.getElementById('pagination');
             fileList.innerHTML = '<div class="file-item loading">正在加载文件列表...</div>';
             pagination.style.display = 'none';
+            
+            console.log('[DEBUG] loadFileList called for tab:', currentTab);
+            
             // 只请求一次，缓存
             fetch(`/list/${currentTab}`)
                 .then(response => {
+                    console.log('[DEBUG] fetch response status:', response.status);
                     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     return response.json();
                 })
                 .then(files => {
+                    console.log('[DEBUG] files loaded:', files.length, 'files');
                     fileCache[currentTab] = files;
                     renderFileList();
                 })
                 .catch(error => {
+                    console.error('[DEBUG] loadFileList error:', error);
                     fileList.innerHTML = `<div class="file-item" style="justify-content: space-evenly; color: #d32f2f; flex-direction: row; margin-top: 20px;">
                         <div style="margin-bottom: 10px;">加载失败: ${error.message}</div>
                         <button onclick="loadFileList()" style="padding: 8px 16px; background: #757575; color: white; border: none; border-radius: 4px; cursor: pointer;">重试</button>
@@ -1408,7 +1439,7 @@
                 const item = document.createElement('div');
                 item.className = 'file-item';
                 const iconClass = file.type === 'file' ? 'file-icon' : 'folder-icon file-icon';
-                const dirPrefix = currentTab === 'book' ? '/book' : currentTab === 'font' ? '/font' : currentTab === 'image' ? '/image' : '';
+                const dirPrefix = currentTab === 'book' ? '/book' : currentTab === 'font' ? '/font' : currentTab === 'image' ? '/image' : currentTab === 'screenshot' ? '/screenshot' : '';
                 // Prefer server-supplied full path (untruncated). Fallback to constructed path.
                 const fullPath = file.path ? file.path : (dirPrefix + '/' + file.name);
                 item.innerHTML = `

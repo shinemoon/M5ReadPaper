@@ -13,6 +13,8 @@
 // for tag display
 #include "ui/index_display.h"
 #include "ui/ui_canvas_image.h"
+// for screenshot
+#include "ui/screenshot.h"
 
 extern M5Canvas *g_canvas;
 extern float font_size;
@@ -176,11 +178,26 @@ void StateMachineTask::handleTocDisplayState(const SystemMessage_t *msg)
     break;
     case MSG_TOUCH_RELEASED:
     case MSG_TOUCH_EVENT:
-    case MSG_DOUBLE_TOUCH_PRESSED:
         // Touch events are accepted by this state
 #if DBG_STATE_MACHINE_TASK
         sm_dbg_printf("STATE_TOC_DISPLAY: 触摸事件 (x=%d,y=%d)\n", msg->data.touch.x, msg->data.touch.y);
 #endif
+        break;
+
+    case MSG_DOUBLE_TOUCH_PRESSED:
+        // 检查是否在截图区域
+        if (isInScreenshotArea(msg->data.touch.x, msg->data.touch.y))
+        {
+#if DBG_STATE_MACHINE_TASK
+            sm_dbg_printf("双击截图区域，开始截图\n");
+#endif
+            if (screenShot())
+            {
+#if DBG_STATE_MACHINE_TASK
+                sm_dbg_printf("截图成功\n");
+#endif
+            }
+        }
         break;
 
     case MSG_DEVICE_ORIENTATION:
