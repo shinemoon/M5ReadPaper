@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>阅读记录 - ReadPaper</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+            padding: 10px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 10px;
+        }
+
+        .header {
+            background: white url('/assets/cover.png') center/cover no-repeat;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: none;
+            position: relative;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.85);
+            z-index: 0;
+        }
+
+        .header > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+            color: var(--primary-color, #f04f0f);
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .header .subtitle {
+            font-size: 1.2rem;
+            color: var(--primary-color, #f04f0f);
+            font-weight: 600;
+        }
+
+        .back-btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: var(--primary-color, #f04f0f);
+            color: white;
+            text-decoration: none;
+            border-radius: 0;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 6px rgba(240, 79, 15, 0.3);
+            border: none;
+            cursor: pointer;
+        }
+
+        .back-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(240, 79, 15, 0.4);
+            filter: brightness(0.9);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.1rem;
+            color: #666;
+            font-weight: 600;
+            background: white;
+            border-radius: 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 0;
+            margin: 20px 0;
+        }
+
+        .summary-section {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: none;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .summary-section:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        }
+
+        .summary-section h2 {
+            font-size: 1.3rem;
+            margin-bottom: 16px;
+            color: var(--primary-color, #f04f0f);
+            padding-bottom: 12px;
+            border-bottom: 3px solid var(--primary-color, #f04f0f);
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .stat-card {
+            background: #fafafa;
+            padding: 16px;
+            border-radius: 0;
+            text-align: center;
+            border: 1px solid #e0e0e0;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            border-color: #f04f0f;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(240, 79, 15, 0.15);
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--primary-color, #f04f0f);
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: #8b8b8b;
+            font-weight: 600;
+        }
+
+        .chart-container {
+            margin-top: 15px;
+            position: relative;
+            height: 300px; /* adjusted to fit canvas with labels */
+            overflow-x: hidden; /* ensure no horizontal scrollbar */
+            overflow-y: hidden;
+        }
+
+        .chart-wrapper {
+            min-width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 280px;
+        }
+
+        .record-list {
+            margin-top: 15px;
+        }
+
+        .record-item {
+            background: white;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-radius: 0;
+            border-left: 3px solid var(--primary-color, #f04f0f);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+            transition: all 0.2s ease;
+        }
+
+        .record-item:hover {
+            box-shadow: 0 2px 8px rgba(240, 79, 15, 0.15);
+            transform: translateX(4px);
+        }
+
+        .record-date {
+            font-weight: bold;
+            color: #424242;
+            margin-bottom: 6px;
+            font-size: 0.95rem;
+        }
+
+        .record-hours {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 8px;
+        }
+
+        .hour-bar {
+            flex: 0 0 calc(100% / 24 - 4px);
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hour-bar.has-reading {
+            background: var(--primary-color, #f04f0f);
+        }
+
+        .hour-label {
+            font-size: 0.65rem;
+            color: black;
+            text-align: center;
+            line-height: 30px;
+        }
+
+        .hour-bar.has-reading .hour-label {
+            color: white;
+            font-weight: bold;
+        }
+
+        .daily-chart {
+            margin-top: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 0;
+            overflow-x: hidden;
+            overflow-y: hidden;
+            height: 160px;
+        }
+
+        .daily-bars {
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+            min-width: 100%;
+            height: 120px; /* increased height for readability */
+        }
+
+        .day-bar {
+            flex: 1;
+            min-width: 8px;
+            background: var(--primary-color, #f04f0f);
+            border-radius: 0;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .day-bar:hover {
+            transform: translateY(-4px);
+            filter: brightness(1.1);
+        }
+
+        .day-bar-label {
+            position: absolute;
+            bottom: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.7rem;
+            color: #666;
+            white-space: nowrap;
+        }
+
+        .bar-top-label {
+            position: absolute;
+            top: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.65rem;
+            color: #fff;
+            background: rgba(0,0,0,0.25);
+            padding: 1px 4px;
+            border-radius: 0;
+            pointer-events: none;
+        }
+
+        /* Mobile optimizations for screens < 400px */
+        @media (max-width: 400px) {
+            body {
+                padding: 5px;
+            }
+
+            .container {
+                padding: 5px;
+            }
+
+            .header {
+                padding: 10px;
+                margin-bottom: 10px;
+            }
+
+            .header h1 {
+                font-size: 1.2rem;
+            }
+
+            .header .subtitle {
+                font-size: 0.8rem;
+            }
+
+            .back-btn {
+                padding: 6px 12px;
+                font-size: 0.85rem;
+            }
+
+            .summary-section {
+                padding: 10px;
+                margin-bottom: 10px;
+            }
+
+            .summary-section h2 {
+                font-size: 1rem;
+                margin-bottom: 8px;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+
+            .stat-card {
+                padding: 8px;
+            }
+
+            .stat-value {
+                font-size: 1.4rem;
+            }
+
+            .stat-label {
+                font-size: 0.75rem;
+            }
+
+            .chart-container {
+                height: 280px;
+            }
+
+            .record-item {
+                padding: 8px;
+                margin-bottom: 8px;
+            }
+
+            .record-date {
+                font-size: 0.85rem;
+                margin-bottom: 4px;
+            }
+
+            .hour-bar {
+                flex: 0 0 calc(100% / 12 - 4px); /* Show 12 hours per row on mobile */
+                height: 25px;
+            }
+
+            .hour-label {
+                font-size: 0.6rem;
+                line-height: 25px;
+            }
+
+            .daily-bars {
+                height: 50px;
+            }
+
+            .day-bar {
+                min-width: 6px;
+            }
+
+            .day-bar-label {
+                font-size: 0.65rem;
+            }
+        }
+
+        /* Extra small screens < 320px */
+        @media (max-width: 320px) {
+            .header h1 {
+                font-size: 1.3rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stat-value {
+                font-size: 1.1rem;
+            }
+
+            .hour-bar {
+                flex: 0 0 calc(100% / 8 - 4px); /* Show 8 hours per row */
+            }
+            
+            .chart-container {
+                height: 300px;
+                overflow-x: auto;
+                overflow-y: hidden;
+            }
+            
+            canvas {
+                min-width: 540px;
+            }
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+            font-size: 0.95rem;
+        }
+
+        /* Header action buttons */
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            background: white;
+            color: #333;
+            border: 2px solid var(--primary-color, #f04f0f);
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .action-btn:hover {
+            background: var(--primary-color, #f04f0f);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .action-btn:active {
+            transform: translateY(0);
+        }
+
+        /* Export modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .modal-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--primary-color, #f04f0f);
+            margin-bottom: 20px;
+        }
+
+        .export-option {
+            background: #fafafa;
+            padding: 15px;
+            margin-bottom: 12px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .export-option:hover {
+            border-color: var(--primary-color, #f04f0f);
+            background: white;
+            transform: translateX(4px);
+        }
+
+        .export-option-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .export-option-desc {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .modal-close {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .modal-close-btn {
+            background: #ccc;
+            color: #333;
+            border: none;
+            padding: 10px 30px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close-btn:hover {
+            background: #999;
+        }
+
+        /* Toast animations */
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+
+        /* Progress indicator */
+        .progress-bar {
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 0;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary-color, #f04f0f);
+            transition: width 0.3s ease;
+            border-radius: 0;
+        }
+
+        /* Load More Button */
+        .load-more-wrap {
+            text-align: center;
+            padding: 30px 20px;
+            margin-top: 20px;
+        }
+
+        .load-more-btn {
+            background: var(--primary-color, #f04f0f);
+            color: white;
+            border: none;
+            padding: 12px 40px;
+            font-size: 1rem;
+            font-weight: 500;
+            border-radius: 0;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(240, 79, 15, 0.3);
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .load-more-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(240, 79, 15, 0.4);
+            filter: brightness(0.9);
+        }
+
+        .load-more-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 4px rgba(240, 79, 15, 0.3);
+        }
+
+        .load-more-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        @media (max-width: 400px) {
+            .load-more-wrap {
+                padding: 20px 10px;
+                margin-top: 15px;
+            }
+
+            .load-more-btn {
+                padding: 10px 30px;
+                font-size: 0.9rem;
+                width: 100%;
+                max-width: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 id="mainTitle">ReadPaper: 总阅读时间 0 小时 0 分</h1>
+            <div class="subtitle" id="recordInfo">加载中...</div>
+            <div class="header-actions">
+                <a href="filemanager.html" class="back-btn">← 返回文件管理</a>
+                <button class="action-btn" id="themeToggleBtn">切换主题</button>
+                <button class="action-btn" id="exportBtn">导出图片</button>
+            </div>
+        </div>
+
+        <div id="loadingIndicator" class="loading">
+            正在加载阅读记录...
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <div id="errorMessage" class="error" style="display: none;"></div>
+
+        <div id="contentArea" style="display: none;">
+            <!-- 最近七天统计 -->
+            <div class="summary-section">
+                <h2>最近7天阅读统计</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="last7DaysTotal">0</div>
+                        <div class="stat-label">总分钟数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="last7DaysAvg">0</div>
+                        <div class="stat-label">日均分钟</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="last7DaysDays">0</div>
+                        <div class="stat-label">阅读天数</div>
+                    </div>
+                </div>
+                <div class="daily-chart">
+                    <div class="daily-bars" id="last7DaysBars"></div>
+                </div>
+            </div>
+
+            <!-- 最近六个月统计 -->
+            <div class="summary-section">
+                <h2>最近6个月阅读统计</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="last6MonthsTotal">0</div>
+                        <div class="stat-label">总小时数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="last6MonthsAvg">0</div>
+                        <div class="stat-label">月均小时</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="last6MonthsMonths">0</div>
+                        <div class="stat-label">阅读月数</div>
+                    </div>
+                </div>
+                <div class="daily-chart">
+                    <div class="daily-bars" id="last6MonthsBars"></div>
+                </div>
+            </div>
+
+            <!-- 总阅读时间分布（24小时曲线） -->
+            <div class="summary-section">
+                <h2>24小时阅读分布</h2>
+                <div class="chart-container">
+                    <div class="y-labels" style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:6px;">
+                        <div id="hourlyYTop" style="font-size:0.85rem;color:#666;"></div>
+                        <div id="hourlyYMid" style="font-size:0.85rem;color:#999;"></div>
+                    </div>
+                    <canvas id="hourlyChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 完整阅读记录列表 -->
+            <div class="summary-section">
+                <h2>完整阅读记录</h2>
+                <div class="record-list" id="recordList"></div>
+                <div class="load-more-wrap" id="loadMoreWrap" style="display:none;">
+                    <button id="loadMoreBtn" class="load-more-btn">获取更多</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div class="modal-overlay" id="exportModal">
+        <div class="modal-content">
+            <div class="modal-title">选择导出模式</div>
+            <div class="export-option" data-mode="brief">
+                <div class="export-option-title">简要模式</div>
+                <div class="export-option-desc">包含总时长、天数、起止日期</div>
+            </div>
+            <div class="export-option" data-mode="standard">
+                <div class="export-option-title">标准模式</div>
+                <div class="export-option-desc">简要 + 最近7天和6个月汇总</div>
+            </div>
+            <div class="export-option" data-mode="detailed">
+                <div class="export-option-title">详细模式</div>
+                <div class="export-option-desc">标准 + 24小时统计</div>
+            </div>
+            <div class="modal-close">
+                <button class="modal-close-btn" id="modalCloseBtn">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../vendors/html2canvas.min.js"></script>
+    <script src="readingRecord.js"></script>
+</body>
+</html>

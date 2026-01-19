@@ -190,6 +190,7 @@
         <td class='file-actions nowrap'>
           ${f.type==='file'?`<a href='${API_BASE}/download?path=${encodeURIComponent(fullPath)}' class='button is-small outline' title='下载'>下载</a>`:''}
           <button class='button is-small outline' data-del='${fullPath}' ${disableDelete?'disabled':''}>删除</button>
+          ${currentCat==='book' && f.type==='file'?`<button class='button is-small outline' data-record='${fullPath}' title='查看阅读记录'>阅读记录</button>`:''}
         </td>
       </tr>`;
     }).join('');
@@ -215,6 +216,16 @@
         } catch(e){ toast('删除失败: '+e.message,'error',5000); }
       };
     });
+
+    // bind reading records buttons (for book category)
+    if(currentCat === 'book'){
+      fileBody.querySelectorAll('button[data-record]').forEach(btn=>{
+        btn.onclick = ()=>{
+          const bookPath = btn.getAttribute('data-record');
+          window.open(`readingRecord.html?book=${encodeURIComponent(bookPath)}`, '_blank');
+        };
+      });
+    }
 
     // bind per-row checkbox events
     fileBody.querySelectorAll('.file-select-checkbox').forEach(cb=>{
@@ -471,6 +482,27 @@
       // 延迟刷新，确保后端文件系统操作完全同步
       await new Promise(r=>setTimeout(r, 600)); // 600ms 延迟
       loadList();
+    };
+  }
+
+  // Batch reading records button
+  const btnBatchRecords = document.getElementById('btnBatchRecords');
+  if(btnBatchRecords){
+    btnBatchRecords.onclick = ()=>{
+      if(selectedForDelete.size === 0){
+        toast('请先选择要查看阅读记录的书籍', 'error', 3000);
+        return;
+      }
+      const books = Array.from(selectedForDelete).join(',');
+      window.open(`readingRecord.html?books=${encodeURIComponent(books)}`, '_blank');
+    };
+  }
+
+  // All reading records button
+  const btnAllRecords = document.getElementById('btnAllRecords');
+  if(btnAllRecords){
+    btnAllRecords.onclick = ()=>{
+      window.open(`readingRecord.html?all=true`, '_blank');
     };
   }
 

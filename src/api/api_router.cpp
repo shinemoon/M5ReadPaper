@@ -143,4 +143,15 @@ void ApiRouter::registerRoutes(WebServer& server, WiFiHotspotManager& mgr) {
         add_cors_headers(server);
         server.send(204);
     });
+
+    // Reading records API endpoint
+    server.on("/api/reading_records", HTTP_GET, [&](){
+        add_cors_headers(server);
+        mgr.handleReadingRecords();
+    });
+
+    server.on("/api/reading_records", HTTP_OPTIONS, [&](){
+        add_cors_headers(server);
+        server.send(204);
+    });
 }
