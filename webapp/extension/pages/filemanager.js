@@ -188,7 +188,7 @@
         <td>${f.type==='file'?formatSize(f.size):''}</td>
         <td>${f.isCurrent? '✔':''}</td>
         <td class='file-actions nowrap'>
-          ${f.type==='file'?`<a href='${API_BASE}/download?path=${encodeURIComponent(fullPath)}' class='button is-small outline' title='下载'>下载</a>`:''}
+          ${f.type==='file'?`<a href='${API_BASE}/download?path=${encodeURIComponent(fullPath)}' data-path='${encodeURIComponent(fullPath)}' class='download-link button is-small outline' title='下载'>下载</a>`:''}
           <button class='button is-small outline' data-del='${fullPath}' ${disableDelete?'disabled':''}>删除</button>
           ${currentCat==='book' && f.type==='file'?`<button class='button is-small outline' data-record='${fullPath}' title='查看阅读记录'>阅读记录</button>`:''}
         </td>
@@ -196,10 +196,35 @@
     }).join('');
 
     // 绑定删除按钮
-    // bind delete buttons (single)
+    // bind delete buttons (single or batch for screenshots)
     fileBody.querySelectorAll('button[data-del]').forEach(btn=>{
       btn.onclick = async ()=>{
         const path = btn.getAttribute('data-del');
+
+        // If current category is screenshot and multiple items are selected,
+        // treat this as a batch delete for all selected files.
+        if(currentCat === 'screenshot' && selectedForDelete.size > 1){
+          const paths = Array.from(selectedForDelete);
+          const ok = await showConfirm(`确认删除 ${paths.length} 个截图？`);
+          if(!ok) return;
+          let successCount = 0;
+          for(const p of paths){
+            try{
+              const r = await fetch(`${API_BASE}/delete?path=${encodeURIComponent(p)}`);
+              const j = await r.json();
+              if(j.ok) successCount++;
+            }catch(e){ /* ignore per-file errors */ }
+          }
+          toast(`已删除 ${successCount} 个文件`,'success');
+          selectedForDelete.clear();
+          cache[currentCat]=null;
+          // 延迟刷新，确保后端文件系统操作完全同步
+          await new Promise(r=>setTimeout(r, 600));
+          loadList();
+          return;
+        }
+
+        // Fallback: single-file delete (existing behavior)
         const ok = await showConfirm('确认删除 '+path+' ?');
         if(!ok) return;
         try {
@@ -240,6 +265,50 @@
         const checked = document.querySelectorAll('.file-select-checkbox:checked:not(:disabled)');
         const selAll = document.getElementById('selectAll');
         if(selAll){ selAll.indeterminate = checked.length>0 && checked.length<all.length; selAll.checked = checked.length===all.length && all.length>0; }
+      };
+    });
+
+    // bind download links: for screenshots, if multiple selected, clicking any download will package selected files into zip
+    fileBody.querySelectorAll('.download-link').forEach(a=>{
+      a.onclick = async (e)=>{
+        try{
+          if(currentCat === 'screenshot' && selectedForDelete.size > 1 && window.JSZip){
+            e.preventDefault();
+            const zip = new JSZip();
+            const paths = Array.from(selectedForDelete);
+            // Fetch each file as blob and add to zip
+            for(const p of paths){
+              try{
+                const url = `${API_BASE}/download?path=${encodeURIComponent(p)}`;
+                const r = await fetch(url);
+                if(!r.ok) throw new Error('HTTP '+r.status);
+                const blob = await r.blob();
+                // derive basename
+                const parts = p.split('/');
+                const name = parts[parts.length-1] || 'file';
+                zip.file(name, blob);
+              }catch(fe){
+                toast(`获取 ${p} 失败: ${fe.message}`,'error',5000);
+              }
+            }
+            // generate zip and trigger download
+            const baseName = 'screenshots';
+            const outName = `${baseName}.zip`;
+            const zblob = await zip.generateAsync({type:'blob'}, (meta)=>{
+              // optional progress feedback
+              const pct = Math.floor(meta.percent);
+              // update uploadStatus as progress indicator
+              const status = el('uploadStatus'); if(status) status.textContent = `打包中... ${pct}%`;
+            });
+            const url = URL.createObjectURL(zblob);
+            const dl = document.createElement('a'); dl.href = url; dl.download = outName; document.body.appendChild(dl); dl.click(); setTimeout(()=>{ URL.revokeObjectURL(url); if(dl.parentNode) dl.parentNode.removeChild(dl); const status = el('uploadStatus'); if(status) status.textContent=''; }, 1000);
+            return;
+          }
+          // else let default action proceed (browser download via link)
+        }catch(err){
+          toast('打包下载失败: '+err.message,'error',5000);
+          e.preventDefault();
+        }
       };
     });
 
