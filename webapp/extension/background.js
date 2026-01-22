@@ -44,10 +44,33 @@ async function checkVersionUpdate() {
  * 比较版本号
  */
 function isVersionUpdated(current, last) {
-  if (!last) return true; // 首次安装
-  
-  // 只要版本号不同就算更新
-  return current !== last;
+  if (!last) return true; // 首次安装仍然视为更新
+
+  // 仅比较版本号的前 3 段（major.minor.patch）
+  const cur = getMajorMinorPatch(current);
+  const prev = getMajorMinorPatch(last);
+
+  for (let i = 0; i < 3; i++) {
+    if (cur[i] !== prev[i]) return true;
+  }
+  return false;
+}
+
+/**
+ * 提取版本号的前三段为整数数组，缺失或非数字部分按 0 处理
+ * 例如: "5.0.3.1" -> [5,0,3]
+ */
+function getMajorMinorPatch(version) {
+  if (!version) return [0, 0, 0];
+  const parts = String(version).split('.');
+  const out = [0, 0, 0];
+  for (let i = 0; i < 3; i++) {
+    const p = parts[i];
+    if (!p) { out[i] = 0; continue; }
+    const m = p.match(/^(\d+)/);
+    out[i] = m ? parseInt(m[1], 10) : 0;
+  }
+  return out;
 }
 
 // 扩展安装或更新时检测

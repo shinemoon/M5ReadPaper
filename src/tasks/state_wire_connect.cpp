@@ -28,6 +28,8 @@
 #include <cstring>
 #include "globals.h"
 #include "text/tags_handle.h"
+// for screenshot
+#include "ui/screenshot.h"
 
 extern M5Canvas *g_canvas;
 
@@ -255,6 +257,23 @@ void StateMachineTask::handleWireConnectState(const SystemMessage_t *msg)
         }
         show_wire_connect(g_canvas, true);
         break;
+
+    case MSG_DOUBLE_TOUCH_PRESSED:
+        // 检查是否在截图区域
+        if (isInScreenshotArea(msg->data.touch.x, msg->data.touch.y))
+        {
+#if DBG_STATE_MACHINE_TASK
+            sm_dbg_printf("双击截图区域，开始截图\n");
+#endif
+            if (screenShot())
+            {
+#if DBG_STATE_MACHINE_TASK
+                sm_dbg_printf("截图成功\n");
+#endif
+            }
+        }
+        break;
+
     default:
 #if DBG_STATE_MACHINE_TASK
         Serial.printf("[STATE_MACHINE] 无线连接状态收到消息: %d\n", msg->type);

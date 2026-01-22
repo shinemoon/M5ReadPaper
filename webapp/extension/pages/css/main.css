@@ -445,13 +445,37 @@ body label {
   margin-right: 0.25rem;
 }
 
-.upload-box {
+.upload-box, .rec-box {
   border: 1px dashed var(--grey);
   padding: 1rem;
   border-radius: 0.25rem;
   background: var(--light);
 }
 
+/* 独立的阅读记录容器：沿用 upload-box 风格并在窄屏下堆叠按钮 */
+.rec-box {
+  padding: 0.75rem;
+}
+.rec-box .mb-05 {
+  margin-bottom: 0.5rem;
+}
+.rec-box .flex-row {
+  align-items: center;
+}
+
+@media (max-width: 720px) {
+  .rec-box {
+    margin-top: 0.5rem;
+  }
+  .rec-box .flex-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .rec-box .button {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+}
 .dragover {
   background: #fffceb;
 }
@@ -881,6 +905,9 @@ body label {
 
 /* Make file list items more compact on narrow screens */
 @media (max-width: 600px) {
+  .button + .button {
+    margin-left: 0rem;
+  }
   .queue-row .col-7 {
     flex: 0 0 60%;
   }

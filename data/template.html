@@ -859,6 +859,8 @@
                     <button class='tab-btn active' onclick='switchTab("book")'>书籍</button>
                     <button class='tab-btn' onclick='switchTab("font")'>字体</button>
                     <button class='tab-btn' onclick='switchTab("image")'>屏保</button>
+                    <button class='tab-btn' onclick='switchTab("screenshot")'>截图</button>
+                    <button class='tab-btn' onclick='switchTab("records")'>阅读记录</button>
                 </div>
             </div>
             <div class='card-body'>
@@ -976,7 +978,7 @@
         let selectedFiles = [];
         let currentTab = 'book'; // 当前选中的tab
         let currentPage = 1; // 当前页码
-        let fileCache = { book: null, font: null, image: null };
+        let fileCache = { book: null, font: null, image: null, screenshot: null, records: null };
         const PAGE_SIZE = 10;
 
         // Tab切换功能
@@ -984,13 +986,23 @@
             // ev is optional; when provided, use it to update active button
             currentTab = tabName;
             currentPage = 1;
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            try { if (ev && ev.target) ev.target.classList.add('active'); } catch (e) { }
+            
+            // 更新active按钮状态
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+                // 通过按钮的onclick属性匹配当前tab
+                if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(`"${tabName}"`)) {
+                    btn.classList.add('active');
+                }
+            });
+            
             const hintElement = document.getElementById('tabHint');
             const hints = {
                 'book': '支持unicode/GBK编码的txt',
                 'font': '请确认上传的是专用工具生成的font.bin文件(部分推荐字体可于上方仓库链接直接下载 ), V1.2.9之前生成的字体，建议重新生成更新。',
-                'image': '尽量避免使用大图片，体积太大可能会导致无法使用并回退系统锁屏，540x960尺寸为佳 （建议用上方仓库提供工具生成），锁屏优先选择文件同名图片，其次可部分匹配文件名（但可以带额外数字结尾）的图片，再次default.png，之后回退系统自带。'
+                'image': '尽量避免使用大图片，体积太大可能会导致无法使用并回退系统锁屏，540x960尺寸为佳 （建议用上方仓库提供工具生成），锁屏优先选择文件同名图片，其次可部分匹配文件名（但可以带额外数字结尾）的图片，再次default.png，之后回退系统自带。',
+                'screenshot': '设备截图存储目录。双击屏幕左上角(230,0)-(310,80)区域可触发截图。此目录仅支持下载和删除，不支持上传。',
+                'records': '查看所有书籍的阅读记录统计信息。包括总阅读时长、每日统计和每月统计。此功能仅显示统计信息，不支持上传和删除。'
             };
             hintElement.textContent = hints[tabName] || '';
 
@@ -998,10 +1010,26 @@
             const tabNames = {
                 'book': '书籍',
                 'font': '字体',
-                'image': '锁屏'
+                'image': '锁屏',
+                'screenshot': '截图',
+                'records': '阅读记录'
             };
             const uploadTitle = document.getElementById('uploadTitle');
             uploadTitle.textContent = `${tabNames[tabName] || tabName}-文件上传`;
+
+            // 对于screenshot和records tab，隐藏上传区域（找到uploadForm的祖父元素.card）
+            const uploadForm = document.getElementById('uploadForm');
+            if (uploadForm) {
+                // uploadForm -> .card-body -> .card
+                const uploadCard = uploadForm.closest('.card');
+                if (uploadCard) {
+                    if (tabName === 'screenshot' || tabName === 'records') {
+                        uploadCard.style.display = 'none';
+                    } else {
+                        uploadCard.style.display = 'block';
+                    }
+                }
+            }
 
             loadFileList();
         }
@@ -1335,17 +1363,46 @@
             const pagination = document.getElementById('pagination');
             fileList.innerHTML = '<div class="file-item loading">正在加载文件列表...</div>';
             pagination.style.display = 'none';
+            
+            console.log('[DEBUG] loadFileList called for tab:', currentTab);
+            
+            // 特殊处理阅读记录标签，使用不同的API端点
+            if (currentTab === 'records') {
+                fetch('/api/reading_records')
+                    .then(response => {
+                        console.log('[DEBUG] fetch reading records response status:', response.status);
+                        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('[DEBUG] reading records loaded:', data.processed, '/', data.total, 'records');
+                        fileCache[currentTab] = data.records || [];
+                        renderReadingRecords();
+                    })
+                    .catch(error => {
+                        console.error('[DEBUG] loadFileList error:', error);
+                        fileList.innerHTML = `<div class="file-item" style="justify-content: space-evenly; color: #d32f2f; flex-direction: row; margin-top: 20px;">
+                            <div style="margin-bottom: 10px;">加载失败: ${error.message}</div>
+                            <button onclick="loadFileList()" style="padding: 8px 16px; background: #757575; color: white; border: none; border-radius: 4px; cursor: pointer;">重试</button>
+                        </div>`;
+                    });
+                return;
+            }
+            
             // 只请求一次，缓存
             fetch(`/list/${currentTab}`)
                 .then(response => {
+                    console.log('[DEBUG] fetch response status:', response.status);
                     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     return response.json();
                 })
                 .then(files => {
+                    console.log('[DEBUG] files loaded:', files.length, 'files');
                     fileCache[currentTab] = files;
                     renderFileList();
                 })
                 .catch(error => {
+                    console.error('[DEBUG] loadFileList error:', error);
                     fileList.innerHTML = `<div class="file-item" style="justify-content: space-evenly; color: #d32f2f; flex-direction: row; margin-top: 20px;">
                         <div style="margin-bottom: 10px;">加载失败: ${error.message}</div>
                         <button onclick="loadFileList()" style="padding: 8px 16px; background: #757575; color: white; border: none; border-radius: 4px; cursor: pointer;">重试</button>
@@ -1408,7 +1465,7 @@
                 const item = document.createElement('div');
                 item.className = 'file-item';
                 const iconClass = file.type === 'file' ? 'file-icon' : 'folder-icon file-icon';
-                const dirPrefix = currentTab === 'book' ? '/book' : currentTab === 'font' ? '/font' : currentTab === 'image' ? '/image' : '';
+                const dirPrefix = currentTab === 'book' ? '/book' : currentTab === 'font' ? '/font' : currentTab === 'image' ? '/image' : currentTab === 'screenshot' ? '/screenshot' : '';
                 // Prefer server-supplied full path (untruncated). Fallback to constructed path.
                 const fullPath = file.path ? file.path : (dirPrefix + '/' + file.name);
                 item.innerHTML = `
@@ -1446,6 +1503,141 @@
             pageInfo.textContent = `${currentPage}/${maxPage}`;
             prevBtn.disabled = currentPage <= 1;
             nextBtn.disabled = currentPage >= maxPage;
+        }
+
+        function renderReadingRecords() {
+            const fileList = document.getElementById('fileList');
+            const pagination = document.getElementById('pagination');
+            const pageInfo = document.getElementById('pageInfo');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const records = fileCache[currentTab] || [];
+
+            fileList.innerHTML = '';
+            if (records.length === 0) {
+                fileList.innerHTML = '<div class="file-item" style="justify-content: center; color: #6c757d;">暂无阅读记录</div>';
+                pagination.style.display = 'none';
+                return;
+            }
+
+            // 分页
+            const startIdx = (currentPage - 1) * PAGE_SIZE;
+            const endIdx = Math.min(startIdx + PAGE_SIZE, records.length);
+            const pageRecords = records.slice(startIdx, endIdx);
+
+            pageRecords.forEach(record => {
+                const item = document.createElement('div');
+                item.className = 'file-item';
+                item.style.flexDirection = 'column';
+                item.style.alignItems = 'flex-start';
+                item.style.gap = '10px';
+                
+                // 格式化总时长
+                const totalTime = `${record.total_hours}小时${record.total_minutes}分钟`;
+                
+                // 计算最近阅读时间
+                let lastReadDate = '';
+                const dailyKeys = Object.keys(record.daily_summary || {}).sort().reverse();
+                if (dailyKeys.length > 0) {
+                    const lastDay = dailyKeys[0];
+                    lastReadDate = `${lastDay.substr(0,4)}-${lastDay.substr(4,2)}-${lastDay.substr(6,2)}`;
+                }
+                
+                // 计算本月阅读时长
+                const now = new Date();
+                const currentMonth = now.getFullYear().toString() + (now.getMonth() + 1).toString().padStart(2, '0');
+                const thisMonthMinutes = record.monthly_summary ? (record.monthly_summary[currentMonth] || 0) : 0;
+                const thisMonthHours = Math.floor(thisMonthMinutes / 60);
+                const thisMonthMins = thisMonthMinutes % 60;
+                
+                item.innerHTML = `
+                    <div style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="font-weight: 600; color: #333; word-break: break-all; flex: 1;">${record.book_name}</div>
+                        <div style="font-size: 0.9rem; color: #757575; white-space: nowrap; margin-left: 10px;">总计: ${totalTime}</div>
+                    </div>
+                    ${lastReadDate ? `<div style="font-size: 0.85rem; color: #9e9e9e;">最近阅读: ${lastReadDate}</div>` : ''}
+                    ${thisMonthMinutes > 0 ? `<div style="font-size: 0.85rem; color: #9e9e9e;">本月阅读: ${thisMonthHours}小时${thisMonthMins}分钟</div>` : ''}
+                    <div style="width: 100%; display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button onclick='showRecordDetails(${JSON.stringify(record).replace(/'/g, "&#39;")})' 
+                                style="padding: 6px 12px; background: #757575; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">
+                            查看详细统计
+                        </button>
+                    </div>
+                `;
+                
+                fileList.appendChild(item);
+            });
+
+            // 更新分页控件
+            pagination.style.display = records.length > PAGE_SIZE ? 'block' : 'none';
+            if (records.length > PAGE_SIZE) {
+                const maxPage = Math.ceil(records.length / PAGE_SIZE);
+                const startFile = startIdx + 1;
+                const endFile = endIdx;
+                pageInfo.textContent = `${currentPage}/${maxPage}`;
+                prevBtn.disabled = currentPage <= 1;
+                nextBtn.disabled = currentPage >= maxPage;
+            }
+        }
+
+        function showRecordDetails(record) {
+            // 构建详细统计信息的HTML
+            let detailsHTML = `
+                <div style="max-height: 400px; overflow-y: auto; padding: 10px;">
+                    <h3 style="margin-bottom: 15px; color: #424242;">${record.book_name}</h3>
+                    <div style="margin-bottom: 20px;">
+                        <div style="font-size: 1.1rem; color: #424242; margin-bottom: 10px;">
+                            <strong>总阅读时长:</strong> ${record.total_hours}小时${record.total_minutes}分钟
+                        </div>
+                    </div>
+            `;
+            
+            // 按月统计
+            if (record.monthly_summary && Object.keys(record.monthly_summary).length > 0) {
+                detailsHTML += '<div style="margin-bottom: 20px;"><h4 style="color: #616161; margin-bottom: 8px;">月度统计</h4><div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px;">';
+                const monthKeys = Object.keys(record.monthly_summary).sort().reverse();
+                monthKeys.forEach(month => {
+                    const minutes = record.monthly_summary[month];
+                    const hours = Math.floor(minutes / 60);
+                    const mins = minutes % 60;
+                    const monthStr = `${month.substr(0,4)}年${month.substr(4,2)}月`;
+                    detailsHTML += `<div style="padding: 8px; background: #f5f5f5; border-radius: 4px; font-size: 0.9rem;">${monthStr}: ${hours}h${mins}m</div>`;
+                });
+                detailsHTML += '</div></div>';
+            }
+            
+            // 按日统计（最近30天）
+            if (record.daily_summary && Object.keys(record.daily_summary).length > 0) {
+                detailsHTML += '<div style="margin-bottom: 20px;"><h4 style="color: #616161; margin-bottom: 8px;">最近30天</h4><div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px;">';
+                const dayKeys = Object.keys(record.daily_summary).sort().reverse().slice(0, 30);
+                dayKeys.forEach(day => {
+                    const minutes = record.daily_summary[day];
+                    const hours = Math.floor(minutes / 60);
+                    const mins = minutes % 60;
+                    const dateStr = `${day.substr(4,2)}月${day.substr(6,2)}日`;
+                    detailsHTML += `<div style="padding: 6px; background: #fafafa; border-radius: 4px; font-size: 0.85rem;">${dateStr}: ${hours}h${mins}m</div>`;
+                });
+                detailsHTML += '</div></div>';
+            }
+            
+            detailsHTML += '</div>';
+            
+            // 使用toast或modal显示详细信息（这里简化为alert，可以改为更好的UI）
+            const modal = document.createElement('div');
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+            modal.innerHTML = `
+                <div style="background: white; border-radius: 8px; max-width: 800px; width: 90%; max-height: 80vh; overflow: hidden; display: flex; flex-direction: column;">
+                    ${detailsHTML}
+                    <div style="padding: 15px; border-top: 1px solid #e0e0e0; text-align: right;">
+                        <button onclick="this.closest('[style*=fixed]').remove()" 
+                                style="padding: 8px 20px; background: #757575; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                            关闭
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
         }
 
         async function deleteFile(path) {

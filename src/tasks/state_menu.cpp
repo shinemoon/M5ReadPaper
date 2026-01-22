@@ -46,6 +46,8 @@
 #include "ui/ui_lock_screen.h"
 #include "test/per_file_debug.h"
 #include <cstring>
+// for screenshot
+#include "ui/screenshot.h"
 
 #include "config/config_manager.h"
 
@@ -218,6 +220,18 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
         // In show_reading_menu that corresponds to an absolute rect: left=330, top=327, w=164, h=54
         int16_t tx = msg->data.touch.x;
         int16_t ty = msg->data.touch.y;
+        
+        // 检查是否点击了阅读时间区域 (x: 300-540, y: 140-178)
+        if (tx >= 300 && tx < 540 && ty >= 140 && ty < 178)
+        {
+#if DBG_STATE_MACHINE_TASK
+            sm_dbg_printf("MENU状态：点击阅读时间区域，进入 SHOW_TIME_REC\n");
+#endif
+            // 进入阅读时间记录显示状态
+            currentState_ = STATE_SHOW_TIME_REC;
+            return;
+        }
+        
         const int16_t tag_left = 450;
         const int16_t tag_top = 640 + 40;
         const int16_t tag_w = 90;
@@ -646,6 +660,23 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
         }
         (void)show_reading_menu(g_canvas, true);
         break;
+
+    case MSG_DOUBLE_TOUCH_PRESSED:
+        // 检查是否在截图区域
+        if (isInScreenshotArea(msg->data.touch.x, msg->data.touch.y))
+        {
+#if DBG_STATE_MACHINE_TASK
+            sm_dbg_printf("双击截图区域，开始截图\n");
+#endif
+            if (screenShot())
+            {
+#if DBG_STATE_MACHINE_TASK
+                sm_dbg_printf("截图成功\n");
+#endif
+            }
+        }
+        break;
+
     default:
 #if DBG_STATE_MACHINE_TASK
         Serial.printf("[STATE_MACHINE] MENU状态收到消息: %d\n", msg->type);

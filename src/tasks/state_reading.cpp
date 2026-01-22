@@ -11,6 +11,7 @@
 #include "ui/ui_lock_screen.h"
 #include "ui/index_display.h"
 #include "ui/toc_display.h"
+#include "ui/screenshot.h"
 #include "test/per_file_debug.h"
 #include <cstring>
 
@@ -479,6 +480,25 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                         display_set_rotation(0);
                 }
                 g_current_book->renderCurrentPage(font_size);
+                break;
+
+        case MSG_DOUBLE_TOUCH_PRESSED:
+#if DBG_STATE_MACHINE_TASK
+                sm_dbg_printf("READING状态收到双击触摸: (%d, %d)\n", msg->data.touch.x, msg->data.touch.y);
+#endif
+                // 检查是否在截图区域
+                if (isInScreenshotArea(msg->data.touch.x, msg->data.touch.y))
+                {
+#if DBG_STATE_MACHINE_TASK
+                        sm_dbg_printf("双击截图区域，开始截图\n");
+#endif
+                        if (screenShot())
+                        {
+#if DBG_STATE_MACHINE_TASK
+                                sm_dbg_printf("截图成功\n");
+#endif
+                        }
+                }
                 break;
 
         default:

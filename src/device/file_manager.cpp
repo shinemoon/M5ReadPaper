@@ -258,6 +258,7 @@ bool init_filesystem()
     // 这些文件位于 SD 卡的 /bookmarks/ 目录下
     const char* bookmark_files[] = {
         "/bookmarks/_spiffs_ReadPaper.bm",
+        "/bookmarks/_spiffs_ReadPaper.rec",
         "/bookmarks/_spiffs_ReadPaper.complete",
         "/bookmarks/_spiffs_ReadPaper.page",
         "/bookmarks/_spiffs_ReadPaper.tags"

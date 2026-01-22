@@ -29,6 +29,7 @@ public:
     size_t position() const;
     size_t getFileSize() const; // 获取文件大小
     const std::string &filePath() const { return file_path; }
+    std::string getBookName() const; // 获取书名（从文件路径中提取文件名）
 
     // 翻页操作
     // nextPage: 从当前位置读取下一页并前进；返回的 result.page_end_pos 为下一次调用的起点
@@ -386,6 +387,8 @@ bool saveBookmarkForFile(const BookHandle *book);                      // 根据
 BookmarkConfig loadBookmarkForFile(const std::string &book_file_path); // 根据文件名自动加载书签
 bool isFileModified(const std::string &book_file_path);                // 检查文件是否被修改过（基于文件大小）
 bool ensureBookmarksFolder();                                          // 确保SD卡上存在bookmarks文件夹
+bool ensureScreenshotFolder();                                         // 确保SD卡上存在screenshot文件夹
 std::string getBookmarkFileName(const std::string &book_file_path);    // 获取书签文件名
+std::string getRecordFileName(const std::string &book_file_path);      // 获取阅读记录文件名（.rec）
 // Remove index files (page/progress/complete) for a given book path. Public so UI can call it too.
 void removeIndexFilesForBookForPath(const std::string &book_file_path);

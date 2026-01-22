@@ -197,3 +197,10 @@
 #define DBG_CONFIG_MANAGER 0
 #endif
 #endif
+#ifndef DBG_SCREENSHOT
+#if DEBUGON
+#define DBG_SCREENSHOT 1
+#else
+#define DBG_SCREENSHOT 0
+#endif
+#endif

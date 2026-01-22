@@ -15,6 +15,7 @@
 #include "text/book_handle.h"
 #include "text/tags_handle.h"
 #include <set>
+#include <map>
 #include "ui/ui_lock_screen.h"
 
 extern GlobalConfig g_config;
@@ -308,6 +309,8 @@ void WiFiHotspotManager::handleFileList(String category) {
         path = "/font";
     } else if (category == "image") {
         path = "/image";
+    } else if (category == "screenshot") {
+        path = "/screenshot";
     } else {
         path = "/";
     }
@@ -752,6 +755,359 @@ void WiFiHotspotManager::handleFileDownload() {
     webServer->sendHeader("Content-Disposition", disposition);
     webServer->streamFile(file, contentType);
     file.close();
+}
+
+// Helper function to parse a .rec file and return JSON object for a single book
+static void parseRecFileToJson(const std::string &rec_file_path, const std::string &book_path, String &jsonOutput) {
+    jsonOutput = "{";
+    jsonOutput += "\"book_path\":\"" + String(book_path.c_str()) + "\",";
+    
+    // Extract book name from path
+    size_t lastSlash = book_path.find_last_of("/");
+    std::string bookName = (lastSlash != std::string::npos) ? book_path.substr(lastSlash + 1) : book_path;
+    jsonOutput += "\"book_name\":\"" + String(bookName.c_str()) + "\",";
+    
+    if (!SDW::SD.exists(rec_file_path.c_str())) {
+        jsonOutput += "\"error\":\"Record file not found\",";
+        jsonOutput += "\"total_hours\":0,\"total_minutes\":0,";
+        jsonOutput += "\"hourly_records\":{},";
+        jsonOutput += "\"daily_summary\":{},";
+        jsonOutput += "\"monthly_summary\":{}";
+        jsonOutput += "}";
+        return;
+    }
+    
+    File rf = SDW::SD.open(rec_file_path.c_str(), "r");
+    if (!rf) {
+        jsonOutput += "\"error\":\"Failed to open record file\",";
+        jsonOutput += "\"total_hours\":0,\"total_minutes\":0,";
+        jsonOutput += "\"hourly_records\":{},";
+        jsonOutput += "\"daily_summary\":{},";
+        jsonOutput += "\"monthly_summary\":{}";
+        jsonOutput += "}";
+        return;
+    }
+    
+    // Get total time from .bm file (bookmark file) instead of .rec file
+    // This matches the device-side ui_time_rec logic
+    int totalHours = 0;
+    int totalMinutes = 0;
+    
+    std::string bm_file_path = getBookmarkFileName(book_path);
+    
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] Reading .bm file for total time: %s\n", bm_file_path.c_str());
+#endif
+    
+    if (SDW::SD.exists(bm_file_path.c_str())) {
+        File bmf = SDW::SD.open(bm_file_path.c_str(), "r");
+        if (bmf) {
+#if DBG_WIFI_HOTSPOT
+            Serial.printf("[WIFI_HOTSPOT] .bm file opened successfully\n");
+#endif
+            while (bmf.available()) {
+                String line = bmf.readStringUntil('\n');
+                line.trim();
+                if (line.length() == 0) continue;
+                
+                int eq_pos = line.indexOf('=');
+                if (eq_pos > 0) {
+                    String key = line.substring(0, eq_pos);
+                    String value = line.substring(eq_pos + 1);
+                    key.trim();
+                    value.trim();
+                    
+                    if (key == "readhour") {
+                        totalHours = value.toInt();
+#if DBG_WIFI_HOTSPOT
+                        Serial.printf("[WIFI_HOTSPOT] Found readhour=%d\n", totalHours);
+#endif
+                    } else if (key == "readmin") {
+                        totalMinutes = value.toInt();
+#if DBG_WIFI_HOTSPOT
+                        Serial.printf("[WIFI_HOTSPOT] Found readmin=%d\n", totalMinutes);
+#endif
+                    }
+                }
+            }
+            bmf.close();
+        }
+#if DBG_WIFI_HOTSPOT
+        else {
+            Serial.printf("[WIFI_HOTSPOT] Failed to open .bm file\n");
+        }
+    } else {
+        Serial.printf("[WIFI_HOTSPOT] .bm file does not exist: %s\n", bm_file_path.c_str());
+#endif
+    }
+    
+    // Skip the first line of .rec file (no longer used for total time)
+    if (rf.available()) {
+        rf.readStringUntil('\n');
+    }
+    
+    jsonOutput += "\"total_hours\":" + String(totalHours) + ",";
+    jsonOutput += "\"total_minutes\":" + String(totalMinutes) + ",";
+    
+    // Parse hourly records
+    std::map<std::string, int32_t> hourlyRecords;
+    std::map<std::string, int32_t> dailySummary;
+    std::map<std::string, int32_t> monthlySummary;
+    
+    while (rf.available()) {
+        String line = rf.readStringUntil('\n');
+        line.trim();
+        if (line.length() == 0) continue;
+        
+        int colon = line.indexOf(':');
+        if (colon > 0) {
+            String ts = line.substring(0, colon);
+            String val = line.substring(colon + 1);
+            
+            // Parse time value (XXhXXm or XXm)
+            int32_t mins = 0;
+            int h_pos = val.indexOf('h');
+            if (h_pos > 0) {
+                int hours = val.substring(0, h_pos).toInt();
+                int m_pos = val.indexOf('m', h_pos);
+                int minutes = 0;
+                if (m_pos > h_pos + 1) {
+                    minutes = val.substring(h_pos + 1, m_pos).toInt();
+                }
+                mins = hours * 60 + minutes;
+            } else {
+                int m_pos = val.indexOf('m');
+                if (m_pos > 0) {
+                    mins = val.substring(0, m_pos).toInt();
+                }
+            }
+            
+            std::string timestamp = ts.c_str();
+            hourlyRecords[timestamp] = mins;
+            
+            // Aggregate by day (YYYYMMDD)
+            if (timestamp.length() >= 8) {
+                std::string day = timestamp.substr(0, 8);
+                dailySummary[day] += mins;
+            }
+            
+            // Aggregate by month (YYYYMM)
+            if (timestamp.length() >= 6) {
+                std::string month = timestamp.substr(0, 6);
+                monthlySummary[month] += mins;
+            }
+        }
+    }
+    rf.close();
+    
+    // Build hourly_records JSON
+    jsonOutput += "\"hourly_records\":{";
+    bool first = true;
+    for (const auto& entry : hourlyRecords) {
+        if (!first) jsonOutput += ",";
+        jsonOutput += "\"" + String(entry.first.c_str()) + "\":" + String(entry.second);
+        first = false;
+    }
+    jsonOutput += "},";
+    
+    // Build daily_summary JSON
+    jsonOutput += "\"daily_summary\":{";
+    first = true;
+    for (const auto& entry : dailySummary) {
+        if (!first) jsonOutput += ",";
+        jsonOutput += "\"" + String(entry.first.c_str()) + "\":" + String(entry.second);
+        first = false;
+    }
+    jsonOutput += "},";
+    
+    // Build monthly_summary JSON
+    jsonOutput += "\"monthly_summary\":{";
+    first = true;
+    for (const auto& entry : monthlySummary) {
+        if (!first) jsonOutput += ",";
+        jsonOutput += "\"" + String(entry.first.c_str()) + "\":" + String(entry.second);
+        first = false;
+    }
+    jsonOutput += "}";
+    
+    jsonOutput += "}";
+}
+
+void WiFiHotspotManager::handleReadingRecords() {
+    // Parse query parameters
+    // Supports: 
+    // - /api/reading_records?book=/book/example.txt (single book)
+    // - /api/reading_records?books=/book/a.txt,/book/b.txt (multiple books)
+    // - /api/reading_records (all books with .rec files)
+    
+    String bookParam = webServer->hasArg("book") ? webServer->arg("book") : "";
+    String booksParam = webServer->hasArg("books") ? webServer->arg("books") : "";
+    
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] /api/reading_records request, book: %s, books: %s\n", 
+                 bookParam.c_str(), booksParam.c_str());
+#endif
+    
+    webServer->setContentLength(CONTENT_LENGTH_UNKNOWN);
+    webServer->send(200, "application/json", "");
+    
+    std::vector<std::string> bookPaths;
+    
+    // Single book query
+    if (bookParam.length() > 0) {
+        bookPaths.push_back(std::string(bookParam.c_str()));
+    }
+    // Multiple books query
+    else if (booksParam.length() > 0) {
+        String remaining = booksParam;
+        while (remaining.length() > 0) {
+            int commaPos = remaining.indexOf(',');
+            if (commaPos > 0) {
+                String path = remaining.substring(0, commaPos);
+                path.trim();
+                if (path.length() > 0) {
+                    bookPaths.push_back(std::string(path.c_str()));
+                }
+                remaining = remaining.substring(commaPos + 1);
+            } else {
+                remaining.trim();
+                if (remaining.length() > 0) {
+                    bookPaths.push_back(std::string(remaining.c_str()));
+                }
+                break;
+            }
+        }
+    }
+    // All books query - scan /bookmarks directory for .rec files
+    else {
+        std::string bookmarksDir = "/bookmarks";
+        if (SDW::SD.exists(bookmarksDir.c_str())) {
+            File dir = SDW::SD.open(bookmarksDir.c_str());
+            if (dir && dir.isDirectory()) {
+                dir.rewindDirectory();
+                while (true) {
+                    File entry = dir.openNextFile();
+                    if (!entry) break;
+                    
+                    const char* namePtr = entry.name();
+                    if (namePtr) {
+                        std::string fname = std::string(namePtr);
+                        // Look for .rec files (format: _book_bookname.rec or _sd_book_bookname.rec)
+                        if (fname.length() > 4 && fname.substr(fname.length() - 4) == ".rec") {
+                            // Convert .rec filename back to book path
+                            // _book_bookname.rec -> /book/bookname
+                            // _sd_book_bookname.rec -> /sd/book/bookname
+                            std::string bookName = fname.substr(0, fname.length() - 4);
+                            
+                            // Replace underscores back to slashes to reconstruct path
+                            std::string bookPath;
+                            for (size_t i = 0; i < bookName.length(); i++) {
+                                if (bookName[i] == '_') {
+                                    bookPath += '/';
+                                } else {
+                                    bookPath += bookName[i];
+                                }
+                            }
+                            
+                            // Only include if it looks like a valid book path
+                            if (bookPath.find("/book/") != std::string::npos || 
+                                bookPath.find("/sd/book/") != std::string::npos ||
+                                bookPath.find("/spiffs/") != std::string::npos) {
+                                bookPaths.push_back(bookPath);
+                            }
+                        }
+                    }
+                    entry.close();
+                    yield();
+                }
+                dir.close();
+            }
+        }
+    }
+    
+    // Send response with progress info
+    int totalBooks = bookPaths.size();
+    webServer->sendContent("{\"total\":" + String(totalBooks) + ",");
+    webServer->sendContent("\"records\":[");
+    
+    bool first = true;
+    int processed = 0;
+    
+    for (const auto& bookPath : bookPaths) {
+        if (ESP.getFreeHeap() < 4096) {
+#if DBG_WIFI_HOTSPOT
+            Serial.printf("[WIFI_HOTSPOT] 内存不足，停止处理，已处理 %d/%d\n", processed, totalBooks);
+#endif
+            break;
+        }
+        
+        // Try different path prefixes to find the .rec file
+        std::string recPath;
+        std::string actualBookPath = bookPath;
+        
+        // If path doesn't have /sd/ or /spiffs/ prefix, try both
+        if (bookPath.find("/sd/") != 0 && bookPath.find("/spiffs/") != 0) {
+            // Try /sd prefix first (most common for books)
+            std::string sdPath = "/sd" + bookPath;
+            std::string sdRecPath = getRecordFileName(sdPath);
+            
+#if DBG_WIFI_HOTSPOT
+            Serial.printf("[WIFI_HOTSPOT] Checking rec file: %s\n", sdRecPath.c_str());
+#endif
+            
+            if (SDW::SD.exists(sdRecPath.c_str())) {
+                recPath = sdRecPath;
+                actualBookPath = sdPath;
+            } else {
+                // Try /spiffs prefix
+                std::string spiffsPath = "/spiffs" + bookPath;
+                std::string spiffsRecPath = getRecordFileName(spiffsPath);
+                
+#if DBG_WIFI_HOTSPOT
+                Serial.printf("[WIFI_HOTSPOT] Checking rec file: %s\n", spiffsRecPath.c_str());
+#endif
+                
+                if (SDW::SD.exists(spiffsRecPath.c_str())) {
+                    recPath = spiffsRecPath;
+                    actualBookPath = spiffsPath;
+                } else {
+                    // Try without prefix as last resort
+                    recPath = getRecordFileName(bookPath);
+                    
+#if DBG_WIFI_HOTSPOT
+                    Serial.printf("[WIFI_HOTSPOT] Checking rec file: %s\n", recPath.c_str());
+#endif
+                }
+            }
+        } else {
+            recPath = getRecordFileName(bookPath);
+            
+#if DBG_WIFI_HOTSPOT
+            Serial.printf("[WIFI_HOTSPOT] Checking rec file: %s\n", recPath.c_str());
+#endif
+        }
+        
+        String recordJson;
+        parseRecFileToJson(recPath, actualBookPath, recordJson);
+        
+        if (!first) {
+            webServer->sendContent(",");
+        }
+        webServer->sendContent(recordJson);
+        first = false;
+        processed++;
+        
+        yield();
+    }
+    
+    webServer->sendContent("],");
+    webServer->sendContent("\"processed\":" + String(processed));
+    webServer->sendContent("}");
+    webServer->sendContent(""); // 结束响应
+    
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] /api/reading_records 完成，处理了 %d/%d 本书\n", processed, totalBooks);
+#endif
 }
 
 void WiFiHotspotManager::handleNotFound() {

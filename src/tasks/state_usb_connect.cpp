@@ -6,6 +6,8 @@
 #include "device/ui_display.h"
 #include "test/per_file_debug.h"
 #include <cstring>
+// for screenshot
+#include "ui/screenshot.h"
 
 extern M5Canvas *g_canvas;
 #include "globals.h"
@@ -51,6 +53,23 @@ void StateMachineTask::handleUsbConnectState(const SystemMessage_t *msg)
         show_usb_connect(g_canvas, true);
         break;
     */
+
+    case MSG_DOUBLE_TOUCH_PRESSED:
+        // 检查是否在截图区域
+        if (isInScreenshotArea(msg->data.touch.x, msg->data.touch.y))
+        {
+#if DBG_STATE_MACHINE_TASK
+            sm_dbg_printf("双击截图区域，开始截图\n");
+#endif
+            if (screenShot())
+            {
+#if DBG_STATE_MACHINE_TASK
+                sm_dbg_printf("截图成功\n");
+#endif
+            }
+        }
+        break;
+
     case MSG_TIMER_MIN_TIMEOUT:
     default:
         break;

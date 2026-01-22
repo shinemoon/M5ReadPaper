@@ -103,6 +103,7 @@ private:
     void handleFileDownload();
     void handleNotFound();
     void handleFileUploadPost();
+    void handleReadingRecords();
 
     // 辅助函数
     String formatFileSize(size_t bytes);

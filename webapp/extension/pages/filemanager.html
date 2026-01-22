@@ -38,25 +38,25 @@
             <div id="device-info" class="muted"></div>
         </div>
 
-
         <div class="row">
-            <div class="col-3 upload-box" style="margin-top:20px; background-color: #fff;border:1px,dotted, #888;"
-                id="syncTime">
-                <div class="mb-05"><strong> 设备时间管理 </strong></div>
-                <button id="btnSyncTime" class="button primary is-small">同步时间</button>
-            </div>
-
-
-            <div class="col-9 upload-box" id="uploadBox"
-                style="margin-top:20px; background-color: #eee;border:1px,dotted, #000;">
+            <div class="col-5 upload-box" id="uploadBox">
                 <div class="mb-05"><strong id="uploadTitle">书籍-文件上传</strong></div>
                 <input id="fileInput" type="file" multiple class="hidden" />
                 <div class="flex-row gap-small">
-                    <button id="btnSelect" class="button is-small">选择文件</button>
-                    <button id="btnUpload" class="button primary is-small" disabled>开始上传</button>
+                    <button id="btnSelect" class="button is-small">选择</button>
+                    <button id="btnUpload" class="button primary is-small" disabled>上传</button>
                     <button id="btnDeleteSelected" class="button is-small outline" disabled
-                        style="margin-left:.5rem">删除选中</button>
+                        style="margin-left:.5rem">删除</button>
                     <span id="uploadInfo" class="muted"></span>
+                </div>
+            </div>
+
+            <div class="col-5 upload-box rec-box" id="recBox">
+                <div class="mb-05"><strong>阅读记录</strong></div>
+                <div class="flex-row gap-small">
+                    <button id="btnSyncTime" class="button primary is-small">同步时间</button>
+                    <button id="btnBatchRecords" class="button is-small outline" title="查看选中书籍的阅读记录">批量阅读记录</button>
+                    <button id="btnAllRecords" class="button is-small outline" title="查看所有书籍的阅读记录">全部阅读记录</button>
                 </div>
             </div>
         </div>
@@ -73,6 +73,7 @@
                                 <a data-cat="book" class="active">书籍</a>
                                 <a data-cat="font">字体</a>
                                 <a data-cat="image">锁屏</a>
+                                <a data-cat="screenshot">截图</a>
                             </div>
                         </div>
                     </div>
@@ -114,6 +115,7 @@
 
     <div data-include="partials/footer.html"></div>
     <script src="include-partials.js"></script>
+    <script src="../vendors/jszip.min.js"></script>
     <script src="filemanager.js"></script>
 </body>
 
