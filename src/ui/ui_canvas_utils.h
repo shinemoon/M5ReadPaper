@@ -25,7 +25,7 @@ void drawMiddleUI(M5Canvas *canvas, int16_t x=0, int16_t y=0);
 void drawHome(M5Canvas *canvas, int16_t x=0, int16_t y=0);
 void drawLock(M5Canvas *canvas, int16_t x=0, int16_t y=0);
 void drawPower(M5Canvas *canvas, int16_t x=0, int16_t y=0);
-void draw_button(M5Canvas *canvas, int16_t cx, int16_t cy, const char *text, bool inverted=false, bool second=false);
+void draw_button(M5Canvas *canvas, int16_t cx, int16_t cy, const char *text, bool inverted=false, bool second=false, float ratio = 1.0f);
 void draw_label(M5Canvas *canvas, int16_t cx, int16_t cy, const char *text, bool inverted=false, bool second=false);
 void drawSwitch(M5Canvas *canvas, int16_t x, int16_t y, bool on, const char *text, uint8_t fsize=20, u16_t tcolor=0);
 void drawScrew(M5Canvas *canvas, int16_t x, int16_t y);

@@ -15,6 +15,7 @@
 #include <vector>
 #include <string>
 #include <cctype>
+#include <cmath>
 #include <algorithm>
 #include "tasks/device_interrupt_task.h"
 
@@ -259,16 +260,13 @@ bool show_reading_menu(M5Canvas *canvas, bool refresh)
     }
     else
     {
-        bin_font_print("重新索引", 24, 0, 170, 96, 146, true, nullptr, TEXT_ALIGN_CENTER, 300);
+        bin_font_print("重新索引", 28, 0, 170, 88, 144, true, nullptr, TEXT_ALIGN_CENTER, 300);
     }
 
     // 获取阅读时间记录
 
-    canvas->fillRect(300, 140, 65, 38, TFT_BLACK);
-    canvas->drawRect(365, 140, 175, 38, TFT_BLACK);
-    canvas->fillRect(452, 140, 88, 38, TFT_BLACK);
-    // bin_font_print("已读 ", 24, 0, 50, 310, 146, false, nullptr, TEXT_ALIGN_LEFT, 120, true, true, false, true);
-    bin_font_print("已读 ", 24, 15, 50, 310, 146, false, nullptr, TEXT_ALIGN_LEFT, 120);
+   // bin_font_print("已读 ", 24, 0, 50, 310, 146, false, nullptr, TEXT_ALIGN_LEFT, 120, true, true, false, true);
+    bin_font_print("已读 ", 28, 15, 50, 300, 144, false, nullptr, TEXT_ALIGN_LEFT, 120);
     // 已读时间小时数/分钟数：从当前打开的 BookHandle 获取，若无则显示 0:00
     char read_hour_str[16] = "0";
     char read_min_str[8] = "00";
@@ -290,13 +288,13 @@ bool show_reading_menu(M5Canvas *canvas, bool refresh)
         snprintf(read_min_str, sizeof(read_min_str), "%02d", rm);
     }
     // 已读时间小时数
-    bin_font_print(read_hour_str, 24, 0, 80, 365, 146, true, nullptr, TEXT_ALIGN_CENTER, 80);
+    bin_font_print(read_hour_str, 28, 0, 80, 365,144 , true, nullptr, TEXT_ALIGN_CENTER, 80);
     //    bin_font_print(":", 24, 0, 120, 440, 146, true, nullptr, TEXT_ALIGN_CENTER, 30);
     // 已读时间分钟数
     // bin_font_print(read_min_str, 24, 0, 80, 452, 146, false, nullptr, TEXT_ALIGN_CENTER, 80, true, false, false, true);
-    bin_font_print(read_min_str, 24, 15, 80, 452, 146, false, nullptr, TEXT_ALIGN_CENTER, 80);
+    bin_font_print(read_min_str, 28, 15, 80, 452, 144, false, nullptr, TEXT_ALIGN_CENTER, 80);
 
-    // 时间
+    // 0间
     // 获取当前时间
     struct tm timeinfo;
     if (getLocalTime(&timeinfo))
@@ -335,38 +333,53 @@ bool show_reading_menu(M5Canvas *canvas, bool refresh)
 }
 
 // 通用按钮绘制：传入中心坐标和文字，inverted=true 表示黑底白字
-void draw_button(M5Canvas *canvas, int16_t cx, int16_t cy, const char *text, bool inverted, bool second)
+// 新增参数 `ratio`（默认1.0）表示按钮缩放比例，会缩放按钮几何与文字大小
+void draw_button(M5Canvas *canvas, int16_t cx, int16_t cy, const char *text, bool inverted, bool second, float ratio)
 {
-    const int16_t w = 164;
-    const int16_t h = 54;
+    const int16_t w = (int16_t)(164 * ratio);
+    const int16_t h = (int16_t)(54 * ratio);
 
-    canvas->drawRect(cx, cy - 16 + 3, w, h, TFT_WHITE);
+    int16_t off_top = (int16_t)(16 * ratio);
+    int16_t off_a = (int16_t)(3 * ratio);
+    int16_t off_b = (int16_t)(2 * ratio);
+    int16_t off_c = (int16_t)(5 * ratio);
+    int16_t off_d = (int16_t)(4 * ratio);
+    int16_t off_e = (int16_t)(7 * ratio);
+    int16_t off_f = (int16_t)(4 * ratio);
+    int16_t off_g = (int16_t)(7 * ratio);
+    int16_t off_h = (int16_t)(8 * ratio);
+
+    canvas->drawRect(cx, cy - off_top + off_a, w, h, TFT_WHITE);
     // outer black fill to match existing style
-    canvas->fillRect(cx + 2, cy - 16 + 5, w - 4, h - 4, TFT_BLACK);
+    canvas->fillRect(cx + off_b, cy - off_top + off_c, w - 2 * off_b, h - 2 * off_b, TFT_BLACK);
     if (!inverted)
     {
         // inner white area
-        canvas->fillRect(cx + 4, cy - 16 + 7, w - 8, h - 8, TFT_WHITE);
-        canvas->drawRect(cx + 6, cy - 16 + 9, w - 12, h - 12, TFT_BLACK);
+        canvas->fillRect(cx + off_d, cy - off_top + off_e, w - 2 * off_d, h - 2 * off_d, TFT_WHITE);
+        canvas->drawRect(cx + off_f, cy - off_top + off_g, w - (2 * off_f), h - (2 * off_f), TFT_BLACK);
     }
     else
     {
-        canvas->drawRect(cx + 4, cy - 16 + 7, w - 8, h - 8, TFT_WHITE);
+        canvas->drawRect(cx + off_d, cy - off_top + off_e, w - 2 * off_d, h - 2 * off_d, TFT_WHITE);
     }
     if (false)
     // if (second)
     {
         if (!inverted)
             // inner white area
-            canvas->fillRect(cx + 8, cy - 16 + 5, 3, h - 4, TFT_BLACK);
+            canvas->fillRect(cx + off_h, cy - off_top + off_c, (int16_t)(3 * ratio), h - 2 * off_b, TFT_BLACK);
         else
-            canvas->fillRect(cx + 8, cy - 16 + 5, 3, h - 4, TFT_WHITE);
+            canvas->fillRect(cx + off_h, cy - off_top + off_c, (int16_t)(3 * ratio), h - 2 * off_b, TFT_WHITE);
     }
 
     // 文字颜色：反色时用白（15），否则用黑（0）
     int text_color = inverted ? 15 : 0;
     bool fastmode = inverted ? false : true;
-    bin_font_print(text, 32, text_color, 160, cx, cy - 4, fastmode, canvas, TEXT_ALIGN_CENTER, 160);
+    // 字体大小和可用宽度也按 ratio 缩放
+    uint8_t font_size = (uint8_t)std::max(1, (int)roundf(32.0f * ratio));
+    int16_t area_width = (int16_t)std::max(1, (int)(160 * ratio));
+    int16_t max_length = area_width;
+    bin_font_print(text, font_size, text_color, area_width, cx, cy - (int16_t)roundf(4.0f * ratio), fastmode, canvas, TEXT_ALIGN_CENTER, max_length);
 }
 
 void draw_label(M5Canvas *canvas, int16_t cx, int16_t cy, const char *text, bool inverted, bool second)
@@ -410,13 +423,13 @@ void drawTopUI(M5Canvas *canvas, int16_t x, int16_t y)
 
     // 2. 锁屏书签复选框
     bool showLabel = (g_current_book && g_current_book->getShowLabel());
-    drawCheckbox(canvas, x + 42, y + 60, showLabel, "锁屏书签");
+    drawCheckbox(canvas, x + 42, y + 60, showLabel, "锁屏书签",30);
 
     // 2.5. 下划线复选框（移到右上位置）
     if (g_current_book)
     {
         bool drawBottom = g_current_book->getDrawBottom();
-        drawCheckbox(canvas, x + 42 + 270, y + 60, drawBottom, "下划线", 26, 48);
+        drawCheckbox(canvas, x + 42 + 270, y + 60, drawBottom, "下划线", 30, 48);
     }
     // 2.6 划线与竖排
 
@@ -424,18 +437,18 @@ void drawTopUI(M5Canvas *canvas, int16_t x, int16_t y)
     if (g_current_book)
     {
         bool keepOrg = g_current_book->getKeepOrg();
-        drawCheckbox(canvas, x + 42, y + 240, keepOrg, "跳过繁简转换");
+        drawCheckbox(canvas, x + 42, y + 240, keepOrg, "跳过繁简转换",30);
     }
 
     // 在下划线右边添加竖排显示开关
     if (g_current_book)
     {
         // 竖排显示开关的位置
-        const int16_t switch_x = 270;
+        const int16_t switch_x = x+42 + 270;
         const int16_t switch_y = 244;
 
         // 绘制竖排显示开关
-        drawSwitch(canvas, switch_x, switch_y - 5, g_current_book->getVerticalText(), "竖排显示", 28);
+        drawSwitch(canvas, switch_x, switch_y - 6, g_current_book->getVerticalText(), "竖排", 30);
     }
 
     // 右上方框
@@ -465,7 +478,14 @@ void drawTopUI(M5Canvas *canvas, int16_t x, int16_t y)
 
     // 4. 顶部分隔线
     canvas->drawLine(x, y + 110, x + 540, y + 110, TFT_BLACK);
+    
 
+    // 4.5 时间窗口
+    //canvas->fillRect(300, 140, 65, 38, TFT_BLACK);
+    canvas->fillRect(280, y+ 130, 85, 60, TFT_BLACK);
+    canvas->drawRect(365, y+130, 175, 60, TFT_BLACK);
+    canvas->fillRect(452, y+130, 88, 60, TFT_BLACK);
+ 
     // 5. 大矩形框
     canvas->fillRect(x + 40, y + 130, 230, 60, TFT_BLACK);
     canvas->fillRect(x + 42, y + 132, 226, 56, TFT_WHITE);

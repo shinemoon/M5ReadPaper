@@ -10,10 +10,10 @@
 #include "ui/ui_canvas_utils.h"
 
 // 返回按钮区域
-static const int BACK_BTN_X = 200;
-static const int BACK_BTN_Y = 915;
-static const int BACK_BTN_WIDTH = 140;
-static const int BACK_BTN_HEIGHT = 60;
+static const int BACK_BTN_X = 203;
+static const int BACK_BTN_Y = 912;
+static const int BACK_BTN_WIDTH = (int)140 * 0.8f;
+static const int BACK_BTN_HEIGHT = (int)60 * 0.8f;
 
 // 解析 rec 文件的时间记录
 // 返回 map: timestamp(YYYYMMDDHH) -> 分钟数
@@ -101,6 +101,7 @@ void draw_time_rec_screen(M5Canvas *canvas)
 
     // 绘制标题
     canvas->fillRect(0, 0, PAPER_S3_WIDTH, 60, TFT_BLACK);
+//    canvas->fillRect(100, 0, PAPER_S3_WIDTH - 200, 60, TFT_BLACK);
     canvas->drawRect(0, 900, PAPER_S3_WIDTH, 60);
     drawScrew(canvas, 30, 30);
     drawScrew(canvas, 510, 30);
@@ -123,8 +124,8 @@ void draw_time_rec_screen(M5Canvas *canvas)
     int16_t total_min = g_current_book->getReadMin();
     char total_str[64];
     snprintf(total_str, sizeof(total_str), "总计: %dh%dm", total_hour, total_min);
-    bin_font_print(total_str, 24, TFT_BLACK, (PAPER_S3_WIDTH)/2, PAPER_S3_WIDTH/2, 80, true, canvas, TEXT_ALIGN_CENTER,0,false,true);
-    bin_font_print(g_current_book->getBookName(), 24, TFT_BLACK, (PAPER_S3_WIDTH)/2-20, 20, 80, true, canvas, TEXT_ALIGN_LEFT, 0, false,true);
+    bin_font_print(total_str, 24, TFT_BLACK, (PAPER_S3_WIDTH) / 2, PAPER_S3_WIDTH / 2, 80, true, canvas, TEXT_ALIGN_CENTER, 0, false, true);
+    bin_font_print(g_current_book->getBookName(), 24, TFT_BLACK, (PAPER_S3_WIDTH) / 2 - 20, 20, 80, true, canvas, TEXT_ALIGN_LEFT, 0, false, true);
 
     // 如果没有历史记录，显示提示信息
     if (daily_records.empty())
@@ -348,6 +349,7 @@ void draw_time_rec_screen(M5Canvas *canvas)
         const int bar_gap = 20;
         const int chart_bottom = month_top + month_chart_h;
 
+        canvas->fillRect(month_left, month_top, month_chart_w, month_chart_h, TFT_LIGHTGRAY);
         // 画横轴（底边）
         canvas->drawLine(month_left, chart_bottom, month_left + month_chart_w, chart_bottom, TFT_BLACK);
 
@@ -385,12 +387,12 @@ void draw_time_rec_screen(M5Canvas *canvas)
                 {
                     snprintf(mval, sizeof(mval), "%dm", mins);
                 }
-                bin_font_print(mval, 16, TFT_BLACK, bar_width + 20, x - 5, bar_top - 18, false, canvas, TEXT_ALIGN_LEFT);
+                bin_font_print(mval, 16, TFT_BLACK, bar_width + 20, x - 10, bar_top - 18, false, canvas, TEXT_ALIGN_CENTER);
             }
         }
 
         // bin_font_print("近六月", 20, TFT_BLACK, 120, month_left, chart_bottom + 10,false,canvas,TEXT_ALIGN_CENTER,120,true,true,true);
-        bin_font_print("近六月", 20, TFT_BLACK, 120, 450, 480, false, canvas, TEXT_ALIGN_CENTER, 120, true, false, true);
+        bin_font_print("近六月", 24, TFT_BLACK, 120, 440 , 480 , false, canvas, TEXT_ALIGN_CENTER, 120, true, false, true);
 
         // 在月度图下方绘制时段分布图（高100，宽500）
         // 统计四个时段：04:00-12:00, 12:00-20:00, 20:00-04:00, 无小时信息
@@ -463,7 +465,8 @@ void draw_time_rec_screen(M5Canvas *canvas)
         if (morning_mins > 0)
         {
             canvas->fillArc(pie_center_x, pie_center_y, pie_radius, 0, start_angle, start_angle + angle_morning, TFT_WHITE);
-            canvas->drawArc(pie_center_x, pie_center_y, pie_radius, pie_radius, start_angle, start_angle + angle_morning, TFT_BLACK);
+            // canvas->drawArc(pie_center_x, pie_center_y, pie_radius, pie_radius, start_angle, start_angle + angle_morning, TFT_BLACK);
+            canvas->drawArc(pie_center_x, pie_center_y, 0, pie_radius, start_angle, start_angle + angle_morning, TFT_BLACK);
             start_angle += angle_morning;
         }
 
@@ -478,7 +481,8 @@ void draw_time_rec_screen(M5Canvas *canvas)
         if (night_mins > 0)
         {
             canvas->fillArc(pie_center_x, pie_center_y, pie_radius, 0, start_angle, start_angle + angle_night, TFT_DARKGRAY);
-            canvas->drawArc(pie_center_x, pie_center_y, pie_radius, pie_radius, start_angle, start_angle + angle_night, TFT_BLACK);
+            // canvas->drawArc(pie_center_x, pie_center_y, pie_radius, pie_radius, start_angle, start_angle + angle_night, TFT_BLACK);
+            canvas->drawArc(pie_center_x, pie_center_y, 0, pie_radius, start_angle, start_angle + angle_night, TFT_BLACK);
             start_angle += angle_night;
         }
 
@@ -486,7 +490,8 @@ void draw_time_rec_screen(M5Canvas *canvas)
         if (unknown_mins > 0)
         {
             canvas->fillArc(pie_center_x, pie_center_y, pie_radius, 0, start_angle, start_angle + angle_unknown, TFT_LIGHTGRAY);
-            canvas->drawArc(pie_center_x, pie_center_y, pie_radius, pie_radius, start_angle, start_angle + angle_unknown, TFT_BLACK);
+            // canvas->drawArc(pie_center_x, pie_center_y, pie_radius, pie_radius, start_angle, start_angle + angle_unknown, TFT_BLACK);
+            canvas->drawArc(pie_center_x, pie_center_y, 0, pie_radius, start_angle, start_angle + angle_unknown, TFT_BLACK);
         }
 
         // 绘制饼图外圆边框
@@ -515,21 +520,21 @@ void draw_time_rec_screen(M5Canvas *canvas)
 
         canvas->drawRect(pie_center_x + 120, pie_center_y + 20, 16, 16);
         canvas->fillRect(pie_center_x + 122, pie_center_y + 22, 12, 12, TFT_DARKGRAY);
-        snprintf(label, sizeof(label), "[20-04]: %d mins ",  night_mins);
+        snprintf(label, sizeof(label), "[20-04]: %d mins ", night_mins);
         bin_font_print(label, 18, TFT_BLACK, 260, pie_center_x + 150, pie_center_y + 20, false, canvas, TEXT_ALIGN_LEFT);
 
- 
         canvas->drawRect(pie_center_x + 120, pie_center_y + 60, 16, 16);
         canvas->fillRect(pie_center_x + 122, pie_center_y + 62, 12, 12, TFT_LIGHTGRAY);
         snprintf(label, sizeof(label), "[未知]: %d mins ", unknown_mins);
         bin_font_print(label, 18, TFT_BLACK, 260, pie_center_x + 150, pie_center_y + 60, false, canvas, TEXT_ALIGN_LEFT);
 
-        bin_font_print("时段统计", 20, TFT_BLACK, 140, pie_center_y -60, 20, false, canvas, TEXT_ALIGN_CENTER, 120, true, false, true);
- 
+        bin_font_print("时段统计", 24, TFT_BLACK, 140, pie_center_y - 68, 20, false, canvas, TEXT_ALIGN_CENTER, 120, true, false, true);
+
         bin_font_print("完整报告请于浏览器扩展查阅和导出", 24, TFT_BLACK, PAPER_S3_WIDTH, 0, pie_center_y + 160, false, canvas, TEXT_ALIGN_CENTER);
     }
 
-    draw_button(canvas, BACK_BTN_X, BACK_BTN_Y, "返回阅读", true);
+    // draw_button(canvas, BACK_BTN_X, BACK_BTN_Y, "返回阅读", true,false, 0.8f);
+    bin_font_print("返回阅读", 32, 0, 540, 0, BACK_BTN_Y, false, canvas, TEXT_ALIGN_CENTER);
 }
 
 bool is_point_in_time_rec_back_button(int16_t x, int16_t y)
