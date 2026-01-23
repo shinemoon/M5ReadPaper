@@ -104,6 +104,25 @@ static bool is_high_priority_forbidden_line_start(uint32_t unicode)
         unicode == 0x300D);  // 」
 }
 
+// 检测是否为配对标点的前半（开头部分），应优先推到下一行
+static bool is_opening_pair_punctuation(uint32_t unicode)
+{
+    return (
+        unicode == 0x0028 || // (
+        unicode == 0x005B || // [
+        unicode == 0x007B || // {
+        unicode == 0x003C || // <
+        unicode == 0xFF08 || // （
+        unicode == 0x3010 || // 【
+        unicode == 0x3008 || // 〈
+        unicode == 0x300A || // 《
+        unicode == 0x201C || // “ (LEFT DOUBLE QUOTATION MARK)
+        unicode == 0x2018 || // ‘ (LEFT SINGLE QUOTATION MARK)
+        unicode == 0x300C || // 「
+        unicode == 0x300E || // 『
+        unicode == 0x300A /* duplicate handled above but kept for clarity */);
+}
+
 int16_t calculate_text_width(const std::string &text, size_t start_pos, size_t end_pos)
 {
     int16_t width = 0;
@@ -136,6 +155,11 @@ size_t find_break_position(const std::string &text, size_t start_pos, int16_t ma
     const uint8_t *utf8 = (const uint8_t *)text.c_str() + start_pos;
     const uint8_t *end = (const uint8_t *)text.c_str() + text.length();
     int16_t current_width = 0;
+    // Track last included character (start offset and unicode) so we can detect
+    // if the line currently would end with an opening-pair punctuation.
+    uint32_t last_included_unicode = 0;
+    size_t last_included_offset = start_pos;
+    bool opening_push_done = false; // only apply this once per line
 
     while (utf8 < end)
     {
@@ -181,6 +205,16 @@ size_t find_break_position(const std::string &text, size_t start_pos, int16_t ma
         if (current_width + char_dimension + char_spacing > max_width)
         {
             // 行宽度即将用完，当前字符放不下了
+            // 先检查：如果上一已包含字符是配对标点的前半（开头），则优先把该字符推到下一行
+            if (!opening_push_done && last_included_unicode != 0 && is_opening_pair_punctuation(last_included_unicode))
+            {
+                // 确保不会生成空行
+                if (last_included_offset > start_pos)
+                {
+                    opening_push_done = true;
+                    return last_included_offset;
+                }
+            }
             // 在断行前，检查当前字符（即将成为下一行行首的字符）是否为禁止行首标点
             if (unicode != 0 && unicode != '\n' && is_forbidden_line_start_punctuation(unicode))
             {
@@ -235,6 +269,11 @@ size_t find_break_position(const std::string &text, size_t start_pos, int16_t ma
 
         current_width += char_dimension + char_spacing;
         current_pos = utf8 - (const uint8_t *)text.c_str();
+
+        // 记录最后一个成功包含到当前行的字符（起始偏移和 unicode），
+        // 供开头配对标点优先推送检查使用
+        last_included_unicode = unicode;
+        last_included_offset = (size_t)(prev_utf8 - (const uint8_t *)text.c_str());
 
         if (unicode == ' ' || unicode == '\t' || unicode == '-')
         {
