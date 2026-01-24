@@ -65,7 +65,8 @@ void show_tag_ui(M5Canvas *canvas)
 
             ry = ry + 50;
             // choose color index: 0 for normal, 5 for not-yet-indexed
-            int text_color = available ? 0 : 3;
+            // int text_color = available ? 0 : 3;
+            int text_color = 0;
 
             // preview area: allow up to ~260px width
             bin_font_print(preview, 28, 0, 350, x + 48, ry, true, target, TEXT_ALIGN_LEFT, 350);
@@ -75,7 +76,10 @@ void show_tag_ui(M5Canvas *canvas)
             if (i == 0)
                 bin_font_print("Auto", 14, 0, 60, 17, ry - 5, true, target, TEXT_ALIGN_LEFT, 60);
             else
-                canvas->drawCircle(x + 20, ry + 12, 3, TFT_BLACK);
+            {
+                if (available)
+                    canvas->drawCircle(x + 20, ry + 12, 3, TFT_BLACK);
+            }
             //            canvas->drawLine(20, ry + 35, 350, ry + 35, TFT_BLACK);
             //           canvas->drawLine(20, ry + 38, 350, ry + 38, TFT_BLACK);
         }

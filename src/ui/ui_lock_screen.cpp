@@ -309,7 +309,7 @@ static void draw_vertical_banner(M5Canvas *canvas, const std::string &digest, in
 
     // Render digest vertically: area_width=900 (large value), vertical=true (last param true)
     // bin_font_print(digest.c_str(), 28, fg, 900, 120, 960 - basew - offsetx, false, canvas, TEXT_ALIGN_LEFT, 900, false, g_current_book->getKeepOrg(), true);
-    bin_font_print(digest.c_str(), 28, fg, 900, 120, 960 - basew - offsetx, false, canvas, TEXT_ALIGN_LEFT, 900, true, true, true);
+    bin_font_print(digest.c_str(), 28, fg, 900, 100, 960 - basew - offsetx, false, canvas, TEXT_ALIGN_LEFT, 900, true, true, true);
 
     // canvas->fillRect(basex, 760, basew, 100, TFT_BLACK);
     canvas->fillRect(basex, 0, basew, 80, TFT_BLACK);
@@ -711,7 +711,7 @@ void show_lockscreen(int16_t area_width, int16_t area_height, float font_size, c
                 g_canvas->fillRect(0, basey, 540, baseh, theme_strip_bg);
                 g_canvas->drawRect(0, basey, 540, baseh, TFT_BLACK);
 
-                bin_font_print(g_current_book->getCurrentDigest().c_str(), 28, theme_strip_fg, 540, 120, basey + 20, false, g_canvas, TEXT_ALIGN_LEFT, 0, false, true);
+                bin_font_print(g_current_book->getCurrentDigest().c_str(), 28, theme_strip_fg, 540, 100, basey + 20, false, g_canvas, TEXT_ALIGN_LEFT, 0, false, true);
 
                 // head
                 g_canvas->fillRect(0, basey, 60, baseh, TFT_BLACK);

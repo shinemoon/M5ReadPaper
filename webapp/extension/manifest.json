@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ReadPaper Utils",
   "description": "用来管理ReadPaper的扩展套件",
-  "version": "1.6.6.1",
+  "version": "1.6.9",
   "icons": {
     "48": "/assets/icon.png",
     "128": "/assets/icon.png"

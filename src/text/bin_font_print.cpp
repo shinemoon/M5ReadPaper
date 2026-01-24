@@ -2252,8 +2252,8 @@ void bin_font_print(const std::string &text, uint8_t font_size, uint8_t color, i
     // 确定要使用的canvas
     M5Canvas *target_canvas = canvas ? canvas : g_canvas;
 
-    // Workaround for current 3-step grey display:
-    if (color != TFT_BLACK)
+    // Workaround for current 3-step grey display: Only for V3!
+    if (color != TFT_BLACK && g_bin_font.version == 3)
         dark = true;
 
     // 计算缩放比例：如果font_size为0，使用原始大小；否则根据字体文件的基础大小计算比例

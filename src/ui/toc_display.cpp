@@ -769,7 +769,9 @@ void show_toc_ui(M5Canvas *canvas)
 
             ry = ry + 50;
             // choose color index: 0 for normal, 3 for not-yet-indexed
-            int text_color = available ? 0 : 3;
+            // int text_color = available ? 0 : 3;
+            // not use grey color as it will make the V3 scaler rendering complicated...
+            int text_color = 0;
 
             // title area: allow up to ~300px width => 420
             bin_font_print(title, 24, text_color, 300 + 100, x + 48, ry, true, target, TEXT_ALIGN_LEFT, 300 + 100);
@@ -783,11 +785,12 @@ void show_toc_ui(M5Canvas *canvas)
                 canvas->fillCircle(x + 20, ry + 12, 4, TFT_BLACK);
                 canvas->drawCircle(x + 20, ry + 12, 6, TFT_BLACK);
                 canvas->drawCircle(x + 20, ry + 12, 8, TFT_BLACK);
-             }
+            }
             else
             {
                 // Circle marker for each entry
-                canvas->drawCircle(x + 20, ry + 12, 3, TFT_BLACK);
+                if (available)
+                    canvas->drawCircle(x + 20, ry + 12, 3, TFT_BLACK);
             }
         }
         // else empty row — leave blank

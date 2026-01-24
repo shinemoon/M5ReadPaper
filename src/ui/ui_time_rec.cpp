@@ -124,8 +124,9 @@ void draw_time_rec_screen(M5Canvas *canvas)
     int16_t total_min = g_current_book->getReadMin();
     char total_str[64];
     snprintf(total_str, sizeof(total_str), "总计: %dh%dm", total_hour, total_min);
-    bin_font_print(total_str, 26, TFT_BLACK, (PAPER_S3_WIDTH) / 2, PAPER_S3_WIDTH / 2, 75, false, canvas, TEXT_ALIGN_CENTER );
-    bin_font_print(g_current_book->getBookName(), 26, TFT_BLACK, (PAPER_S3_WIDTH) / 2 - 20, 20, 75, false, canvas, TEXT_ALIGN_LEFT);
+    bin_font_print(total_str, 26, TFT_BLACK, (PAPER_S3_WIDTH) / 2, PAPER_S3_WIDTH / 2, 75, false, canvas, TEXT_ALIGN_CENTER ,(PAPER_S3_WIDTH/2));
+//    bin_font_print(g_current_book->getBookName(), 26, TFT_BLACK, (PAPER_S3_WIDTH) / 2 - 20, 20, 75, false, canvas, TEXT_ALIGN_LEFT);
+    bin_font_print(g_current_book->getBookName(), 26, TFT_BLACK, (PAPER_S3_WIDTH) / 2 - 20, 20, 75, false, canvas, TEXT_ALIGN_LEFT,(PAPER_S3_WIDTH/2-20));
 
     // 如果没有历史记录，显示提示信息
     if (daily_records.empty())
