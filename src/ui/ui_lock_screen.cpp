@@ -27,6 +27,9 @@ namespace
         bool valid = false;
         bool sd_ready = false;
         std::vector<String> candidates;
+        std::vector<String> dedicated_images; // Images that are dedicated to specific books
+        std::vector<String> book_basenames;   // Basenames of all books in /book directory
+        bool books_scanned = false;
     };
 
     LockImageCache g_lock_image_cache;
@@ -40,7 +43,10 @@ namespace
     inline void reset_lock_image_cache()
     {
         g_lock_image_cache.candidates.clear();
+        g_lock_image_cache.dedicated_images.clear();
+        g_lock_image_cache.book_basenames.clear();
         g_lock_image_cache.valid = false;
+        g_lock_image_cache.books_scanned = false;
     }
 
     bool ensure_lock_image_candidates(const char *dirPath)
@@ -114,7 +120,7 @@ namespace
         int ls = fn.lastIndexOf('/');
         return (ls >= 0) ? fn.substring(ls + 1) : fn;
     }
-}
+
     // Remove trailing digits and trailing separators (space/_/-) from a filename base
     inline String strip_trailing_digits_and_separators(const String &s)
     {
@@ -140,6 +146,118 @@ namespace
         return out;
     }
 
+    // Scan /book directory and collect all book basenames (without extension, stripped)
+    void scan_book_directory()
+    {
+        if (g_lock_image_cache.books_scanned)
+            return;
+
+        if (!g_lock_image_cache.sd_ready)
+        {
+            if (!SDW::SD.begin())
+            {
+                g_lock_image_cache.books_scanned = true;
+                return;
+            }
+            g_lock_image_cache.sd_ready = true;
+        }
+
+        const char *bookDir = "/book";
+        if (!SDW::SD.exists(bookDir))
+        {
+            g_lock_image_cache.books_scanned = true;
+            return;
+        }
+
+        std::vector<FileInfo> files = EfficientFileScanner::scanDirectory(std::string(bookDir));
+        for (const auto &fi : files)
+        {
+            if (fi.isDirectory)
+                continue;
+
+            // Check if it's a book file (txt, epub, pdf, etc.)
+            std::string lname = fi.name;
+            for (auto &c : lname)
+                if (c >= 'A' && c <= 'Z')
+                    c = static_cast<char>(c - 'A' + 'a');
+
+            bool is_book = (lname.size() >= 4 &&
+                           (lname.find(".txt") != std::string::npos ||
+                            lname.find(".epub") != std::string::npos ||
+                            lname.find(".pdf") != std::string::npos));
+
+            if (!is_book)
+                continue;
+
+            // Extract basename and store stripped version
+            String fullPath = String(fi.path.c_str());
+            String basename = extract_basename_no_ext(fullPath);
+            basename.toLowerCase();
+            String stripped = strip_trailing_digits_and_separators(basename);
+
+            if (stripped.length() > 0)
+            {
+                g_lock_image_cache.book_basenames.push_back(stripped);
+            }
+        }
+
+        g_lock_image_cache.books_scanned = true;
+    }
+
+    // Check if an image is dedicated to any book (using same matching logic)
+    bool is_image_dedicated_to_any_book(const String &imagePath)
+    {
+        String img_base = extract_basename_no_ext(imagePath);
+        String img_base_lower = img_base;
+        img_base_lower.toLowerCase();
+        String img_base_stripped = strip_trailing_digits_and_separators(img_base_lower);
+
+        if (img_base_stripped.length() == 0)
+            return false;
+
+        // Check against all book basenames
+        for (const String &book_base_stripped : g_lock_image_cache.book_basenames)
+        {
+            // Exact stripped-name match
+            if (img_base_stripped == book_base_stripped)
+            {
+                return true;
+            }
+
+            // Fuzzy: stripped image base contained in book base or vice versa
+            if (book_base_stripped.indexOf(img_base_stripped) >= 0 ||
+                img_base_stripped.indexOf(book_base_stripped) >= 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Build the list of dedicated images
+    void identify_dedicated_images()
+    {
+        if (g_lock_image_cache.dedicated_images.size() > 0)
+            return; // Already identified
+
+        scan_book_directory();
+
+        for (const String &imgPath : g_lock_image_cache.candidates)
+        {
+            if (is_image_dedicated_to_any_book(imgPath))
+            {
+                g_lock_image_cache.dedicated_images.push_back(imgPath);
+            }
+        }
+
+#if DBG_UI_IMAGE
+        Serial.printf("[LOCKSCREEN] Identified %d dedicated images out of %d total\n",
+                     (int)g_lock_image_cache.dedicated_images.size(),
+                     (int)g_lock_image_cache.candidates.size());
+#endif
+    }
+}
 
 static bool push_random_sd_image_if_available(const char *dirPath, int x, int y)
 {
@@ -254,9 +372,49 @@ static bool push_random_sd_image_if_available(const char *dirPath, int x, int y)
 #if DBG_UI_IMAGE
     Serial.printf("[LOCKSCREEN] FreeHeap before picking image: %u bytes, candidates=%d\n", (unsigned)ESP.getFreeHeap(), (int)candidates.size());
 #endif
+
+    // Identify dedicated images to exclude from random selection
+    identify_dedicated_images();
+
+    // Build list of non-dedicated images for random selection
+    std::vector<String> available_for_random;
+    for (const String &imgPath : candidates)
+    {
+        // Check if this image is in the dedicated list
+        bool is_dedicated = false;
+        for (const String &dedicated : g_lock_image_cache.dedicated_images)
+        {
+            if (imgPath == dedicated)
+            {
+                is_dedicated = true;
+                break;
+            }
+        }
+
+        if (!is_dedicated)
+        {
+            available_for_random.push_back(imgPath);
+        }
+    }
+
+#if DBG_UI_IMAGE
+    Serial.printf("[LOCKSCREEN] Available for random: %d (excluded %d dedicated)\n",
+                 (int)available_for_random.size(),
+                 (int)g_lock_image_cache.dedicated_images.size());
+#endif
+
+    // If no non-dedicated images available, fall back to all candidates
+    if (available_for_random.empty())
+    {
+#if DBG_UI_IMAGE
+        Serial.println("[LOCKSCREEN] No non-dedicated images, using all candidates");
+#endif
+        available_for_random = candidates;
+    }
+
     randomSeed(millis());
-    int idx = random((int)candidates.size());
-    String pick = candidates[idx];
+    int idx = random((int)available_for_random.size());
+    String pick = available_for_random[idx];
     ui_push_image_to_canvas(pick.c_str(), x, y, nullptr, true);
     return true;
 }
