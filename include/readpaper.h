@@ -17,7 +17,7 @@
 #define LOW_REFRESH epd_mode_t::epd_fastest
 
 #define FIRST_REFRESH_TH 8  //'MIddle Step' need to refresh to eliminate the HW - Only for Fastmode
-#define SECOND_REFRESH_TH 40 // Full Refresh for Fastmode
+#define SECOND_REFRESH_TH 24 // Full Refresh for Fastmode
 #define FULL_REFRESH_TH 24 // Full Refresh for NormalMode
 
 

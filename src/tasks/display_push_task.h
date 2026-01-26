@@ -8,8 +8,13 @@ bool initializeDisplayPushTask(size_t queue_len = 8);
 // 销毁显示推送任务
 void destroyDisplayPushTask();
 
-// 向显示推送队列中推入一个简单消息（目前仅消息类型，使用 uint8_t）
-bool enqueueDisplayPush(uint8_t msgType);
+// Display push message: length-3 boolean array mapping to flush parameters
+struct DisplayPushMessage {
+	bool flags[3]; // [0]=trans, [1]=invert, [2]=quality
+};
+
+// 向显示推送队列中推入一个消息（长度为3的布尔数组）
+bool enqueueDisplayPush(const DisplayPushMessage &msg);
 
 // 重置pushSprite计数器
 void resetDisplayPushCount();

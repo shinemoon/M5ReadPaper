@@ -2165,18 +2165,11 @@ void bin_font_flush_canvas(bool trans, bool invert, bool quality)
 {
     if (g_canvas)
     {
-        uint8_t pushType = DISPLAY_PUSH_MSG_TYPE_FLUSH;
-        if (trans)
-        {
-            if (invert)
-                pushType = DISPLAY_PUSH_MSG_TYPE_FLUSH_INVERT_TRANS;
-            else
-                pushType = DISPLAY_PUSH_MSG_TYPE_FLUSH_TRANS;
-        }
-        else if (quality)
-        {
-            pushType = DISPLAY_PUSH_MSG_TYPE_FLUSH_QUALITY;
-        }
+        // 使用长度为3的布尔数组消息: [trans, invert, quality]
+        DisplayPushMessage pushMsg;
+        pushMsg.flags[0] = trans;
+        pushMsg.flags[1] = invert;
+        pushMsg.flags[2] = quality;
         // 先尝试克隆当前 canvas 并放入 canvas FIFO（阻塞直到有空位）
         // 重要：必须先 setColorDepth 再 createSprite，否则会触发二次分配/重建，导致明显卡顿。
         if (g_canvas)
@@ -2210,7 +2203,7 @@ void bin_font_flush_canvas(bool trans, bool invert, bool quality)
         }
 
         // 无论 clone 是否成功，都保留原有的信号队列行为（通知显示任务）
-        if (!enqueueDisplayPush(pushType))
+        if (!enqueueDisplayPush(pushMsg))
         {
 #if DBG_BIN_FONT_PRINT
             Serial.println("[BIN_FONT] enqueueDisplayPush failed (queue not ready)");

@@ -26,7 +26,7 @@ static void displayTaskFunction(void *pvParameters)
 {
     M5.Display.powerSaveOff();
 
-    uint8_t msg;
+    DisplayPushMessage msg;
     for (;;)
     {
         if (xQueueReceive(s_displayQueue, &msg, portMAX_DELAY) == pdTRUE)
@@ -36,7 +36,8 @@ static void displayTaskFunction(void *pvParameters)
 
             // Wait the slot
             M5.Display.waitDisplay();
-            if (msg == DISPLAY_PUSH_MSG_TYPE_FLUSH || msg == DISPLAY_PUSH_MSG_TYPE_FLUSH_TRANS || msg == DISPLAY_PUSH_MSG_TYPE_FLUSH_INVERT_TRANS || msg == DISPLAY_PUSH_MSG_TYPE_FLUSH_QUALITY)
+            // 所有入队消息都视为刷新请求，使用 flags 决定具体行为
+            if (true)
             {
                 // 从 canvas FIFO 中 pop 出一个克隆画布用于推送；若没有则立即回退到使用全局 g_canvas
                 M5Canvas *canvas_to_push = nullptr;
@@ -60,8 +61,8 @@ static void displayTaskFunction(void *pvParameters)
 
                     // 根据计数器决定是否使用quality模式 & fast mode
                     bool needMiddleStep = g_config.fastrefresh && (s_pushCount % PUSH_COUNT_THRESHOLD == 0) && (s_pushCount >= PUSH_COUNT_THRESHOLD);
-                    // bool needMiddleStep = (s_pushCount % PUSH_COUNT_THRESHOLD == 0) && (s_pushCount >= PUSH_COUNT_THRESHOLD);
-                    bool useQualityMode = (s_pushCount >= PUSH_COUNT_THRESHOLD_QUALIYT && g_config.fastrefresh) || msg == DISPLAY_PUSH_MSG_TYPE_FLUSH_QUALITY || (s_pushCount >= FULL_REFRESH_TH && !g_config.fastrefresh);
+                    //bool needMiddleStep = (s_pushCount % PUSH_COUNT_THRESHOLD == 0) && (s_pushCount >= PUSH_COUNT_THRESHOLD);
+                    bool useQualityMode = (s_pushCount >= PUSH_COUNT_THRESHOLD_QUALIYT && g_config.fastrefresh) || msg.flags[2] || (s_pushCount >= FULL_REFRESH_TH && !g_config.fastrefresh);
                     s_pushCount++;
 
                     if (useQualityMode)
@@ -80,7 +81,7 @@ static void displayTaskFunction(void *pvParameters)
                         // Toggle between epd_fastest and epd_fast to try to mitigate mid-screen ghosting.
 
                         M5.Display.setEpdMode(MIDDLE_REFRESH);
-                        M5.Display.fillRect(0, 478, 540, 4, TFT_WHITE);
+                        M5.Display.fillRect(0, 476, 540, 8, TFT_WHITE);
                         M5.Display.waitDisplay();
                         M5.Display.setEpdMode(g_config.fastrefresh ? LOW_REFRESH : NORMAL_REFRESH);
 #if DBG_BIN_FONT_PRINT
@@ -105,14 +106,17 @@ static void displayTaskFunction(void *pvParameters)
 #if DBG_BIN_FONT_PRINT
                     Serial.printf("[DISPLAY_PUSH_TASK] pushSprite start ts=%lu\n", t0);
 #endif
-                    if (msg == DISPLAY_PUSH_MSG_TYPE_FLUSH)
-                        use_canvas->pushSprite(0, 0);
-                    else if (msg == DISPLAY_PUSH_MSG_TYPE_FLUSH_TRANS)
-                        use_canvas->pushSprite(0, 0, TFT_WHITE);
-                    else if (msg == DISPLAY_PUSH_MSG_TYPE_FLUSH_INVERT_TRANS)
-                        use_canvas->pushSprite(0, 0, TFT_BLACK);
+                    if (msg.flags[0])
+                    {
+                        if (msg.flags[1])
+                            use_canvas->pushSprite(0, 0, TFT_BLACK);
+                        else
+                            use_canvas->pushSprite(0, 0, TFT_WHITE);
+                    }
                     else
+                    {
                         use_canvas->pushSprite(0, 0);
+                    }
 
                     // 如果使用了quality模式，推送后恢复fastest模式
                     // if (useQualityMode || needMiddleStep)
@@ -156,7 +160,7 @@ bool initializeDisplayPushTask(size_t queue_len)
 {
     if (s_displayQueue != NULL)
         return true;
-    s_displayQueue = xQueueCreate(queue_len, sizeof(uint8_t));
+    s_displayQueue = xQueueCreate(queue_len, sizeof(DisplayPushMessage));
     if (s_displayQueue == NULL)
         return false;
 
@@ -218,11 +222,11 @@ void destroyDisplayPushTask()
     }
 }
 
-bool enqueueDisplayPush(uint8_t msgType)
+bool enqueueDisplayPush(const DisplayPushMessage &msg)
 {
     if (s_displayQueue == NULL)
         return false;
-    BaseType_t res = xQueueSendToBack(s_displayQueue, &msgType, 0);
+    BaseType_t res = xQueueSendToBack(s_displayQueue, &msg, 0);
     return res == pdPASS;
 }
 
