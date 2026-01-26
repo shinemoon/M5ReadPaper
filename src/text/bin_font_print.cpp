@@ -2161,7 +2161,7 @@ void bin_font_reset_cursor()
 #endif
 }
 
-void bin_font_flush_canvas(bool trans, bool invert, bool quality, display_type effect)
+void bin_font_flush_canvas(bool trans, bool invert, bool quality, display_type effect, int x, int y, int width, int height)
 {
     if (g_canvas)
     {
@@ -2172,10 +2172,18 @@ void bin_font_flush_canvas(bool trans, bool invert, bool quality, display_type e
         pushMsg.flags[2] = quality;
         pushMsg.flags[3] = false;
         pushMsg.effect = effect;
+        pushMsg.x = x;
+        pushMsg.y = y;
+        pushMsg.width = width;
+        pushMsg.height = height;
         // 先尝试克隆当前 canvas 并放入 canvas FIFO（阻塞直到有空位）
         // 重要：必须先 setColorDepth 再 createSprite，否则会触发二次分配/重建，导致明显卡顿。
         if (g_canvas)
         {
+            // 确定实际宽高：如果width和height都为0，使用默认值
+            int actual_width = (width == 0 && height == 0) ? PAPER_S3_WIDTH : width;
+            int actual_height = (width == 0 && height == 0) ? PAPER_S3_HEIGHT : height;
+            
             M5Canvas *clone = new M5Canvas(&M5.Display);
             if (clone)
             {
@@ -2184,7 +2192,7 @@ void bin_font_flush_canvas(bool trans, bool invert, bool quality, display_type e
                 clone->setColorDepth(g_canvas->getColorDepth());
                 clone->createSprite(PAPER_S3_WIDTH, PAPER_S3_HEIGHT);
 
-                // 复制内部缓冲区
+                // 复制内部缓冲区（完整复制，后续在推送时使用矩形参数）
                 void *src_buf = g_canvas->getBuffer();
                 void *dst_buf = clone->getBuffer();
                 size_t buf_len = g_canvas->bufferLength();

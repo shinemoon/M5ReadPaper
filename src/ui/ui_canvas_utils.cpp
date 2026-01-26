@@ -159,7 +159,7 @@ std::string shorten_book_name(const std::string &orig, size_t cutlength)
 
 // 外部可能定义全局 canvas，show_reading_menu 接收 canvas 指针以保证可重入性
 // 打算用整张图片来取代界面
-bool show_reading_menu(M5Canvas *canvas, bool refresh)
+bool show_reading_menu(M5Canvas *canvas, bool refresh, readingMenuArea area)
 {
 #if DBG_UI_CANVAS_UTILS
     unsigned long menu_start_time = millis();
@@ -314,7 +314,6 @@ bool show_reading_menu(M5Canvas *canvas, bool refresh)
                   text_render_end, text_render_end - text_render_start);
     Serial.printf("[MENU] 开始屏幕刷新: %lu ms\n", text_render_end);
 #endif
-
     if (refresh) // Proactive refresh
     {
         M5.Display.powerSaveOff();
@@ -324,7 +323,31 @@ bool show_reading_menu(M5Canvas *canvas, bool refresh)
     }
     else
     {
-        bin_font_flush_canvas();
+        // BOTTOMUI : y=600
+        int BOTTOMUI_y = 600;
+        int TOPUI_y = 0;
+
+        switch (area)
+        {
+        case DARKMODE:
+            bin_font_flush_canvas(false, false, false, NOEFFECT, 40, BOTTOMUI_y + 60 + 38, 460, 40);
+            break;
+        case FASTMODE:
+            bin_font_flush_canvas(false, false, false, NOEFFECT, 40 + 260, BOTTOMUI_y + 60 + 38, 40, 40);
+            break;
+        case SKIPCONV:
+            bin_font_flush_canvas(false, false, false, NOEFFECT, 42+3, TOPUI_y + 240+3, 24, 24);
+            break;
+        case UNDERLINE:
+            bin_font_flush_canvas(false, false, false, NOEFFECT, 42 + 270 +3, TOPUI_y + 60+3, 24, 24);
+            break;
+        case LOCKBM:
+            bin_font_flush_canvas(false, false, false, NOEFFECT, 42+3, TOPUI_y + 60+3, 24, 24);
+            break;
+        default:
+            bin_font_flush_canvas();
+            break;
+        }
     }
 
 #if DBG_UI_CANVAS_UTILS

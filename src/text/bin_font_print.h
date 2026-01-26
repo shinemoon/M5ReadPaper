@@ -102,7 +102,7 @@ void bin_font_set_cursor(int16_t x, int16_t y);
 void bin_font_reset_cursor();
 
 // Canvas管理函数
-void bin_font_flush_canvas(bool trans=false, bool invert=false, bool quality=false, display_type effect=NOEFFECT);
+void bin_font_flush_canvas(bool trans=false, bool invert=false, bool quality=false, display_type effect=NOEFFECT, int x=0, int y=0, int width=0, int height=0);
 void bin_font_clear_canvas(bool dark=false);
 
 int16_t bin_font_get_cursor_y();

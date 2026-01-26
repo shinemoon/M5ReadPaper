@@ -624,20 +624,25 @@ bool BookHandle::loadIdxToPSRAM()
         }
         // Fallback: try comma-separated style, take second field as title and third as pos
         size_t p1 = line.find(',');
-        if (p1 == std::string::npos) continue;
+        if (p1 == std::string::npos)
+            continue;
         size_t p2 = line.find(',', p1 + 1);
-        if (p2 == std::string::npos) continue;
+        if (p2 == std::string::npos)
+            continue;
         size_t p3 = line.find(',', p2 + 1);
-        if (p3 == std::string::npos) p3 = line.length();
+        if (p3 == std::string::npos)
+            p3 = line.length();
         std::string title_field = line.substr(p1 + 1, p2 - p1 - 1);
         std::string pos_field = line.substr(p2 + 1, p3 - p2 - 1);
         trim_fn(title_field);
         trim_fn(pos_field);
-        if (pos_field.empty()) continue;
+        if (pos_field.empty())
+            continue;
         const char *cstr = pos_field.c_str();
         char *endptr = nullptr;
         unsigned long long val = strtoull(cstr, &endptr, 10);
-        if (endptr == cstr) continue;
+        if (endptr == cstr)
+            continue;
         tmp.push_back((size_t)val);
         tmp_titles.push_back(title_field);
     }
@@ -657,7 +662,7 @@ bool BookHandle::loadIdxToPSRAM()
     if (ptr)
     {
         memcpy(ptr, tmp.data(), bytes);
-        idx_positions_psram_ptr = (size_t*)ptr;
+        idx_positions_psram_ptr = (size_t *)ptr;
         idx_positions_psram_count = tmp.size();
         idx_psram_loaded_ = true;
     }
@@ -739,7 +744,7 @@ std::string BookHandle::getBookName() const
     {
         filename = file_path; // 如果没有斜杠，使用整个路径
     }
-    
+
     // 去掉扩展名
     size_t last_dot = filename.find_last_of('.');
     if (last_dot != std::string::npos && last_dot > 0)
@@ -957,7 +962,7 @@ TextPageResult BookHandle::nextPage()
 
     // 使用全局 font_size 确保字体切换后立即生效
     extern float font_size;
-    
+
     // Determine next page boundary to limit reading
     size_t max_byte_pos = SIZE_MAX;
     if (pages_loaded && current_page_index < page_positions.size())
@@ -967,7 +972,7 @@ TextPageResult BookHandle::nextPage()
             max_byte_pos = page_positions[current_page_index + 1];
         }
     }
-    
+
     res = read_text_page(file_handle, file_path, cur_pos, area_w, area_h, font_size, encoding, false, getVerticalText(), max_byte_pos);
 
     // 恢复文件位置（如果需要）
@@ -1114,7 +1119,7 @@ TextPageResult BookHandle::prevPage()
 
     // 使用全局 font_size 确保字体切换后立即生效
     extern float font_size;
-    
+
     // Determine next page boundary to limit reading
     size_t max_byte_pos = SIZE_MAX;
     if (pages_loaded && current_page_index < page_positions.size())
@@ -1124,7 +1129,7 @@ TextPageResult BookHandle::prevPage()
             max_byte_pos = page_positions[current_page_index + 1];
         }
     }
-    
+
     res = read_text_page(file_handle, file_path, cur_pos, area_w, area_h, font_size, encoding, false, getVerticalText(), max_byte_pos);
 
     // 恢复文件位置（如果需要）
@@ -1221,7 +1226,7 @@ TextPageResult BookHandle::currentPage()
         Serial.printf("[BH] currentPage: 检测到字体大小变化，更新为 %.2f\n", font_size);
 #endif
     }
-    
+
     // Determine next page boundary to limit reading within current page
     size_t max_byte_pos = SIZE_MAX;
     if (pages_loaded && current_page_index < page_positions.size())
@@ -1235,7 +1240,7 @@ TextPageResult BookHandle::currentPage()
 #endif
         }
     }
-    
+
     res = read_text_page(file_handle, file_path, cur_pos, area_w, area_h, font_size, encoding, false, getVerticalText(), max_byte_pos);
 
     // 恢复文件位置（如果需要）
@@ -1725,20 +1730,20 @@ bool saveBookmarkForFile(BookHandle *book)
 
         f.println("valid=true");
         return true; });
-    
+
     // 同步更新 .rec 文件：记录阅读时长历史
     if (ok)
     {
         std::string rec_fn = getRecordFileName(book->filePath());
-        
+
         int16_t new_hour = book->getReadHour();
         int16_t new_min = book->getReadMin();
-        
+
         // 计算增量（分钟数）
         int32_t old_total_mins = old_hour * 60 + old_min;
         int32_t new_total_mins = new_hour * 60 + new_min;
         int32_t delta_mins = new_total_mins - old_total_mins;
-        
+
         // 仅当有增量时才更新 rec 文件
         if (delta_mins > 0)
         {
@@ -1752,11 +1757,11 @@ bool saveBookmarkForFile(BookHandle *book)
                      timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour);
             snprintf(timestamp_day, sizeof(timestamp_day), "%04d%02d%02d",
                      timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
-            
+
             // 读取现有的 rec 文件
             std::map<std::string, int32_t> records; // key: timestamp, value: mins
-            int32_t old_rec_total_mins = 0; // rec文件第一行的原有总时间
-            
+            int32_t old_rec_total_mins = 0;         // rec文件第一行的原有总时间
+
             SafeFS::restoreFromTmpIfNeeded(rec_fn);
             if (SDW::SD.exists(rec_fn.c_str()))
             {
@@ -1786,7 +1791,7 @@ bool saveBookmarkForFile(BookHandle *book)
                                 old_rec_total_mins = first_line.substring(0, m_pos).toInt();
                         }
                     }
-                    
+
                     // 读取后续记录
                     while (rf.available())
                     {
@@ -1823,18 +1828,18 @@ bool saveBookmarkForFile(BookHandle *book)
                     rf.close();
                 }
             }
-            
+
             // 更新当前小时的记录
             records[timestamp_hour] += delta_mins;
-            
+
             // 计算新的总时间：原有总时间 + 本次增量
             int32_t new_rec_total_mins = old_rec_total_mins + delta_mins;
             int32_t new_rec_total_hours = new_rec_total_mins / 60;
             int32_t new_rec_total_mins_remainder = new_rec_total_mins % 60;
-            
+
             // 写回 rec 文件（第一行使用：原有总时间 + 本次增量）
             SafeFS::safeWrite(rec_fn, [&](File &f)
-            {
+                              {
                 // 第一行：原有总时间 + 本次增量
                 f.printf("%dh%dm\n", new_rec_total_hours, new_rec_total_mins_remainder);
                 
@@ -1850,16 +1855,15 @@ bool saveBookmarkForFile(BookHandle *book)
                     else
                         f.printf("%s:%dm\n", entry.first.c_str(), mins);
                 }
-                return true;
-            });
-            
+                return true; });
+
             // 同步更新BookHandle对象和bm文件中的总时间（与rec文件第一行保持一致）
             book->setReadTime(new_rec_total_hours, new_rec_total_mins_remainder);
-            
+
             // 重新保存bm文件以同步总时间
             std::string bm_fn = getBookmarkFileName(book->filePath());
             SafeFS::safeWrite(bm_fn, [&](File &f)
-            {
+                              {
                 f.printf("file_path=%s\n", book->filePath().c_str());
                 f.printf("current_position=%zu\n", book->position());
                 f.printf("file_size=%zu\n", book->getFileSize());
@@ -1883,11 +1887,10 @@ bool saveBookmarkForFile(BookHandle *book)
                 f.printf("readmin=%d\n", new_rec_total_mins_remainder);
                 
                 f.println("valid=true");
-                return true;
-            });
+                return true; });
         }
     }
-    
+
     return ok;
 }
 
@@ -3035,7 +3038,7 @@ bool BookHandle::generatePageFile()
 }
 
 // 渲染当前页面内容到屏幕
-void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool showPage, bool showWait, bool pendingPush)
+void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool showPage, bool showWait, bool pendingPush, bool addBM)
 {
     extern M5Canvas *g_canvas;
     extern GlobalConfig g_config;
@@ -3126,7 +3129,7 @@ void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool
     // If this page contains any tag start positions, draw a small black dot at top-right
     // 【保护条件】只有在索引完全加载且有效时才检查和显示书签图标
     // page_positions.size() > 1 确保至少有两个页面边界（首页和至少一个后续页面）
-    if (g_canvas && pages_loaded && !cached_tags.empty() && 
+    if (g_canvas && pages_loaded && !cached_tags.empty() &&
         current_page_index < page_positions.size() && page_positions.size() > 1)
     {
         size_t page_start = page_positions[current_page_index];
@@ -3162,8 +3165,8 @@ void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool
         {
             // 将页面索引转换为字符串再打印，避免将 size_t 传递为字符串参数
             std::string page_num = std::to_string(current_page_index + 1);
-            //bin_font_print(page_num.c_str(), 20, 0, PAPER_S3_WIDTH - 5, 0, 920 + 15, true, nullptr, TEXT_ALIGN_RIGHT, 0, true, false, false, dark);
-            bin_font_print(page_num.c_str(), 20, 0, PAPER_S3_WIDTH - 5, 0, 920 + 15, false, nullptr, TEXT_ALIGN_RIGHT,0, true,false,false,dark); 
+            // bin_font_print(page_num.c_str(), 20, 0, PAPER_S3_WIDTH - 5, 0, 920 + 15, true, nullptr, TEXT_ALIGN_RIGHT, 0, true, false, false, dark);
+            bin_font_print(page_num.c_str(), 20, 0, PAPER_S3_WIDTH - 5, 0, 920 + 15, false, nullptr, TEXT_ALIGN_RIGHT, 0, true, false, false, dark);
         }
         // 计算阅读进度
         float progress = (float)(current_page_index + 1) / (float)page_positions.size();
@@ -3241,8 +3244,10 @@ void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool
         g_canvas -> fillRect(0,40, 20, 20, GREY_MAP_COLOR);
         g_canvas -> fillRect(0,60, 20, 20, TFT_LIGHTGREY);
         */
-
-        bin_font_flush_canvas();
+        if (addBM) // then only refresh top right conner
+            bin_font_flush_canvas(false,false,false,NOEFFECT,500,0,30,40);
+        else
+            bin_font_flush_canvas();
 
         // 打印从 renderCurrentPage 开始到 flushcanvas 执行结束的耗时（毫秒）
         uint32_t bh_render_elapsed_ms = millis() - bh_render_start_ms;
@@ -3817,8 +3822,10 @@ bool BookHandle::findPageIndexForPosition(size_t file_pos, size_t &out_index)
 
 size_t BookHandle::getPageStart(size_t page_index) const
 {
-    if (page_positions.empty()) return (size_t)-1;
-    if (page_index >= page_positions.size()) return (size_t)-1;
+    if (page_positions.empty())
+        return (size_t)-1;
+    if (page_index >= page_positions.size())
+        return (size_t)-1;
     return page_positions[page_index];
 }
 

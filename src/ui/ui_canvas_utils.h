@@ -5,7 +5,17 @@
 // 每页显示的文件数量，主菜单分页使用此常量
 static constexpr int FILES_PER_PAGE = 10;
 
-bool show_reading_menu(M5Canvas *canvas, bool refresh = true);
+// 阅读菜单显示区域枚举
+enum readingMenuArea {
+    FULL = 0,      // 完整菜单
+    LOCKBM,        // 书签锁定区域
+    UNDERLINE,     // 下划线区域
+    SKIPCONV,      // 跳过转换区域
+    DARKMODE,      // 暗黑模式区域
+    FASTMODE       // 快速模式区域
+};
+
+bool show_reading_menu(M5Canvas *canvas, bool refresh = true, readingMenuArea area = FULL);
 bool show_main_menu(M5Canvas *canvas, bool refresh = true, int selected = 0, int current_page = 0, bool rescan = true);
 bool show_wire_connect(M5Canvas *canvas, bool refresh = true);
 bool show_usb_connect(M5Canvas *canvas, bool refresh = true);

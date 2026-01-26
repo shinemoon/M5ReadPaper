@@ -110,15 +110,15 @@ static void displayTaskFunction(void *pvParameters)
 #if DBG_BIN_FONT_PRINT
                     Serial.printf("[DISPLAY_PUSH_TASK] pushSprite start ts=%lu\n", t0);
 #endif
-                    // 使用封装的 push 操作，传入 trans/invert/effect
-                    auto perform_push = [](M5Canvas *canvas, bool trans, bool invert, int8_t effect)
+                    // 使用封装的 push 操作，传入 trans/invert/effect 和矩形区域参数
+                    auto perform_push = [](M5Canvas *canvas, bool trans, bool invert, int8_t effect, int rect_x, int rect_y, int rect_w, int rect_h)
                     {
                         if (effect == display_type::VSHUTTER)
                         {
                             // 分成从上下两端向中间交错推送
                             const int slices = 32;
-                            const int total_h = PAPER_S3_HEIGHT;
-                            const int w = PAPER_S3_WIDTH;
+                            const int total_h = rect_h;
+                            const int w = rect_w;
                             int slice_h = total_h / slices;
 
                             // 获取原始缓冲信息
@@ -129,7 +129,8 @@ static void displayTaskFunction(void *pvParameters)
                                 return;
                             }
 
-                            size_t row_bytes = buf_len / (size_t)total_h;
+                            size_t row_bytes = buf_len / (size_t)PAPER_S3_HEIGHT;
+                            size_t bytes_per_pixel = row_bytes / (size_t)PAPER_S3_WIDTH;
 
                             // 从上下两端向中间交错推送
                             for (int i = 0; i < slices; i++)
@@ -164,17 +165,27 @@ static void displayTaskFunction(void *pvParameters)
                                 void *dst_buf = slice->getBuffer();
                                 if (dst_buf)
                                 {
-                                    uint8_t *src_row_ptr = (uint8_t *)src_buf + (size_t)start_row * row_bytes;
-                                    memcpy(dst_buf, src_row_ptr, (size_t)h * row_bytes);
+                                    // 从源canvas的指定矩形区域中复制
+                                    uint8_t *src_base = (uint8_t *)src_buf;
+                                    uint8_t *dst_base = (uint8_t *)dst_buf;
+                                    size_t slice_row_bytes = (size_t)w * bytes_per_pixel;
+                                    size_t src_col_offset = (size_t)rect_x * bytes_per_pixel;
+                                    
+                                    for (int row = 0; row < h; row++)
+                                    {
+                                        uint8_t *src_row = src_base + (rect_y + start_row + row) * row_bytes + src_col_offset;
+                                        uint8_t *dst_row = dst_base + row * slice_row_bytes;
+                                        memcpy(dst_row, src_row, slice_row_bytes);
+                                    }
                                 }
 
                                 if (trans)
                                 {
-                                    slice->pushSprite(0, start_row, invert ? TFT_BLACK : TFT_WHITE);
+                                    slice->pushSprite(rect_x, rect_y + start_row, invert ? TFT_BLACK : TFT_WHITE);
                                 }
                                 else
                                 {
-                                    slice->pushSprite(0, start_row);
+                                    slice->pushSprite(rect_x, rect_y + start_row);
                                 }
 //                                M5.Display.waitDisplay();
                                 delete slice;
@@ -184,8 +195,8 @@ static void displayTaskFunction(void *pvParameters)
                         {
                             // 分成若干片从左右两端向中间交错推送
                             const int slices = 17;
-                            const int total_w = PAPER_S3_WIDTH;
-                            const int h = PAPER_S3_HEIGHT;
+                            const int total_w = rect_w;
+                            const int h = rect_h;
                             int slice_w = total_w / slices;
 
                             // 获取原始缓冲信息
@@ -197,8 +208,8 @@ static void displayTaskFunction(void *pvParameters)
                             }
 
                             // 假设每行的字节数（根据颜色深度计算）
-                            size_t row_bytes = buf_len / (size_t)h;
-                            size_t bytes_per_pixel = row_bytes / (size_t)total_w;
+                            size_t row_bytes = buf_len / (size_t)PAPER_S3_HEIGHT;
+                            size_t bytes_per_pixel = row_bytes / (size_t)PAPER_S3_WIDTH;
 
                             // 从左右两端向中间交错推送
                             for (int i = 0; i < slices; i++)
@@ -233,15 +244,15 @@ static void displayTaskFunction(void *pvParameters)
                                 void *dst_buf = slice->getBuffer();
                                 if (dst_buf)
                                 {
-                                    // 逐行复制对应的列区域
+                                    // 逐行复制对应的列区域（从源canvas的指定矩形区域中）
                                     uint8_t *src_base = (uint8_t *)src_buf;
                                     uint8_t *dst_base = (uint8_t *)dst_buf;
                                     size_t slice_row_bytes = (size_t)w * bytes_per_pixel;
-                                    size_t src_col_offset = (size_t)start_col * bytes_per_pixel;
+                                    size_t src_col_offset = (size_t)(rect_x + start_col) * bytes_per_pixel;
 
                                     for (int row = 0; row < h; row++)
                                     {
-                                        uint8_t *src_row = src_base + row * row_bytes + src_col_offset;
+                                        uint8_t *src_row = src_base + (rect_y + row) * row_bytes + src_col_offset;
                                         uint8_t *dst_row = dst_base + row * slice_row_bytes;
                                         memcpy(dst_row, src_row, slice_row_bytes);
                                     }
@@ -249,11 +260,11 @@ static void displayTaskFunction(void *pvParameters)
 
                                 if (trans)
                                 {
-                                    slice->pushSprite(start_col, 0, invert ? TFT_BLACK : TFT_WHITE);
+                                    slice->pushSprite(rect_x + start_col, rect_y, invert ? TFT_BLACK : TFT_WHITE);
                                 }
                                 else
                                 {
-                                    slice->pushSprite(start_col, 0);
+                                    slice->pushSprite(rect_x + start_col, rect_y);
                                 }
 //                                M5.Display.waitDisplay();
                                 delete slice;
@@ -261,12 +272,12 @@ static void displayTaskFunction(void *pvParameters)
                         }
                         else if (effect == display_type::RECT)
                         {
-                            // 将全屏幕划分成4x6的24个方块区域，乱序推送
+                            // 将指定区域划分成4x6的24个方块区域，乱序推送
                             const int cols = 4;
                             const int rows = 6;
                             const int total_blocks = cols * rows;
-                            const int block_w = PAPER_S3_WIDTH / cols;
-                            const int block_h = PAPER_S3_HEIGHT / rows;
+                            const int block_w = rect_w / cols;
+                            const int block_h = rect_h / rows;
 
                             // 获取原始缓冲信息
                             void *src_buf = canvas->getBuffer();
@@ -313,15 +324,15 @@ static void displayTaskFunction(void *pvParameters)
                                 void *dst_buf = block->getBuffer();
                                 if (dst_buf)
                                 {
-                                    // 逐行复制方块区域
+                                    // 逐行复制方块区域（从源canvas的指定矩形区域中）
                                     uint8_t *src_base = (uint8_t *)src_buf;
                                     uint8_t *dst_base = (uint8_t *)dst_buf;
                                     size_t block_row_bytes = (size_t)block_w * bytes_per_pixel;
-                                    size_t src_col_offset = (size_t)start_x * bytes_per_pixel;
+                                    size_t src_col_offset = (size_t)(rect_x + start_x) * bytes_per_pixel;
 
                                     for (int row = 0; row < block_h; row++)
                                     {
-                                        uint8_t *src_row = src_base + (start_y + row) * row_bytes + src_col_offset;
+                                        uint8_t *src_row = src_base + (rect_y + start_y + row) * row_bytes + src_col_offset;
                                         uint8_t *dst_row = dst_base + row * block_row_bytes;
                                         memcpy(dst_row, src_row, block_row_bytes);
                                     }
@@ -329,11 +340,11 @@ static void displayTaskFunction(void *pvParameters)
 
                                 if (trans)
                                 {
-                                    block->pushSprite(start_x, start_y, invert ? TFT_BLACK : TFT_WHITE);
+                                    block->pushSprite(rect_x + start_x, rect_y + start_y, invert ? TFT_BLACK : TFT_WHITE);
                                 }
                                 else
                                 {
-                                    block->pushSprite(start_x, start_y);
+                                    block->pushSprite(rect_x + start_x, rect_y + start_y);
                                 }
 //                                M5.Display.waitDisplay();
                                 delete block;
@@ -341,18 +352,76 @@ static void displayTaskFunction(void *pvParameters)
                         }
                         else
                         {
-                            if (trans)
+                            // NOEFFECT: 直接推送整个canvas或指定矩形区域
+                            if (rect_w > 0 && rect_h > 0 && (rect_x != 0 || rect_y != 0 || rect_w != PAPER_S3_WIDTH || rect_h != PAPER_S3_HEIGHT))
                             {
-                                canvas->pushSprite(0, 0, invert ? TFT_BLACK : TFT_WHITE);
+                                // 推送指定矩形区域：创建临时canvas
+                                void *src_buf = canvas->getBuffer();
+                                size_t buf_len = canvas->bufferLength();
+                                if (!src_buf || buf_len == 0)
+                                {
+                                    return;
+                                }
+
+                                size_t row_bytes = buf_len / (size_t)PAPER_S3_HEIGHT;
+                                size_t bytes_per_pixel = row_bytes / (size_t)PAPER_S3_WIDTH;
+
+                                M5Canvas *temp = new M5Canvas(&M5.Display);
+                                if (temp)
+                                {
+                                    temp->setPsram(true);
+                                    temp->setColorDepth(canvas->getColorDepth());
+                                    temp->createSprite(rect_w, rect_h);
+
+                                    void *dst_buf = temp->getBuffer();
+                                    if (dst_buf)
+                                    {
+                                        // 从源canvas复制矩形区域
+                                        uint8_t *src_base = (uint8_t *)src_buf;
+                                        uint8_t *dst_base = (uint8_t *)dst_buf;
+                                        size_t rect_row_bytes = (size_t)rect_w * bytes_per_pixel;
+                                        size_t src_col_offset = (size_t)rect_x * bytes_per_pixel;
+
+                                        for (int row = 0; row < rect_h; row++)
+                                        {
+                                            uint8_t *src_row = src_base + (rect_y + row) * row_bytes + src_col_offset;
+                                            uint8_t *dst_row = dst_base + row * rect_row_bytes;
+                                            memcpy(dst_row, src_row, rect_row_bytes);
+                                        }
+
+                                        // 推送临时canvas
+                                        if (trans)
+                                        {
+                                            temp->pushSprite(rect_x, rect_y, invert ? TFT_BLACK : TFT_WHITE);
+                                        }
+                                        else
+                                        {
+                                            temp->pushSprite(rect_x, rect_y);
+                                        }
+                                    }
+                                    delete temp;
+                                }
                             }
                             else
                             {
-                                canvas->pushSprite(0, 0);
+                                // 推送整个canvas
+                                if (trans)
+                                {
+                                    canvas->pushSprite(0, 0, invert ? TFT_BLACK : TFT_WHITE);
+                                }
+                                else
+                                {
+                                    canvas->pushSprite(0, 0);
+                                }
                             }
                         }
                     };
 
-                    perform_push(use_canvas, msg.flags[0], msg.flags[1], msg.effect);
+                    // 确定实际宽高：如果width和height都为0，使用默认值
+                    int actual_width = (msg.width == 0 && msg.height == 0) ? PAPER_S3_WIDTH : msg.width;
+                    int actual_height = (msg.width == 0 && msg.height == 0) ? PAPER_S3_HEIGHT : msg.height;
+                    
+                    perform_push(use_canvas, msg.flags[0], msg.flags[1], msg.effect, msg.x, msg.y, actual_width, actual_height);
 
                     // 如果使用了quality模式，推送后恢复fastest模式
                     // if (useQualityMode || needMiddleStep)

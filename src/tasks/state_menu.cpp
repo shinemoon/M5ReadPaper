@@ -330,7 +330,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     bin_font_print(name_with_page, 28, 0, 540, 0, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
-                    bin_font_flush_canvas(); // PapeFWD
+                    bin_font_flush_canvas(false,false,false,NOEFFECT,160,775,230,80); // PapeFWD
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "BWD 1%") == 0)
@@ -363,7 +363,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     bin_font_print(name_with_page, 28, 0, 540, 0, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
-                    bin_font_flush_canvas(); // Page BWD
+                    bin_font_flush_canvas(false,false,false,NOEFFECT,160,775,230,80); // PapeBWD
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "MBWD 0.1%") == 0)
@@ -397,7 +397,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     bin_font_print(name_with_page, 28, 0, 540, 0, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
-                    bin_font_flush_canvas(); //MBWD
+                    bin_font_flush_canvas(false,false,false,NOEFFECT,160,775,230,80); //MBWD 
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "FFWD 10%") == 0)
@@ -429,7 +429,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     bin_font_print(name_with_page, 28, 0, 540, 0, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
-                    bin_font_flush_canvas(); //FFWD
+                    bin_font_flush_canvas(false,false,false,NOEFFECT,160,775,230,80); //FFWD
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "FWD 1%") == 0)
@@ -463,7 +463,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     bin_font_print(name_with_page, 28, 0, 540, 0, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
-                    bin_font_flush_canvas(); // FWD
+                    bin_font_flush_canvas(false,false,false,NOEFFECT,160,775,230,80); //FWD
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "MFWD 0.1%") == 0)
@@ -495,7 +495,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     bin_font_print(name_with_page, 28, 0, 540, 0, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
-                    bin_font_flush_canvas(); // MFWD
+                    bin_font_flush_canvas(false,false,false,NOEFFECT,160,775,230,80); //MFWD
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "TWO 区域：ReIndex") == 0)
@@ -541,7 +541,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                 {
                     g_current_book->setShowLabel(!g_current_book->getShowLabel());
                     // Refresh Menu
-                    (void)show_reading_menu(g_canvas, false);
+                    (void)show_reading_menu(g_canvas, false,LOCKBM);
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "Switch FAST") == 0)
@@ -556,7 +556,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     g_config.fastrefresh = !g_config.fastrefresh;
                     config_save();
                     // 刷新阅读菜单以应用新主题 (参数以现有调用为准)
-                    (void)show_reading_menu(g_canvas, false);
+                    (void)show_reading_menu(g_canvas, false,DARKMODE);
                 }
                 // dark 模式下忽略此操作
             }
@@ -574,7 +574,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                 }
                 config_save();
                 // 刷新阅读菜单以应用新主题 (参数以现有调用为准)
-                (void)show_reading_menu(g_canvas, false);
+                (void)show_reading_menu(g_canvas, false,DARKMODE);
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "Switch KeepOrg") == 0)
             {
@@ -585,7 +585,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                 {
                     g_current_book->setKeepOrg(!g_current_book->getKeepOrg());
                     // Refresh Menu to update checkbox display
-                    (void)show_reading_menu(g_canvas, false);
+                    (void)show_reading_menu(g_canvas, false,SKIPCONV);
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "Switch DrawBottom") == 0)
@@ -597,7 +597,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                 {
                     g_current_book->setDrawBottom(!g_current_book->getDrawBottom());
                     // Refresh Menu to update checkbox display
-                    (void)show_reading_menu(g_canvas, false);
+                    (void)show_reading_menu(g_canvas, false,UNDERLINE);
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "Switch Vertical") == 0)

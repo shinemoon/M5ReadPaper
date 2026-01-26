@@ -13,6 +13,10 @@ void destroyDisplayPushTask();
 struct DisplayPushMessage {
 	bool flags[4]; // [0]=trans, [1]=invert, [2]=quality, [3]=reserved
 	display_type effect; // additional effect parameter
+	int x; // 矩形区域起始x坐标
+	int y; // 矩形区域起始y坐标
+	int width; // 矩形区域宽度（0表示使用默认PAPER_S3_WIDTH）
+	int height; // 矩形区域高度（0表示使用默认PAPER_S3_HEIGHT）
 };
 
 // 向显示推送队列中推入一个消息（长度为3的布尔数组）
