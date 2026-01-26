@@ -646,7 +646,7 @@ void show_lockscreen(int16_t area_width, int16_t area_height, float font_size, c
                 ui_push_image_to_canvas("/spiffs/lock-icon.png", 508, 0);
             }
 
-            bin_font_flush_canvas(false, false, true);
+            bin_font_flush_canvas(false, false, true, RECT);
             M5.Display.waitDisplay();
 
             return; // 提前返回，跳过后续的图片和文字
@@ -887,7 +887,7 @@ void show_lockscreen(int16_t area_width, int16_t area_height, float font_size, c
             }
         }
     }
-    bin_font_flush_canvas(false, false, true); // quality will be reset by the bin flush way!
+    bin_font_flush_canvas(false, false, true, RECT); // quality will be reset by the bin flush way!
 };
 
 void lockscreen_image_cache_invalidate()

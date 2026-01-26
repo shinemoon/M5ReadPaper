@@ -330,7 +330,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     bin_font_print(name_with_page, 28, 0, 540, 0, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
-                    bin_font_flush_canvas();
+                    bin_font_flush_canvas(); // PapeFWD
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "BWD 1%") == 0)
@@ -363,7 +363,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     bin_font_print(name_with_page, 28, 0, 540, 0, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
-                    bin_font_flush_canvas();
+                    bin_font_flush_canvas(); // Page BWD
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "MBWD 0.1%") == 0)
@@ -397,7 +397,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     bin_font_print(name_with_page, 28, 0, 540, 0, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
-                    bin_font_flush_canvas();
+                    bin_font_flush_canvas(); //MBWD
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "FFWD 10%") == 0)
@@ -429,7 +429,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     bin_font_print(name_with_page, 28, 0, 540, 0, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
-                    bin_font_flush_canvas();
+                    bin_font_flush_canvas(); //FFWD
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "FWD 1%") == 0)
@@ -463,7 +463,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     bin_font_print(name_with_page, 28, 0, 540, 0, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
-                    bin_font_flush_canvas();
+                    bin_font_flush_canvas(); // FWD
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "MFWD 0.1%") == 0)
@@ -495,7 +495,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     bin_font_print(name_with_page, 28, 0, 540, 0, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
-                    bin_font_flush_canvas();
+                    bin_font_flush_canvas(); // MFWD
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "TWO 区域：ReIndex") == 0)

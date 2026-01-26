@@ -16,6 +16,14 @@
 #define NORMAL_REFRESH epd_mode_t::epd_text
 #define LOW_REFRESH epd_mode_t::epd_fastest
 
+// Display effect types for use with display push effect parameter
+enum display_type {
+    NOEFFECT = 0,
+    VSHUTTER = 1,
+    HSHUTTER = 2,
+    RECT = 3
+};
+
 #define FIRST_REFRESH_TH 8  //'MIddle Step' need to refresh to eliminate the HW - Only for Fastmode
 #define SECOND_REFRESH_TH 24 // Full Refresh for Fastmode
 #define FULL_REFRESH_TH 24 // Full Refresh for NormalMode

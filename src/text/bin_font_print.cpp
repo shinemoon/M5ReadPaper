@@ -2161,15 +2161,17 @@ void bin_font_reset_cursor()
 #endif
 }
 
-void bin_font_flush_canvas(bool trans, bool invert, bool quality)
+void bin_font_flush_canvas(bool trans, bool invert, bool quality, display_type effect)
 {
     if (g_canvas)
     {
-        // 使用长度为3的布尔数组消息: [trans, invert, quality]
+        // 使用长度为4的布尔数组消息: [trans, invert, quality, reserved]
         DisplayPushMessage pushMsg;
         pushMsg.flags[0] = trans;
         pushMsg.flags[1] = invert;
         pushMsg.flags[2] = quality;
+        pushMsg.flags[3] = false;
+        pushMsg.effect = effect;
         // 先尝试克隆当前 canvas 并放入 canvas FIFO（阻塞直到有空位）
         // 重要：必须先 setColorDepth 再 createSprite，否则会触发二次分配/重建，导致明显卡顿。
         if (g_canvas)

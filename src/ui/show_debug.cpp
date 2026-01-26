@@ -72,7 +72,7 @@ bool show_debug(M5Canvas *canvas, bool refresh)
     {
         // enqueue a display push to flush the canvas
         {
-            DisplayPushMessage m = {{false, false, false}};
+            DisplayPushMessage m = {{false, false, false, false}, NOEFFECT};
             enqueueDisplayPush(m);
         }
     }

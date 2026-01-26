@@ -1,5 +1,6 @@
 #pragma once
 #include <M5Unified.h>
+#include "readpaper.h"
 #include <stdint.h>
 
 // 初始化显示推送任务（创建队列并启动任务）
@@ -10,7 +11,8 @@ void destroyDisplayPushTask();
 
 // Display push message: length-3 boolean array mapping to flush parameters
 struct DisplayPushMessage {
-	bool flags[3]; // [0]=trans, [1]=invert, [2]=quality
+	bool flags[4]; // [0]=trans, [1]=invert, [2]=quality, [3]=reserved
+	display_type effect; // additional effect parameter
 };
 
 // 向显示推送队列中推入一个消息（长度为3的布尔数组）

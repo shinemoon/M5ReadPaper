@@ -61,7 +61,7 @@ static void displayTaskFunction(void *pvParameters)
 
                     // 根据计数器决定是否使用quality模式 & fast mode
                     bool needMiddleStep = g_config.fastrefresh && (s_pushCount % PUSH_COUNT_THRESHOLD == 0) && (s_pushCount >= PUSH_COUNT_THRESHOLD);
-                    //bool needMiddleStep = (s_pushCount % PUSH_COUNT_THRESHOLD == 0) && (s_pushCount >= PUSH_COUNT_THRESHOLD);
+                    // bool needMiddleStep = (s_pushCount % PUSH_COUNT_THRESHOLD == 0) && (s_pushCount >= PUSH_COUNT_THRESHOLD);
                     bool useQualityMode = (s_pushCount >= PUSH_COUNT_THRESHOLD_QUALIYT && g_config.fastrefresh) || msg.flags[2] || (s_pushCount >= FULL_REFRESH_TH && !g_config.fastrefresh);
                     s_pushCount++;
 
@@ -101,22 +101,226 @@ static void displayTaskFunction(void *pvParameters)
                         M5.Display.setEpdMode(g_config.fastrefresh ? LOW_REFRESH : NORMAL_REFRESH);
                     }
 
+#if DBG_BIN_FONT_PRINT
                     unsigned long t0 = millis();
                     (void)t0; // 抑制未使用变量警告
+#else
+                    (void)0;
+#endif
 #if DBG_BIN_FONT_PRINT
                     Serial.printf("[DISPLAY_PUSH_TASK] pushSprite start ts=%lu\n", t0);
 #endif
-                    if (msg.flags[0])
+                    // 使用封装的 push 操作，传入 trans/invert/effect
+                    auto perform_push = [](M5Canvas *canvas, bool trans, bool invert, int8_t effect)
                     {
-                        if (msg.flags[1])
-                            use_canvas->pushSprite(0, 0, TFT_BLACK);
+                        if (effect == display_type::VSHUTTER)
+                        {
+                            // 分成从上到下逐片推送
+                            const int slices = 32;
+                            const int total_h = PAPER_S3_HEIGHT;
+                            const int w = PAPER_S3_WIDTH;
+                            int slice_h = total_h / slices;
+
+                            // 获取原始缓冲信息
+                            void *src_buf = canvas->getBuffer();
+                            size_t buf_len = canvas->bufferLength();
+                            if (!src_buf || buf_len == 0 || slice_h <= 0)
+                            {
+                                return;
+                            }
+
+                            size_t row_bytes = buf_len / (size_t)total_h;
+
+                            for (int s = 0; s < slices; s++)
+                            {
+                                int start_row = s * slice_h;
+                                int h = (s == slices - 1) ? (total_h - start_row) : slice_h;
+                                if (h <= 0)
+                                    continue;
+
+                                M5Canvas *slice = new M5Canvas(&M5.Display);
+                                if (!slice)
+                                    break;
+                                slice->setPsram(true);
+                                slice->setColorDepth(canvas->getColorDepth());
+                                slice->createSprite(w, h);
+
+                                void *dst_buf = slice->getBuffer();
+                                if (dst_buf)
+                                {
+                                    uint8_t *src_row_ptr = (uint8_t *)src_buf + (size_t)start_row * row_bytes;
+                                    memcpy(dst_buf, src_row_ptr, (size_t)h * row_bytes);
+                                }
+
+                                if (trans)
+                                {
+                                    slice->pushSprite(0, start_row, invert ? TFT_BLACK : TFT_WHITE);
+                                }
+                                else
+                                {
+                                    slice->pushSprite(0, start_row);
+                                }
+//                                M5.Display.waitDisplay();
+                                delete slice;
+                            }
+                        }
+                        else if (effect == display_type::HSHUTTER)
+                        {
+                            // 分成若干片从左到右逐片推送
+                            const int slices = 17;
+                            const int total_w = PAPER_S3_WIDTH;
+                            const int h = PAPER_S3_HEIGHT;
+                            int slice_w = total_w / slices;
+
+                            // 获取原始缓冲信息
+                            void *src_buf = canvas->getBuffer();
+                            size_t buf_len = canvas->bufferLength();
+                            if (!src_buf || buf_len == 0 || slice_w <= 0)
+                            {
+                                return;
+                            }
+
+                            // 假设每行的字节数（根据颜色深度计算）
+                            size_t row_bytes = buf_len / (size_t)h;
+                            size_t bytes_per_pixel = row_bytes / (size_t)total_w;
+
+                            for (int s = 0; s < slices; s++)
+                            {
+                                int start_col = s * slice_w;
+                                int w = (s == slices - 1) ? (total_w - start_col) : slice_w;
+                                if (w <= 0)
+                                    continue;
+
+                                M5Canvas *slice = new M5Canvas(&M5.Display);
+                                if (!slice)
+                                    break;
+                                slice->setPsram(true);
+                                slice->setColorDepth(canvas->getColorDepth());
+                                slice->createSprite(w, h);
+
+                                void *dst_buf = slice->getBuffer();
+                                if (dst_buf)
+                                {
+                                    // 逐行复制对应的列区域
+                                    uint8_t *src_base = (uint8_t *)src_buf;
+                                    uint8_t *dst_base = (uint8_t *)dst_buf;
+                                    size_t slice_row_bytes = (size_t)w * bytes_per_pixel;
+                                    size_t src_col_offset = (size_t)start_col * bytes_per_pixel;
+
+                                    for (int row = 0; row < h; row++)
+                                    {
+                                        uint8_t *src_row = src_base + row * row_bytes + src_col_offset;
+                                        uint8_t *dst_row = dst_base + row * slice_row_bytes;
+                                        memcpy(dst_row, src_row, slice_row_bytes);
+                                    }
+                                }
+
+                                if (trans)
+                                {
+                                    slice->pushSprite(start_col, 0, invert ? TFT_BLACK : TFT_WHITE);
+                                }
+                                else
+                                {
+                                    slice->pushSprite(start_col, 0);
+                                }
+//                                M5.Display.waitDisplay();
+                                delete slice;
+                            }
+                        }
+                        else if (effect == display_type::RECT)
+                        {
+                            // 将全屏幕划分成4x6的24个方块区域，乱序推送
+                            const int cols = 4;
+                            const int rows = 6;
+                            const int total_blocks = cols * rows;
+                            const int block_w = PAPER_S3_WIDTH / cols;
+                            const int block_h = PAPER_S3_HEIGHT / rows;
+
+                            // 获取原始缓冲信息
+                            void *src_buf = canvas->getBuffer();
+                            size_t buf_len = canvas->bufferLength();
+                            if (!src_buf || buf_len == 0)
+                            {
+                                return;
+                            }
+
+                            size_t row_bytes = buf_len / (size_t)PAPER_S3_HEIGHT;
+                            size_t bytes_per_pixel = row_bytes / (size_t)PAPER_S3_WIDTH;
+
+                            // 生成0-23的索引数组并打乱
+                            int indices[24];
+                            for (int i = 0; i < total_blocks; i++)
+                            {
+                                indices[i] = i;
+                            }
+                            // 简单的洗牌算法（Fisher-Yates）
+                            for (int i = total_blocks - 1; i > 0; i--)
+                            {
+                                int j = rand() % (i + 1);
+                                int temp = indices[i];
+                                indices[i] = indices[j];
+                                indices[j] = temp;
+                            }
+
+                            // 按照打乱的顺序推送每个方块
+                            for (int idx = 0; idx < total_blocks; idx++)
+                            {
+                                int block_idx = indices[idx];
+                                int block_col = block_idx % cols;
+                                int block_row = block_idx / cols;
+                                int start_x = block_col * block_w;
+                                int start_y = block_row * block_h;
+
+                                M5Canvas *block = new M5Canvas(&M5.Display);
+                                if (!block)
+                                    break;
+                                block->setPsram(true);
+                                block->setColorDepth(canvas->getColorDepth());
+                                block->createSprite(block_w, block_h);
+
+                                void *dst_buf = block->getBuffer();
+                                if (dst_buf)
+                                {
+                                    // 逐行复制方块区域
+                                    uint8_t *src_base = (uint8_t *)src_buf;
+                                    uint8_t *dst_base = (uint8_t *)dst_buf;
+                                    size_t block_row_bytes = (size_t)block_w * bytes_per_pixel;
+                                    size_t src_col_offset = (size_t)start_x * bytes_per_pixel;
+
+                                    for (int row = 0; row < block_h; row++)
+                                    {
+                                        uint8_t *src_row = src_base + (start_y + row) * row_bytes + src_col_offset;
+                                        uint8_t *dst_row = dst_base + row * block_row_bytes;
+                                        memcpy(dst_row, src_row, block_row_bytes);
+                                    }
+                                }
+
+                                if (trans)
+                                {
+                                    block->pushSprite(start_x, start_y, invert ? TFT_BLACK : TFT_WHITE);
+                                }
+                                else
+                                {
+                                    block->pushSprite(start_x, start_y);
+                                }
+//                                M5.Display.waitDisplay();
+                                delete block;
+                            }
+                        }
                         else
-                            use_canvas->pushSprite(0, 0, TFT_WHITE);
-                    }
-                    else
-                    {
-                        use_canvas->pushSprite(0, 0);
-                    }
+                        {
+                            if (trans)
+                            {
+                                canvas->pushSprite(0, 0, invert ? TFT_BLACK : TFT_WHITE);
+                            }
+                            else
+                            {
+                                canvas->pushSprite(0, 0);
+                            }
+                        }
+                    };
+
+                    perform_push(use_canvas, msg.flags[0], msg.flags[1], msg.effect);
 
                     // 如果使用了quality模式，推送后恢复fastest模式
                     // if (useQualityMode || needMiddleStep)
