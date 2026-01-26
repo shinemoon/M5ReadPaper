@@ -115,7 +115,7 @@ static void displayTaskFunction(void *pvParameters)
                     {
                         if (effect == display_type::VSHUTTER)
                         {
-                            // 分成从上到下逐片推送
+                            // 分成从上下两端向中间交错推送
                             const int slices = 32;
                             const int total_h = PAPER_S3_HEIGHT;
                             const int w = PAPER_S3_WIDTH;
@@ -131,8 +131,24 @@ static void displayTaskFunction(void *pvParameters)
 
                             size_t row_bytes = buf_len / (size_t)total_h;
 
-                            for (int s = 0; s < slices; s++)
+                            // 从上下两端向中间交错推送
+                            for (int i = 0; i < slices; i++)
                             {
+                                int s;
+                                if (i % 2 == 0)
+                                {
+                                    // 从顶部: 0, 1, 2...
+                                    s = i / 2;
+                                }
+                                else
+                                {
+                                    // 从底部: 31, 30, 29...
+                                    s = slices - 1 - (i / 2);
+                                }
+                                
+                                if (s < 0 || s >= slices)
+                                    continue;
+
                                 int start_row = s * slice_h;
                                 int h = (s == slices - 1) ? (total_h - start_row) : slice_h;
                                 if (h <= 0)
@@ -166,7 +182,7 @@ static void displayTaskFunction(void *pvParameters)
                         }
                         else if (effect == display_type::HSHUTTER)
                         {
-                            // 分成若干片从左到右逐片推送
+                            // 分成若干片从左右两端向中间交错推送
                             const int slices = 17;
                             const int total_w = PAPER_S3_WIDTH;
                             const int h = PAPER_S3_HEIGHT;
@@ -184,8 +200,24 @@ static void displayTaskFunction(void *pvParameters)
                             size_t row_bytes = buf_len / (size_t)h;
                             size_t bytes_per_pixel = row_bytes / (size_t)total_w;
 
-                            for (int s = 0; s < slices; s++)
+                            // 从左右两端向中间交错推送
+                            for (int i = 0; i < slices; i++)
                             {
+                                int s;
+                                if (i % 2 == 0)
+                                {
+                                    // 从左侧: 0, 1, 2...
+                                    s = i / 2;
+                                }
+                                else
+                                {
+                                    // 从右侧: 16, 15, 14...
+                                    s = slices - 1 - (i / 2);
+                                }
+                                
+                                if (s < 0 || s >= slices)
+                                    continue;
+
                                 int start_col = s * slice_w;
                                 int w = (s == slices - 1) ? (total_w - start_col) : slice_w;
                                 if (w <= 0)

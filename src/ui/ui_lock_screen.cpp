@@ -576,7 +576,7 @@ void show_start_screen(const char *subtitle)
         M5.Display.setTextColor(0x02);
         M5.Display.setTextSize(2);
         M5.Display.setTextDatum(MC_DATUM);
-        M5.Display.drawString(String(ver.c_str()), PAPER_S3_WIDTH / 2, PAPER_S3_HEIGHT / 2 + 136);
+        M5.Display.drawString(String(ver.c_str()), PAPER_S3_WIDTH / 2, PAPER_S3_HEIGHT / 2 + 80);
         M5.Display.waitDisplay();
     }
 }
