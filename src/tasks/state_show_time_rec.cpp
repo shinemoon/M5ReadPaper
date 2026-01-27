@@ -26,7 +26,7 @@ void StateMachineTask::handleShowTimeRecState(const SystemMessage_t *msg)
     {
         screen_shown = true;
         draw_time_rec_screen(g_canvas);
-        bin_font_flush_canvas(false, false, true);
+        bin_font_flush_canvas(false, false, true,VSHUTTER_NORMAL);
     }
 
     switch (msg->type)

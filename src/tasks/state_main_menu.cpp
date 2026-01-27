@@ -429,8 +429,8 @@ void StateMachineTask::handleMainMenuState(const SystemMessage_t *msg)
                         g_canvas->fillRect(360, 96 * mainMenuIndex + 2, 2, 94, invertColor ? TFT_BLACK : TFT_WHITE);
                         g_canvas->fillRect(0, 96 * mainMenuIndex, (mainMenuIndex == 0) ? 540 : 360, 2, invertColor ? TFT_WHITE : TFT_BLACK);
                         g_canvas->fillRect(0, 96 * mainMenuIndex + 96, (mainMenuIndex == 9) ? 540 : 360, 2, invertColor ? TFT_WHITE : TFT_BLACK);
-
-                        bin_font_flush_canvas();
+                        //Special Part for click handling
+                        bin_font_flush_canvas(false,false,false,NOEFFECT,359,0,3,960);
                     }
                 }
                 else
