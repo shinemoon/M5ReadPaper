@@ -137,6 +137,13 @@ void DeviceInterruptTask::taskFunction(void *pvParameters)
         // 检查 IMU 状态并报告当前设备方向（四方向：UP/DOWN/LEFT/RIGHT）
 #if ENABLE_AUTO_ROTATION
         {
+            // 如果正在进行显示推送，跳过本次方向判断
+            extern volatile bool inDisplayPush;
+            if (inDisplayPush)
+            {
+                continue;
+            }
+            
             float ax = 0, ay = 0, az = 0;
             M5.Imu.getAccelData(&ax, &ay, &az);
 

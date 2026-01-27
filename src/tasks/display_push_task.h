@@ -3,6 +3,9 @@
 #include "readpaper.h"
 #include <stdint.h>
 
+// 全局flag：标记当前是否正在进行显示推送
+extern volatile bool inDisplayPush;
+
 // 初始化显示推送任务（创建队列并启动任务）
 bool initializeDisplayPushTask(size_t queue_len = 8);
 

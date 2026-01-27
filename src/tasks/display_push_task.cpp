@@ -10,6 +10,8 @@
 
 extern M5Canvas *g_canvas;
 extern GlobalConfig g_config;
+// 全局flag：标记当前是否正在进行显示推送
+volatile bool inDisplayPush = false;
 // 队列和任务句柄
 static QueueHandle_t s_displayQueue = NULL;
 static TaskHandle_t s_displayTaskHandle = NULL;
@@ -31,6 +33,8 @@ static void displayTaskFunction(void *pvParameters)
     {
         if (xQueueReceive(s_displayQueue, &msg, portMAX_DELAY) == pdTRUE)
         {
+            // 标记正在进行显示推送
+            inDisplayPush = true;
 
             bool isIndexing = (g_current_book && g_current_book->isIndexingInProgress());
 
@@ -456,6 +460,9 @@ static void displayTaskFunction(void *pvParameters)
                 }
             }
             // 如果未来有更多消息类型，在这里扩展
+            
+            // 恢复标记：显示推送完成
+            inDisplayPush = false;
         }
     }
     M5.Display.powerSaveOn();
