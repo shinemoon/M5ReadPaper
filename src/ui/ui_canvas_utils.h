@@ -16,7 +16,7 @@ enum readingMenuArea {
 };
 
 bool show_reading_menu(M5Canvas *canvas, bool refresh = true, readingMenuArea area = FULL);
-bool show_main_menu(M5Canvas *canvas, bool refresh = true, int selected = 0, int current_page = 0, bool rescan = true);
+bool show_main_menu(M5Canvas *canvas, bool refresh = true, int selected = 0, int current_page = 0, bool rescan = true, bool partial = false, int8_t refInd = 0);
 bool show_wire_connect(M5Canvas *canvas, bool refresh = true);
 bool show_usb_connect(M5Canvas *canvas, bool refresh = true);
 int get_cached_book_count();

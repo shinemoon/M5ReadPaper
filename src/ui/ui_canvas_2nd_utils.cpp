@@ -17,11 +17,17 @@ extern std::vector<FontFileInfo, PSRAMAllocator<FontFileInfo>> g_font_list;
 extern int8_t opt;
 extern int16_t opt2;
 
-void show_2nd_level_menu(M5Canvas *canvas)
+void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
 {
     M5Canvas *target = canvas ? canvas : g_canvas;
     if (!target)
         return;
+
+    // Backup params for partial refresh
+    int16_t p_x = 0;
+    int16_t p_y = 0;
+    int16_t p_w = 0;
+    int16_t p_h = 0;
 
     // Rectangle dimensions
     const int16_t rectW = PAPER_S3_WIDTH;
@@ -36,12 +42,18 @@ void show_2nd_level_menu(M5Canvas *canvas)
         rectH = 4 * 96;
         break;
     }
+
     // Canvas origin and size discovery
     int16_t canvasW = target->width();
     int16_t canvasH = target->height();
 
     int16_t x = (canvasW - rectW) / 2;
     int16_t y = (canvasH - rectH) / 2;
+    // Remember the shift on below info -8 y, +16 H
+    p_x = x;
+    p_y = y - 4;
+    p_w = rectW;
+    p_h = rectH + 16;
 
     // Draw white filled rectangle with thin border
     // target->drawRect(x, y, rectW, rectH, TFT_BLACK);
@@ -61,6 +73,24 @@ void show_2nd_level_menu(M5Canvas *canvas)
     {
     case Main2ndLevelMenuType::MAIN_2ND_MENU_FONT_SETTING:
     {
+        // Only refresh 'live' items;
+        // 1: Paging the fonts
+        // 2: Click and set
+        if (refInd == 1)
+        {
+            p_x = 30;
+            p_y = y + 16 + 42;
+            p_w = 480;
+            p_h = rectH - 110;
+        }
+        else if (refInd == 2)
+        {
+            p_x = 30;
+            p_y = y + 16 + 42;
+            p_w = 40;
+            p_h = rectH - 110;
+        }
+
         // opt: ind of selectd row
         // opt2: ind of current page
         // Title
@@ -102,7 +132,8 @@ void show_2nd_level_menu(M5Canvas *canvas)
                 opt = page_count - 1;
         }
         // opt on behalf of the available one
-        target->fillRect(45, y + 100 - 4 + opt * 80, 450, 38, TFT_LIGHTGREY);
+        // target->fillRect(45, y + 100 - 4 + opt * 80, 450, 38, TFT_LIGHTGREY);
+        target->fillRect(45, y + 100 - 4 + opt * 80, 10, 38, TFT_BLACK);
         // Show up to 3 font names for the current page, center-aligned under the title.
         for (int i = 0; i < fonts_per_page; ++i)
         {
@@ -215,6 +246,15 @@ void show_2nd_level_menu(M5Canvas *canvas)
         break;
     case Main2ndLevelMenuType::MAIN_2ND_MENU_DISPLAY_SETTING:
     {
+        // Got the calculated refresh window
+        // refInd ==0 means whole new , don't do such 'small seg'
+        if (refInd > 0)
+        {
+            p_x = 205;
+            p_w = 460;
+            p_h = 30;
+            p_y = p_y + 120 + (refInd - 1) * 96;
+        }
         bin_font_print("阅读显示设置", 32, 0, 540, 0, y + 16, false, target, TEXT_ALIGN_CENTER, 450);
         // Button
         draw_label(target, 40, y + 121, "默认方向", true); // FIVE_ONE/TWO
@@ -233,27 +273,21 @@ void show_2nd_level_menu(M5Canvas *canvas)
 
         const int16_t pageStyleRowY = y + 2 * 96 - 1 + 25;
         if (strcmp(g_config.pageStyle, "default") == 0)
-            // target->fillRect(210, pageStyleRowY - 4, 160, 36, TFT_LIGHTGREY);
             target->fillTriangle(210, pageStyleRowY + 4, 210, pageStyleRowY + 4 + 18, 210 + 12, pageStyleRowY + 4 + 9, TFT_BLACK);
         else
-            // target->fillRect(360, pageStyleRowY - 4, 160, 36, TFT_LIGHTGREY);
             target->fillTriangle(360, pageStyleRowY + 4, 360, pageStyleRowY + 4 + 18, 360 + 12, pageStyleRowY + 4 + 9, TFT_BLACK);
         bin_font_print("右手习惯", 28, 0, 540, 230, pageStyleRowY, true, target, TEXT_ALIGN_LEFT, 150);
         bin_font_print("左手习惯", 28, 0, 540, 380, pageStyleRowY, true, target, TEXT_ALIGN_LEFT, 150);
-
         // Button - 书签显示
         draw_label(target, 40, y + 3 * 96 + 25, "书签显示", true); // SIX_ONE/TWO
 
         const int16_t labelRowY = y + 3 * 96 - 1 + 25;
         if (strcmp(g_config.labelposition, "top") == 0)
-            //            target->fillRect(430, labelRowY - 4, 60, 36, TFT_LIGHTGREY);
-            target->fillTriangle(410, labelRowY+ 4, 410, labelRowY+ 4 + 18, 410 + 12, labelRowY+ 4 + 9, TFT_BLACK);
+            target->fillTriangle(410, labelRowY + 4, 410, labelRowY + 4 + 18, 410 + 12, labelRowY + 4 + 9, TFT_BLACK);
         else if (strcmp(g_config.labelposition, "middle") == 0)
-            //target->fillRect(330, labelRowY - 4, 60, 36, TFT_LIGHTGREY);
-            target->fillTriangle(310, labelRowY+ 4, 310, labelRowY+ 4 + 18, 310 + 12, labelRowY+ 4 + 9, TFT_BLACK);
+            target->fillTriangle(310, labelRowY + 4, 310, labelRowY + 4 + 18, 310 + 12, labelRowY + 4 + 9, TFT_BLACK);
         else
-            //target->fillRect(230, labelRowY - 4, 60, 36, TFT_LIGHTGREY);
-            target->fillTriangle(210, labelRowY+ 4, 210, labelRowY+ 4 + 18, 210 + 12, labelRowY+ 4 + 9, TFT_BLACK);
+            target->fillTriangle(210, labelRowY + 4, 210, labelRowY + 4 + 18, 210 + 12, labelRowY + 4 + 9, TFT_BLACK);
 
         bin_font_print("底部", 28, 0, 540, 230, labelRowY, true, target, TEXT_ALIGN_LEFT, 100);
         bin_font_print("中部", 28, 0, 540, 330, labelRowY, true, target, TEXT_ALIGN_LEFT, 100);
@@ -264,14 +298,11 @@ void show_2nd_level_menu(M5Canvas *canvas)
 
         const int16_t themeRowY = y + 4 * 96 - 1 + 25;
         if (strcmp(g_config.marktheme, "light") == 0)
-            //target->fillRect(330, themeRowY - 4, 60, 36, TFT_LIGHTGREY);
-            target->fillTriangle(310, themeRowY+ 4, 310, themeRowY+ 4 + 18, 310 + 12, themeRowY+ 4 + 9, TFT_BLACK);
+            target->fillTriangle(310, themeRowY + 4, 310, themeRowY + 4 + 18, 310 + 12, themeRowY + 4 + 9, TFT_BLACK);
         else if (strcmp(g_config.marktheme, "random") == 0)
-            //target->fillRect(430, themeRowY - 4, 60, 36, TFT_LIGHTGREY);
-            target->fillTriangle(410, themeRowY+ 4, 410, themeRowY+ 4 + 18, 410 + 12, themeRowY+ 4 + 9, TFT_BLACK);
+            target->fillTriangle(410, themeRowY + 4, 410, themeRowY + 4 + 18, 410 + 12, themeRowY + 4 + 9, TFT_BLACK);
         else
-            //target->fillRect(230, themeRowY - 4, 60, 36, TFT_LIGHTGREY);
-            target->fillTriangle(210, themeRowY+ 4, 210, themeRowY+ 4 + 18, 210 + 12, themeRowY+ 4 + 9, TFT_BLACK);
+            target->fillTriangle(210, themeRowY + 4, 210, themeRowY + 4 + 18, 210 + 12, themeRowY + 4 + 9, TFT_BLACK);
 
         bin_font_print("深色", 28, 0, 540, 230, themeRowY, true, target, TEXT_ALIGN_LEFT, 100);
         bin_font_print("浅色", 28, 0, 540, 330, themeRowY, true, target, TEXT_ALIGN_LEFT, 100);
@@ -282,11 +313,9 @@ void show_2nd_level_menu(M5Canvas *canvas)
 
         const int16_t wallpaperRowY = y + 5 * 96 - 1 + 25;
         if (g_config.defaultlock)
-            //target->fillRect(210, wallpaperRowY - 4, 160, 36, TFT_LIGHTGREY);
-            target->fillTriangle(210, wallpaperRowY+ 4, 210, wallpaperRowY+ 4 + 18, 210 + 12, wallpaperRowY+ 4 + 9, TFT_BLACK);
+            target->fillTriangle(210, wallpaperRowY + 4, 210, wallpaperRowY + 4 + 18, 210 + 12, wallpaperRowY + 4 + 9, TFT_BLACK);
         else
-            //target->fillRect(360, wallpaperRowY - 4, 160, 36, TFT_LIGHTGREY);
-            target->fillTriangle(360, wallpaperRowY+ 4, 360, wallpaperRowY+ 4 + 18, 360 + 12, wallpaperRowY+ 4 + 9, TFT_BLACK);
+            target->fillTriangle(360, wallpaperRowY + 4, 360, wallpaperRowY + 4 + 18, 360 + 12, wallpaperRowY + 4 + 9, TFT_BLACK);
 
         bin_font_print("默认壁纸", 28, 0, 540, 230, wallpaperRowY, true, target, TEXT_ALIGN_LEFT, 150);
         bin_font_print("随机壁纸", 28, 0, 540, 380, wallpaperRowY, true, target, TEXT_ALIGN_LEFT, 150);
@@ -334,6 +363,13 @@ void show_2nd_level_menu(M5Canvas *canvas)
     else
     {
         // For user-supplied canvas, caller is responsible for pushing
-        bin_font_flush_canvas();
+        if (partial)
+        {
+            bin_font_flush_canvas(false, false, false, NOEFFECT, p_x, p_y, p_w, p_h);
+            // Print partial refresh rectangle for debugging
+            // Serial.printf("p_x=%d p_y=%d p_w=%d p_h=%d\n", p_x, p_y, p_w, p_h);
+        }
+        else
+            bin_font_flush_canvas();
     }
 }

@@ -336,13 +336,13 @@ bool show_reading_menu(M5Canvas *canvas, bool refresh, readingMenuArea area)
             bin_font_flush_canvas(false, false, false, NOEFFECT, 40 + 260, BOTTOMUI_y + 60 + 38, 40, 40);
             break;
         case SKIPCONV:
-            bin_font_flush_canvas(false, false, false, NOEFFECT, 42+3, TOPUI_y + 240+3, 24, 24);
+            bin_font_flush_canvas(false, false, false, NOEFFECT, 42 + 3, TOPUI_y + 240 + 3, 24, 24);
             break;
         case UNDERLINE:
-            bin_font_flush_canvas(false, false, false, NOEFFECT, 42 + 270 +3, TOPUI_y + 60+3, 24, 24);
+            bin_font_flush_canvas(false, false, false, NOEFFECT, 42 + 270 + 3, TOPUI_y + 60 + 3, 24, 24);
             break;
         case LOCKBM:
-            bin_font_flush_canvas(false, false, false, NOEFFECT, 42+3, TOPUI_y + 60+3, 24, 24);
+            bin_font_flush_canvas(false, false, false, NOEFFECT, 42 + 3, TOPUI_y + 60 + 3, 24, 24);
             break;
         default:
             bin_font_flush_canvas();
@@ -797,8 +797,15 @@ void drawCheckbox(M5Canvas *canvas, int16_t x, int16_t y, bool checked, const ch
     }
 }
 
-bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_page, bool rescan)
+bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_page, bool rescan, bool partial, int8_t refInd)
 {
+    // RefInd
+    //  1- Paging Files
+    int16_t p_x = 0;
+    int16_t p_y = 0;
+    int16_t p_w = 0;
+    int16_t p_h = 0;
+
 #if DBG_UI_CANVAS_UTILS
     unsigned long menu_start_time = millis();
     Serial.printf("[MAIN_MENU] === 开始加载主菜单 (selected=%d, page=%d) ===\n", selected, current_page);
@@ -1158,7 +1165,46 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
     }
     else
     {
-        bin_font_flush_canvas();
+        if (partial)
+        {
+            if (refInd == 1)
+            { // paging
+                p_x = 0;
+                p_y = 0;
+                p_h = PAPER_S3_HEIGHT;
+                p_w = 362;
+                bin_font_flush_canvas(false, false, false, NOEFFECT, p_x, p_y, p_w, p_h);
+                p_x = 370;
+                p_y = 100;
+                p_h = 22;
+                p_w = 170;
+                bin_font_flush_canvas(false, false, false, NOEFFECT, p_x, p_y, p_w, p_h);
+            }
+            else if (refInd == 2)
+            {
+                p_x = 0;
+                p_y = 0;
+                p_h = PAPER_S3_HEIGHT;
+                p_w = 362;
+                bin_font_flush_canvas(false, false, false, NOEFFECT, p_x, p_y, p_w, p_h);
+                p_x = 373;
+                p_y = 300;
+                p_h = 50;
+                p_w = 180;
+                bin_font_flush_canvas(false, false, false, NOEFFECT, p_x, p_y, p_w, p_h);
+                p_x = 370;
+                p_y = 100;
+                p_h = 22;
+                p_w = 170;
+                bin_font_flush_canvas(false, false, false, NOEFFECT, p_x, p_y, p_w, p_h);
+             }
+            else
+            {
+                bin_font_flush_canvas();
+            }
+        }
+        else
+            bin_font_flush_canvas();
     }
 
 #if DBG_UI_CANVAS_UTILS

@@ -151,21 +151,13 @@ void StateMachineTask::handleMainMenuState(const SystemMessage_t *msg)
 #if DBG_STATE_MACHINE_TASK
                 sm_dbg_printf("主菜单收到显示设置\n");
 #endif
-                /*
-                                int currentRot = M5.Display.getRotation();
-                                g_config.rotation = (currentRot == 0) ? 2 : 0;
-                                M5.Display.setRotation(g_config.rotation);
-                                // 立即保存配置
-                                config_save();
-                                show_main_menu(g_canvas, false, 0, current_file_page, false);
-                */
-                // 改为先显示二级菜单并进入 STATE_2ND_LEVEL_MENU。
+               // 改为先显示二级菜单并进入 STATE_2ND_LEVEL_MENU。
                 // 如果需要恢复原功能，可在此处取消注释原代码。
 
                 // 设定二级菜单类型为清理书签
                 main_2nd_level_menu_type = MAIN_2ND_MENU_DISPLAY_SETTING;
                 // 显示二级菜单（中心白色矩形）
-                show_2nd_level_menu(g_canvas);
+                show_2nd_level_menu(g_canvas,true);
                 // 切换状态到二级菜单
                 currentState_ = STATE_2ND_LEVEL_MENU;
             }
@@ -259,7 +251,7 @@ void StateMachineTask::handleMainMenuState(const SystemMessage_t *msg)
                     {
                         current_file_page = total_pages - 1; // wrap to last page
                     }
-                    show_main_menu(g_canvas, false, 0, current_file_page, false);
+                    show_main_menu(g_canvas, false, 0, current_file_page, false, true, 1);
 #if DBG_STATE_MACHINE_TASK
                     sm_dbg_printf("循环切换到第 %d 页 (共%d页)\n", current_file_page + 1, total_pages);
 #endif
@@ -284,7 +276,7 @@ void StateMachineTask::handleMainMenuState(const SystemMessage_t *msg)
                     {
                         current_file_page = 0; // wrap to first page
                     }
-                    show_main_menu(g_canvas, false, 0, current_file_page, false);
+                    show_main_menu(g_canvas, false, 0, current_file_page, false, true, 1);
 #if DBG_STATE_MACHINE_TASK
                     sm_dbg_printf("循环切换到第 %d 页 (共%d页)\n", current_file_page + 1, total_pages);
 #endif
@@ -302,7 +294,7 @@ void StateMachineTask::handleMainMenuState(const SystemMessage_t *msg)
                 // 准备字体列表并传入二级菜单以避免在UI函数内扫描（更灵活，也便于测试）
                 {
                     // 使用 init_filesystem() 时已完成一次字体列表刷新，直接显示二级菜单
-                    show_2nd_level_menu(g_canvas);
+                    show_2nd_level_menu(g_canvas,true);
                 }
                 // 切换状态到二级菜单
                 currentState_ = STATE_2ND_LEVEL_MENU;
@@ -347,7 +339,8 @@ void StateMachineTask::handleMainMenuState(const SystemMessage_t *msg)
                     show_recent = false;
                 }
                 // force reload menu (do not rescan files when toggling)
-                show_main_menu(g_canvas, true, 0, current_file_page, false);
+                //show_main_menu(g_canvas, true, 0, current_file_page, false,true,2);
+                show_main_menu(g_canvas, false, 0, current_file_page, false,true,2);
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "TOGGLE_ZH_CONV") == 0)
             {
@@ -380,7 +373,7 @@ void StateMachineTask::handleMainMenuState(const SystemMessage_t *msg)
                 // 设定二级菜单类型为清理书签
                 main_2nd_level_menu_type = MAIN_2ND_MENU_CLEAN_BOOKMARK;
                 // 显示二级菜单（中心白色矩形）
-                show_2nd_level_menu(g_canvas);
+                show_2nd_level_menu(g_canvas,true);
                 // 切换状态到二级菜单
                 currentState_ = STATE_2ND_LEVEL_MENU;
             }
@@ -388,7 +381,7 @@ void StateMachineTask::handleMainMenuState(const SystemMessage_t *msg)
             {
                 // 打开“连接方式”二级菜单，让用户选择“有线/无线”
                 main_2nd_level_menu_type = MAIN_2ND_MENU_CONNECT_METHOD;
-                show_2nd_level_menu(g_canvas);
+                show_2nd_level_menu(g_canvas,true);
                 currentState_ = STATE_2ND_LEVEL_MENU;
             }
             else if (touch_result.message != nullptr && std::strncmp(touch_result.message, "SELECT BOOK:", std::strlen("SELECT BOOK:")) == 0)

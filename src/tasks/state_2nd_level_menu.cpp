@@ -80,7 +80,7 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
         {
             display_set_rotation(0);
         }
-        show_2nd_level_menu();
+        show_2nd_level_menu(); // Orient Change
         break;
 
     case MSG_TOUCH_PRESSED:
@@ -89,6 +89,12 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
         // 根据当前二级菜单类型执行相应动作
         if (main_2nd_level_menu_type == MAIN_2ND_MENU_DISPLAY_SETTING)
         {
+            int8_t updateInd = 0; // Tell which config changed in this folder
+            // 1 - Rotation (手柄上下)
+            // 2 - Hand(左右手)
+            // 3 - Bookmark Location(书签显示)
+            // 4 - BookMark Style(书签主题)
+            // 5 - Lockscreen(锁屏)
             int16_t px = msg->data.touch.x;
             int16_t py = msg->data.touch.y;
             const int16_t rectH = 6 * 96;
@@ -119,6 +125,7 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                     g_config.rotation = 0;
                     updated = true;
                 }
+                updateInd = 1;
             }
 
             if (!updated && inRow(pageStyleRowY))
@@ -133,6 +140,7 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                     strcpy(g_config.pageStyle, "revert");
                     updated = true;
                 }
+                updateInd = 2;
             }
 
             if (!updated && inRow(labelRowY))
@@ -152,6 +160,7 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                     strcpy(g_config.labelposition, "top");
                     updated = true;
                 }
+                updateInd = 3;
             }
 
             if (!updated && inRow(themeRowY))
@@ -171,6 +180,7 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                     strcpy(g_config.marktheme, "random");
                     updated = true;
                 }
+                updateInd = 4;
             }
 
             if (!updated && inRow(wallpaperRowY))
@@ -185,95 +195,14 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                     g_config.defaultlock = false;
                     updated = true;
                 }
+                updateInd = 5;
             }
 
             if (updated)
             {
                 config_save();
-                show_2nd_level_menu(g_canvas);
+                show_2nd_level_menu(g_canvas, true, updateInd);
                 return;
-            }
-
-            // FLIP SCREEN
-            if (zone == TouchZone::FOUR_TWO || zone == TouchZone::FOUR_ONE)
-            {
-                // int currentRot = M5.Display.getRotation();
-                int currentRot = g_config.rotation;
-                g_config.rotation = (currentRot == 0) ? 2 : 0;
-                //                M5.Display.setRotation(g_config.rotation); it's just config update
-                // 立即保存配置
-                config_save();
-                show_2nd_level_menu(g_canvas);
-            }
-            // Page Style
-            if (zone == TouchZone::FIVE_TWO || zone == TouchZone::FIVE_ONE)
-            {
-                // 切换 pageStyle 在 "default" 与 "revert" 之间
-                // g_config.pageStyle is a char array, so use strcmp/strcpy instead of assignment
-                if (strcmp(g_config.pageStyle, "default") == 0)
-                    strcpy(g_config.pageStyle, "revert");
-                else
-                    strcpy(g_config.pageStyle, "default");
-
-                // 立即保存配置并刷新二级菜单显示
-                config_save();
-                show_2nd_level_menu(g_canvas);
-            }
-
-            // 切换 labelposition：default -> top -> middle -> default
-            if (zone == TouchZone::SIX_ONE || zone == TouchZone::SIX_TWO)
-            {
-                if (strcmp(g_config.labelposition, "default") == 0)
-                    strcpy(g_config.labelposition, "top");
-                else if (strcmp(g_config.labelposition, "top") == 0)
-                    strcpy(g_config.labelposition, "middle");
-                else if (strcmp(g_config.labelposition, "middle") == 0)
-                    strcpy(g_config.labelposition, "default");
-                else
-                    strcpy(g_config.labelposition, "default");
-
-                // 立即保存并刷新二级菜单显示
-                config_save();
-                show_2nd_level_menu(g_canvas);
-
-#if DBG_STATE_MACHINE_TASK
-                sm_dbg_printf("切换 labelposition 为 %s\n", g_config.labelposition);
-#endif
-            }
-
-            // 切换 marktheme：dark -> light -> random -> dark
-            if (zone == TouchZone::SEVEN_ONE || zone == TouchZone::SEVEN_TWO)
-            {
-                if (strcmp(g_config.marktheme, "dark") == 0)
-                    strcpy(g_config.marktheme, "light");
-                else if (strcmp(g_config.marktheme, "light") == 0)
-                    strcpy(g_config.marktheme, "random");
-                else if (strcmp(g_config.marktheme, "random") == 0)
-                    strcpy(g_config.marktheme, "dark");
-                else
-                    strcpy(g_config.marktheme, "dark");
-
-                // 立即保存并刷新二级菜单显示
-                config_save();
-                show_2nd_level_menu(g_canvas);
-
-#if DBG_STATE_MACHINE_TASK
-                sm_dbg_printf("切换 marktheme 为 %s\n", g_config.marktheme);
-#endif
-            }
-
-            // 切换 defaultlock：true <-> false
-            if (zone == TouchZone::EIGHT_ONE || zone == TouchZone::EIGHT_TWO)
-            {
-                g_config.defaultlock = !g_config.defaultlock;
-
-                // 立即保存并刷新二级菜单显示
-                config_save();
-                show_2nd_level_menu(g_canvas);
-
-#if DBG_STATE_MACHINE_TASK
-                sm_dbg_printf("切换 defaultlock 为 %s\n", g_config.defaultlock ? "true" : "false");
-#endif
             }
         }
 
@@ -404,38 +333,38 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                                 }
 
                                 bool isDir = entry.isDirectory();
-                            entry.close();
+                                entry.close();
 
-                            if (isDir)
-                            {
-                                // 递归处理子目录
-                                removeAllFiles(fullPath.c_str());
-                            }
-                            else
-                            {
-                                // 删除文件
-                                bool removed = SDW::SD.remove(fullPath.c_str());
-                                count++;
+                                if (isDir)
+                                {
+                                    // 递归处理子目录
+                                    removeAllFiles(fullPath.c_str());
+                                }
+                                else
+                                {
+                                    // 删除文件
+                                    bool removed = SDW::SD.remove(fullPath.c_str());
+                                    count++;
 #if DBG_STATE_MACHINE_TASK
-                                sm_dbg_printf("恢复出厂: [%d] 删除 %s - %s\n", count, fullPath.c_str(), removed ? "成功" : "失败");
+                                    sm_dbg_printf("恢复出厂: [%d] 删除 %s - %s\n", count, fullPath.c_str(), removed ? "成功" : "失败");
 #else
-                                (void)removed; // 标记为有意未使用
+                                    (void)removed; // 标记为有意未使用
 #endif
+                                }
                             }
-                        }
-                        dir.close();
+                            dir.close();
 #if DBG_STATE_MACHINE_TASK
-                        sm_dbg_printf("恢复出厂: 目录 %s 共删除 %d 个文件\n", subDirPath, count);
+                            sm_dbg_printf("恢复出厂: 目录 %s 共删除 %d 个文件\n", subDirPath, count);
 #endif
-                    };
+                        };
 
-                    removeAllFiles(dirPath);
-                }
-            };
+                        removeAllFiles(dirPath);
+                    }
+                };
 
-            // 清理 /bookmarks 和 /screenshot 目录
-            cleanDirectory(bmDir);
-            cleanDirectory(ssDir);
+                // 清理 /bookmarks 和 /screenshot 目录
+                cleanDirectory(bmDir);
+                cleanDirectory(ssDir);
 
                 // 删除根目录下的 history.list 和 readpaper.cfg 相关文件
                 const char *hist = "/history.list";
@@ -527,7 +456,7 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                                         bookPath += c;
                                 }
                                 bookPath += ".txt";
-                                
+
                                 // 检查 SD 卡上是否存在该书籍
                                 if (SDW::SD.exists(bookPath.c_str()))
                                     has_owner = true;
@@ -538,7 +467,7 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                                 // 去掉 _spiffs_ 前缀，还原原始文件名
                                 std::string bookName = base.substr(8); // 跳过 "_spiffs_"
                                 std::string bookPath = "/" + bookName + ".txt";
-                                
+
                                 // 检查 SPIFFS 上是否存在该书籍
                                 if (SPIFFS.exists(bookPath.c_str()))
                                     has_owner = true;
@@ -653,12 +582,11 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                 else
                     opt2 = last_page; // wrap to last page
                 opt = 0;
-                show_2nd_level_menu(g_canvas);
+                show_2nd_level_menu(g_canvas, true, 1);
             }
-
             // 翻页：下一项
             // if (zone == TouchZone::SEVEN_SIX)
-            if (zone == TouchZone::SEVEN_SIX && curx > 450 + 20 && curx < 450 + 80 && cury > y + rectH - 52 + 5 && cury < y + rectH - 52 + 50)
+            else if (zone == TouchZone::SEVEN_SIX && curx > 450 + 20 && curx < 450 + 80 && cury > y + rectH - 52 + 5 && cury < y + rectH - 52 + 50)
             {
                 int total_fonts = static_cast<int>(g_font_list.size());
                 int pages = (total_fonts + 3 - 1) / 3; // 3 items per page
@@ -668,36 +596,38 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                 else
                     opt2 = 0; // wrap to first page
                 opt = 0;
-                show_2nd_level_menu(g_canvas);
+                show_2nd_level_menu(g_canvas, true, 1);
             }
-            // 选中
-            //  data.touch.x/y
-            // msg->data.touch.x, msg->data.touch.y
-            //  只好硬来了
-            if (cury > y + 100 + 0 * 80 - 4 && cury < y + 100 + 0 * 80 + 34 && curx > 40 && curx < 500)
+            else
             {
-                if (opt != 0)
+                // 选中
+                //  data.touch.x/y
+                // msg->data.touch.x, msg->data.touch.y
+                //  只好硬来了
+                if (cury > y + 100 + 0 * 80 - 4 && cury < y + 100 + 0 * 80 + 34 && curx > 40 && curx < 500)
                 {
-                    opt = 0;
-                    show_2nd_level_menu(g_canvas);
+                    if (opt != 0)
+                    {
+                        opt = 0;
+                    }
                 }
-            }
-            if (cury > y + 100 + 1 * 80 - 4 && cury < y + 100 + 1 * 80 + 34 && curx > 40 && curx < 500)
-            {
-                if (opt != 1)
+                if (cury > y + 100 + 1 * 80 - 4 && cury < y + 100 + 1 * 80 + 34 && curx > 40 && curx < 500)
                 {
-                    opt = 1;
-                    show_2nd_level_menu(g_canvas);
+                    if (opt != 1)
+                    {
+                        opt = 1;
+                    }
                 }
-            }
-            if (cury > y + 100 + 2 * 80 - 4 && cury < y + 100 + 2 * 80 + 34 && curx > 40 && curx < 500)
-            {
-                if (opt != 2)
+                if (cury > y + 100 + 2 * 80 - 4 && cury < y + 100 + 2 * 80 + 34 && curx > 40 && curx < 500)
                 {
-                    opt = 2;
-                    show_2nd_level_menu(g_canvas);
+                    if (opt != 2)
+                    {
+                        opt = 2;
+                    }
                 }
+                show_2nd_level_menu(g_canvas, true, 2);
             }
+
             // 确认字体，重置字体按钮
             // 确认字体
             if (cury > y + rectH - 55 && cury < y + rectH - 1 && curx > 96 && curx < 270)
