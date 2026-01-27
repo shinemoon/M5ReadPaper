@@ -104,7 +104,8 @@ void StateMachineTask::handleHelpState(const SystemMessage_t *msg)
                 // 使用 canvas 推图片并立即刷新显示
                 bin_font_clear_canvas();
                 ui_push_image_to_canvas("/spiffs/guide.png", 0, 0, nullptr, true);
-                bin_font_flush_canvas(false, false, true, HSHUTTER);
+                bin_font_print(ver,28,0,PAPER_S3_WIDTH,0,PAPER_S3_HEIGHT/2+40,false,nullptr,TEXT_ALIGN_CENTER);
+                bin_font_flush_canvas(false, false, true, HSHUTTER_NORMAL);
         }
         break;
     }

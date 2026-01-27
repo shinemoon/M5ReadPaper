@@ -195,6 +195,68 @@ static void displayTaskFunction(void *pvParameters)
                                 delete slice;
                             }
                         }
+                        else if (effect == display_type::VSHUTTER_NORMAL)
+                        {
+                            // 从顶部向底部顺序推送
+                            const int slices = 32;
+                            const int total_h = rect_h;
+                            const int w = rect_w;
+                            int slice_h = total_h / slices;
+
+                            // 获取原始缓冲信息
+                            void *src_buf = canvas->getBuffer();
+                            size_t buf_len = canvas->bufferLength();
+                            if (!src_buf || buf_len == 0 || slice_h <= 0)
+                            {
+                                return;
+                            }
+
+                            size_t row_bytes = buf_len / (size_t)PAPER_S3_HEIGHT;
+                            size_t bytes_per_pixel = row_bytes / (size_t)PAPER_S3_WIDTH;
+
+                            // 从顶部到底部顺序推送
+                            for (int s = 0; s < slices; s++)
+                            {
+                                int start_row = s * slice_h;
+                                int h = (s == slices - 1) ? (total_h - start_row) : slice_h;
+                                if (h <= 0)
+                                    continue;
+
+                                M5Canvas *slice = new M5Canvas(&M5.Display);
+                                if (!slice)
+                                    break;
+                                slice->setPsram(true);
+                                slice->setColorDepth(canvas->getColorDepth());
+                                slice->createSprite(w, h);
+
+                                void *dst_buf = slice->getBuffer();
+                                if (dst_buf)
+                                {
+                                    // 从源canvas的指定矩形区域中复制
+                                    uint8_t *src_base = (uint8_t *)src_buf;
+                                    uint8_t *dst_base = (uint8_t *)dst_buf;
+                                    size_t slice_row_bytes = (size_t)w * bytes_per_pixel;
+                                    size_t src_col_offset = (size_t)rect_x * bytes_per_pixel;
+                                    
+                                    for (int row = 0; row < h; row++)
+                                    {
+                                        uint8_t *src_row = src_base + (rect_y + start_row + row) * row_bytes + src_col_offset;
+                                        uint8_t *dst_row = dst_base + row * slice_row_bytes;
+                                        memcpy(dst_row, src_row, slice_row_bytes);
+                                    }
+                                }
+
+                                if (trans)
+                                {
+                                    slice->pushSprite(rect_x, rect_y + start_row, invert ? TFT_BLACK : TFT_WHITE);
+                                }
+                                else
+                                {
+                                    slice->pushSprite(rect_x, rect_y + start_row);
+                                }
+                                delete slice;
+                            }
+                        }
                         else if (effect == display_type::HSHUTTER)
                         {
                             // 分成若干片从左右两端向中间交错推送
@@ -271,6 +333,68 @@ static void displayTaskFunction(void *pvParameters)
                                     slice->pushSprite(rect_x + start_col, rect_y);
                                 }
 //                                M5.Display.waitDisplay();
+                                delete slice;
+                            }
+                        }
+                        else if (effect == display_type::HSHUTTER_NORMAL)
+                        {
+                            // 从左到右顺序推送
+                            const int slices = 17;
+                            const int total_w = rect_w;
+                            const int h = rect_h;
+                            int slice_w = total_w / slices;
+
+                            // 获取原始缓冲信息
+                            void *src_buf = canvas->getBuffer();
+                            size_t buf_len = canvas->bufferLength();
+                            if (!src_buf || buf_len == 0 || slice_w <= 0)
+                            {
+                                return;
+                            }
+
+                            size_t row_bytes = buf_len / (size_t)PAPER_S3_HEIGHT;
+                            size_t bytes_per_pixel = row_bytes / (size_t)PAPER_S3_WIDTH;
+
+                            // 从左到右顺序推送
+                            for (int s = 0; s < slices; s++)
+                            {
+                                int start_col = s * slice_w;
+                                int w = (s == slices - 1) ? (total_w - start_col) : slice_w;
+                                if (w <= 0)
+                                    continue;
+
+                                M5Canvas *slice = new M5Canvas(&M5.Display);
+                                if (!slice)
+                                    break;
+                                slice->setPsram(true);
+                                slice->setColorDepth(canvas->getColorDepth());
+                                slice->createSprite(w, h);
+
+                                void *dst_buf = slice->getBuffer();
+                                if (dst_buf)
+                                {
+                                    // 逐行复制对应的列区域（从源canvas的指定矩形区域中）
+                                    uint8_t *src_base = (uint8_t *)src_buf;
+                                    uint8_t *dst_base = (uint8_t *)dst_buf;
+                                    size_t slice_row_bytes = (size_t)w * bytes_per_pixel;
+                                    size_t src_col_offset = (size_t)(rect_x + start_col) * bytes_per_pixel;
+
+                                    for (int row = 0; row < h; row++)
+                                    {
+                                        uint8_t *src_row = src_base + (rect_y + row) * row_bytes + src_col_offset;
+                                        uint8_t *dst_row = dst_base + row * slice_row_bytes;
+                                        memcpy(dst_row, src_row, slice_row_bytes);
+                                    }
+                                }
+
+                                if (trans)
+                                {
+                                    slice->pushSprite(rect_x + start_col, rect_y, invert ? TFT_BLACK : TFT_WHITE);
+                                }
+                                else
+                                {
+                                    slice->pushSprite(rect_x + start_col, rect_y);
+                                }
                                 delete slice;
                             }
                         }

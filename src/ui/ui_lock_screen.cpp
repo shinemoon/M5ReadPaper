@@ -20,6 +20,9 @@
 extern M5Canvas *g_canvas;
 extern GlobalConfig g_config;
 
+// 全局版本字符串（从/version文件读取）
+std::string ver;
+
 namespace
 {
     struct LockImageCache
@@ -503,7 +506,6 @@ void show_start_screen(const char *subtitle)
     }
 
     // 在屏幕底部显示 /version 文件第三行（如果存在），使用 TextSize(2)
-    std::string ver;
     if (SPIFFS.exists("/version"))
     {
         File vf = SPIFFS.open("/version", "r");

@@ -1,6 +1,10 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
+
+// 全局版本字符串（从/version文件读取）
+extern std::string ver;
 
 /**
  * 显示启动屏幕
