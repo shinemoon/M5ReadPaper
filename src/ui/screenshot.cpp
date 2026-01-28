@@ -193,60 +193,7 @@ bool screenShot()
     Serial.printf("[SCREENSHOT] 画布尺寸: %dx%d\n", width, height);
 #endif
 
-    // PNG 文件头
-    std::vector<uint8_t> png_data;
-    // PNG 签名
-    const uint8_t png_sig[] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
-    png_data.insert(png_data.end(), png_sig, png_sig + 8);
-
-    // IHDR chunk (13 bytes)
-    std::vector<uint8_t> ihdr_data;
-    PNGEncoder::write_be32(ihdr_data, width);
-    PNGEncoder::write_be32(ihdr_data, height);
-    ihdr_data.push_back(8);    // bit depth (8-bit grayscale)
-    ihdr_data.push_back(0);    // color type (0 = grayscale)
-    ihdr_data.push_back(0);    // compression method
-    ihdr_data.push_back(0);    // filter method
-    ihdr_data.push_back(0);    // interlace method
-    PNGEncoder::write_chunk(png_data, "IHDR", ihdr_data.data(), ihdr_data.size());
-
-    // 准备图像数据（每行前面加滤波器类型字节）
-    std::vector<uint8_t> raw_image;
-    raw_image.reserve(height * (width + 1));
-
-    for (int y = 0; y < height; y++)
-    {
-        raw_image.push_back(0); // 滤波器类型 0 (None)
-        for (int x = 0; x < width; x++)
-        {
-            // 读取像素颜色
-            uint16_t color = g_canvas->readPixel(x, y);
-            
-            // M5Paper 使用 4-bit grayscale (16级灰度)
-            // 提取4位灰度值（0-15）并扩展到8位（0-255）
-            uint8_t gray4 = (color >> 8) & 0x0F;  // 提取高4位
-            uint8_t gray = gray4 * 17;  // 将0-15映射到0-255 (0*17=0, 15*17=255)
-            raw_image.push_back(gray);
-        }
-    }
-
-    // 压缩图像数据
-    std::vector<uint8_t> compressed_data;
-    if (!PNGEncoder::deflate_compress(raw_image.data(), raw_image.size(), compressed_data))
-    {
-#if DBG_SCREENSHOT
-        Serial.println("[SCREENSHOT] 压缩失败");
-#endif
-        return false;
-    }
-
-    // IDAT chunk
-    PNGEncoder::write_chunk(png_data, "IDAT", compressed_data.data(), compressed_data.size());
-
-    // IEND chunk
-    PNGEncoder::write_chunk(png_data, "IEND", nullptr, 0);
-
-    // 写入文件
+    // 打开文件
     File file = SDW::SD.open(filename, FILE_WRITE);
     if (!file)
     {
@@ -256,19 +203,124 @@ bool screenShot()
         return false;
     }
 
-    size_t written = file.write(png_data.data(), png_data.size());
+    // 写入 PNG 签名
+    const uint8_t png_sig[] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
+    file.write(png_sig, 8);
+
+    // 准备并写入 IHDR chunk
+    std::vector<uint8_t> ihdr_chunk;
+    PNGEncoder::write_be32(ihdr_chunk, 13); // IHDR 数据长度
+    ihdr_chunk.insert(ihdr_chunk.end(), {'I', 'H', 'D', 'R'});
+    PNGEncoder::write_be32(ihdr_chunk, width);
+    PNGEncoder::write_be32(ihdr_chunk, height);
+    ihdr_chunk.push_back(8);    // bit depth (8-bit grayscale)
+    ihdr_chunk.push_back(0);    // color type (0 = grayscale)
+    ihdr_chunk.push_back(0);    // compression method
+    ihdr_chunk.push_back(0);    // filter method
+    ihdr_chunk.push_back(0);    // interlace method
+    uint32_t ihdr_crc = PNGEncoder::crc(ihdr_chunk.data() + 4, 17); // 跳过长度字段
+    PNGEncoder::write_be32(ihdr_chunk, ihdr_crc);
+    file.write(ihdr_chunk.data(), ihdr_chunk.size());
+    ihdr_chunk.clear();
+    ihdr_chunk.shrink_to_fit();
+
+    // 分块处理图像数据以减少内存占用
+    const int ROWS_PER_CHUNK = 50; // 每次处理50行
+    std::vector<uint8_t> compressed_data;
+    compressed_data.reserve(height * (width + 1) / 2); // 预估压缩后大小
+    
+    // zlib 头部
+    compressed_data.push_back(0x78);
+    compressed_data.push_back(0x01);
+    
+    uint32_t adler_a = 1;
+    uint32_t adler_b = 0;
+    const uint32_t MOD_ADLER = 65521;
+    
+    for (int chunk_start = 0; chunk_start < height; chunk_start += ROWS_PER_CHUNK)
+    {
+        int chunk_rows = (chunk_start + ROWS_PER_CHUNK > height) ? (height - chunk_start) : ROWS_PER_CHUNK;
+        
+        // 为这一块分配缓冲区
+        std::vector<uint8_t> chunk_data;
+        chunk_data.reserve(chunk_rows * (width + 1));
+        
+        // 读取像素数据
+        for (int y = chunk_start; y < chunk_start + chunk_rows; y++)
+        {
+            chunk_data.push_back(0); // 滤波器类型 0 (None)
+            for (int x = 0; x < width; x++)
+            {
+                uint16_t color = g_canvas->readPixel(x, y);
+                uint8_t gray4 = (color >> 8) & 0x0F;
+                uint8_t gray = gray4 * 17;
+                chunk_data.push_back(gray);
+            }
+        }
+        
+        // 更新 Adler-32 校验和
+        for (size_t i = 0; i < chunk_data.size(); i++)
+        {
+            adler_a = (adler_a + chunk_data[i]) % MOD_ADLER;
+            adler_b = (adler_b + adler_a) % MOD_ADLER;
+        }
+        
+        // 写入无压缩块
+        bool is_final = (chunk_start + chunk_rows >= height);
+        uint8_t block_header = is_final ? 0x01 : 0x00;
+        compressed_data.push_back(block_header);
+        
+        uint16_t block_size = chunk_data.size();
+        compressed_data.push_back(block_size & 0xFF);
+        compressed_data.push_back((block_size >> 8) & 0xFF);
+        
+        uint16_t nlen = ~block_size;
+        compressed_data.push_back(nlen & 0xFF);
+        compressed_data.push_back((nlen >> 8) & 0xFF);
+        
+        compressed_data.insert(compressed_data.end(), chunk_data.begin(), chunk_data.end());
+        
+        // 释放块数据内存
+        chunk_data.clear();
+        chunk_data.shrink_to_fit();
+    }
+    
+    // Adler-32 校验和
+    uint32_t checksum = (adler_b << 16) | adler_a;
+    compressed_data.push_back((checksum >> 24) & 0xFF);
+    compressed_data.push_back((checksum >> 16) & 0xFF);
+    compressed_data.push_back((checksum >> 8) & 0xFF);
+    compressed_data.push_back(checksum & 0xFF);
+
+    // 写入 IDAT chunk
+    std::vector<uint8_t> idat_chunk;
+    PNGEncoder::write_be32(idat_chunk, compressed_data.size());
+    idat_chunk.insert(idat_chunk.end(), {'I', 'D', 'A', 'T'});
+    idat_chunk.insert(idat_chunk.end(), compressed_data.begin(), compressed_data.end());
+    uint32_t idat_crc = PNGEncoder::crc(idat_chunk.data() + 4, idat_chunk.size() - 4);
+    PNGEncoder::write_be32(idat_chunk, idat_crc);
+    
+    size_t written = file.write(idat_chunk.data(), idat_chunk.size());
+    
+    // 释放内存
+    compressed_data.clear();
+    compressed_data.shrink_to_fit();
+    idat_chunk.clear();
+    idat_chunk.shrink_to_fit();
+
+    // 写入 IEND chunk
+    const uint8_t iend_chunk[] = {
+        0x00, 0x00, 0x00, 0x00, // 长度 = 0
+        'I', 'E', 'N', 'D',
+        0xAE, 0x42, 0x60, 0x82  // CRC
+    };
+    file.write(iend_chunk, sizeof(iend_chunk));
+    
+    size_t total_size = file.size();
     file.close();
 
-    if (written != png_data.size())
-    {
 #if DBG_SCREENSHOT
-        Serial.printf("[SCREENSHOT] 写入不完整: %d/%d\n", written, png_data.size());
-#endif
-        return false;
-    }
-
-#if DBG_SCREENSHOT
-    Serial.printf("[SCREENSHOT] 截图成功: %s (%d bytes)\n", filename, png_data.size());
+    Serial.printf("[SCREENSHOT] 截图成功: %s (%d bytes)\n", filename, total_size);
 #endif
 
     return true;
