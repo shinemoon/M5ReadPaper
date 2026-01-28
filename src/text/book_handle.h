@@ -181,7 +181,7 @@ public:
     bool isClosing() const;
 
     // 渲染当前页面内容到屏幕
-    void renderCurrentPage(float font_size, M5Canvas *canvas = nullptr, bool showPage = true, bool showWait = false, bool pendingPush=false, bool addBM=false);
+    void renderCurrentPage(float font_size, M5Canvas *canvas = nullptr, bool showPage = true, bool showWait = false, bool pendingPush=false, int8_t renderType=0, display_type effect=NOEFFECT);
     // 查找给定文件偏移对应的页面索引（找到最大的 i 使 page_positions[i] <= file_pos）
     // 返回 true 且 out_index 有效时表示成功；若无法确定则返回 false
     bool findPageIndexForPosition(size_t file_pos, size_t &out_index);

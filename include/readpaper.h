@@ -23,7 +23,11 @@ enum display_type {
     HSHUTTER = 2,
     RECT = 3,
     VSHUTTER_NORMAL = 4,
-    HSHUTTER_NORMAL = 5
+    HSHUTTER_NORMAL = 5,
+    VSHUTTER_REV = 6,
+    HSHUTTER_REV = 7,
+    VSHUTTER_NORMAL_REV = 8,
+    HSHUTTER_NORMAL_REV = 9
 };
 
 #define FIRST_REFRESH_TH 8  //'MIddle Step' need to refresh to eliminate the HW - Only for Fastmode

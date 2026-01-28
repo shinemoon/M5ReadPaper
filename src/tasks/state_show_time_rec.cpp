@@ -80,7 +80,7 @@ void StateMachineTask::handleShowTimeRecState(const SystemMessage_t *msg)
                 // 重新绘制阅读页面
                 if (g_current_book)
                 {
-                    g_current_book->renderCurrentPage(font_size);
+                    g_current_book->renderCurrentPage(font_size,nullptr,true,false,false,false,VSHUTTER_NORMAL_REV);
                 }
             }
         }

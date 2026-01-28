@@ -3155,7 +3155,7 @@ bool BookHandle::generatePageFile()
 }
 
 // 渲染当前页面内容到屏幕
-void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool showPage, bool showWait, bool pendingPush, bool addBM)
+void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool showPage, bool showWait, bool pendingPush, int8_t renderType, display_type effect)
 {
     extern M5Canvas *g_canvas;
     extern GlobalConfig g_config;
@@ -3361,10 +3361,28 @@ void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool
         g_canvas -> fillRect(0,40, 20, 20, GREY_MAP_COLOR);
         g_canvas -> fillRect(0,60, 20, 20, TFT_LIGHTGREY);
         */
-        if (addBM) // then only refresh top right conner
-            bin_font_flush_canvas(false,false,false,NOEFFECT,500,0,30,40);
+        // renderType
+        // 1- only addBM
+        // 2- back from reading menu
+        // 2- dark switch
+        // other - full render
+        if (renderType == 1) // then only refresh top right conner
+            bin_font_flush_canvas(false, false, false, NOEFFECT, 500, 0, 30, 40);
+        else if (renderType == 2)
+        {
+            /*
+            bin_font_flush_canvas(false, false, false, NOEFFECT, 0,310, 540, 290);
+            bin_font_flush_canvas(false, false, false, NOEFFECT, 0, 0, 540, 310);
+            bin_font_flush_canvas(false, false, false, NOEFFECT, 0, 600, 540, 360);
+            */
+            bin_font_flush_canvas(false, false, false, effect);
+        }
+        else if (renderType == 3)
+        {
+
+        }
         else
-            bin_font_flush_canvas();
+            bin_font_flush_canvas(false, false, false, effect);
 
         // 打印从 renderCurrentPage 开始到 flushcanvas 执行结束的耗时（毫秒）
         uint32_t bh_render_elapsed_ms = millis() - bh_render_start_ms;

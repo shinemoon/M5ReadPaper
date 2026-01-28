@@ -126,7 +126,7 @@ void StateMachineTask::handleIdleState(const SystemMessage_t *msg)
             PageTurnResult result = handleReadingTouch(TouchZone::FAKE_CURRENT);
             if (result.success && result.message != nullptr && std::strcmp(result.message, "CURRENTPAGE") == 0)
             {
-                g_current_book->renderCurrentPage(font_size);
+                g_current_book->renderCurrentPage(font_size,nullptr,true,false,false,false,NOEFFECT);
             }
         }
 

@@ -210,7 +210,7 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                                                 if (deleteTagForFileByPosition(g_current_book->filePath(), tag_to_delete))
                                                 {
                                                         g_current_book->refreshTagsCache();
-                                                        g_current_book->renderCurrentPage(font_size,nullptr,true,false,false,true);
+                                                        g_current_book->renderCurrentPage(font_size,nullptr,true,false,false,1);
                                                 }
                                         }
                                         else
@@ -336,7 +336,7 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                                                 if (insertTagForFile(g_current_book->filePath(), page_start, preview))
                                                 {
                                                         g_current_book->refreshTagsCache();
-                                                        g_current_book->renderCurrentPage(font_size,nullptr,true,false,false,true);
+                                                        g_current_book->renderCurrentPage(font_size,nullptr,true,false,false,1);
                                                 }
                                         }
                                 }

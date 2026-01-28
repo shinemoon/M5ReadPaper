@@ -345,6 +345,10 @@ bool show_reading_menu(M5Canvas *canvas, bool refresh, readingMenuArea area)
             bin_font_flush_canvas(false, false, false, NOEFFECT, 42 + 3, TOPUI_y + 60 + 3, 24, 24);
             break;
         default:
+            /*
+                bin_font_flush_canvas(false,false,false,NOEFFECT,0,600,540,360);
+                bin_font_flush_canvas(false,false,false,NOEFFECT,0,0,540,310);
+                */
             bin_font_flush_canvas();
             break;
         }
@@ -1197,7 +1201,7 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
                 p_h = 22;
                 p_w = 170;
                 bin_font_flush_canvas(false, false, false, NOEFFECT, p_x, p_y, p_w, p_h);
-             }
+            }
             else
             {
                 bin_font_flush_canvas();

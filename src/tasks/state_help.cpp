@@ -71,7 +71,7 @@ void StateMachineTask::handleHelpState(const SystemMessage_t *msg)
         // 返回阅读时刷新当前页
         if (g_current_book)
         {
-            g_current_book->renderCurrentPage(font_size);
+            g_current_book->renderCurrentPage(font_size,nullptr,true,false,false,false,HSHUTTER_NORMAL_REV);
         }
         break;
 

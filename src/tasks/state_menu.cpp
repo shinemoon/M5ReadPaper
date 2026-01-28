@@ -660,7 +660,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
 #endif
                 // 返回阅读
                 g_current_book->jumpToPage(target_page - 1);
-                g_current_book->renderCurrentPage(font_size);
+                g_current_book->renderCurrentPage(font_size,nullptr,true,false,false,2);
                 g_current_book->saveBookmark(); // render后保存书签
                 currentState_ = STATE_READING;
             }
