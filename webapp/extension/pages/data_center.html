@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>数据中心 - ReadPaper</title>
+  <link rel="stylesheet" href="../vendors/chota.css">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="icon" href="../assets/favicon.png">
+</head>
+<body id="data-center-page">
+  <div data-include="partials/header.html"></div>
+
+  <main class="container">
+    <h4 class="bg-light">数据中心 — 阅读记录管理</h4>
+
+    <div class="row">
+      <div class="col-4 panel">
+        <h5 class="bg-light">控制</h5>
+        <div class="field">
+          <label><input id="debugToggle" type="checkbox" /> 调试模式（使用假数据库）</label>
+        </div>
+        <div class="field">
+          <button id="seedFake" class="button">填充假数据</button>
+          <button id="clearDb" class="button outline">清空数据库</button>
+        </div>
+        <div class="field">
+          <button id="exportBtn" class="button primary">导出 JSON</button>
+        </div>
+        <div class="field">
+          <label>搜索（按书名）</label>
+          <input id="searchInput" type="text" placeholder="输入书名或关键字" />
+        </div>
+      </div>
+
+      <div class="col-8 panel">
+        <h5 class="bg-light">记录列表</h5>
+        <div id="listSummary" style="margin-bottom:8px;color:#666">加载中…</div>
+        <div id="recordsContainer" style="max-height:60vh; overflow:auto; background:#fff; border:1px solid #eee; padding:8px"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <div data-include="partials/footer.html"></div>
+
+  <script src="include-partials.js"></script>
+  <script src="data_center.js"></script>
+</body>
+</html>

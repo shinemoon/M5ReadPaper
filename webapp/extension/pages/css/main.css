@@ -671,6 +671,30 @@ body label {
     margin-bottom: 0.5rem;
   }
 }
+  /* Data Center: improved mobile button/layout rules */
+  @media (max-width: 720px) {
+    /* target only the data center page to avoid affecting other pages */
+    body#data-center-page main .panel .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    body#data-center-page main .panel .field .button {
+      width: 100%;
+      box-sizing: border-box;
+    }
+    /* make the control column full width on narrow screens */
+    body#data-center-page main .row > .col-4,
+    body#data-center-page main .row > .col-8 {
+      width: 100%;
+      display: block;
+    }
+    /* compact summary and container spacing */
+    body#data-center-page #recordsContainer {
+      max-height: 50vh;
+      padding: 6px;
+    }
+  }
 .dragover {
   background: #fffceb;
 }
