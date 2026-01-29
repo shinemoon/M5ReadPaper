@@ -2255,6 +2255,13 @@ void bin_font_print(const std::string &text, uint8_t font_size, uint8_t color, i
     // 确定要使用的canvas
     M5Canvas *target_canvas = canvas ? canvas : g_canvas;
 
+    // 如果使用的是自定义 canvas（非全局 g_canvas），确保其颜色深度与字体渲染期望一致
+    // 这能避免临时 canvas（例如 screenshot 中的 tempCanvas）在未设置颜色深度时产生显示异常
+    if (target_canvas && target_canvas != g_canvas)
+    {
+        target_canvas->setColorDepth(TEXT_COLORDEPTH);
+    }
+
     // Workaround for current 3-step grey display: Only for V3!
     if (color != TFT_BLACK && g_bin_font.version == 3)
         dark = true;
