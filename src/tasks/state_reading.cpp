@@ -31,18 +31,18 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
         switch (msg->type)
         {
         case MSG_TIMER_MIN_TIMEOUT: // 20min go to shut
-                // 每分钟触发：记录内存状况，并增加阅读时间计数（但不立即保存书签）
+                                    // 每分钟触发：记录内存状况，并增加阅读时间计数（但不立即保存书签）
 #if DBG_STATE_MACHINE_TASK
-                                {
-                                        // 显示内部 DRAM（internal heap）以及 PSRAM 的空闲与总量
-                                        size_t free_internal = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-                                        size_t total_internal = heap_caps_get_total_size(MALLOC_CAP_INTERNAL);
-                                        size_t free_psram = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
-                                        size_t total_psram = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
-                                        Serial.printf("[STATE_MACHINE] 1MIN READING MEM: internal_free=%u internal_total=%u, psram_free=%u psram_total=%u\n",
-                                                                  (unsigned)free_internal, (unsigned)total_internal,
-                                                                  (unsigned)free_psram, (unsigned)total_psram);
-                                }
+        {
+                // 显示内部 DRAM（internal heap）以及 PSRAM 的空闲与总量
+                size_t free_internal = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+                size_t total_internal = heap_caps_get_total_size(MALLOC_CAP_INTERNAL);
+                size_t free_psram = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+                size_t total_psram = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
+                Serial.printf("[STATE_MACHINE] 1MIN READING MEM: internal_free=%u internal_total=%u, psram_free=%u psram_total=%u\n",
+                              (unsigned)free_internal, (unsigned)total_internal,
+                              (unsigned)free_psram, (unsigned)total_psram);
+        }
 #endif
                 if (g_current_book)
                 {
@@ -162,7 +162,7 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                                 {
                                         size_t page_start = tp.file_pos;
                                         size_t page_end = SIZE_MAX;
-                                        
+
                                         // 计算页面结束位置
                                         if (g_current_book->isPagesLoaded() && g_current_book->getTotalPages() > 0)
                                         {
@@ -189,7 +189,7 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                                                         page_end = g_current_book->getFileSize();
                                                 }
                                         }
-                                        
+
                                         // 查找当前页面范围内的第一个manual tag（不包括auto tag）
                                         size_t tag_to_delete = SIZE_MAX;
                                         bool found = false;
@@ -210,7 +210,7 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                                                 if (deleteTagForFileByPosition(g_current_book->filePath(), tag_to_delete))
                                                 {
                                                         g_current_book->refreshTagsCache();
-                                                        g_current_book->renderCurrentPage(font_size,nullptr,true,false,false,1);
+                                                        g_current_book->renderCurrentPage(font_size, nullptr, true, false, false, 1);
                                                 }
                                         }
                                         else
@@ -336,7 +336,7 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                                                 if (insertTagForFile(g_current_book->filePath(), page_start, preview))
                                                 {
                                                         g_current_book->refreshTagsCache();
-                                                        g_current_book->renderCurrentPage(font_size,nullptr,true,false,false,1);
+                                                        g_current_book->renderCurrentPage(font_size, nullptr, true, false, false, 1);
                                                 }
                                         }
                                 }
@@ -348,19 +348,19 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                 {
                         ui_push_image_to_display_direct("/spiffs/wait.png", 240, 450);
                         // 如果当前文本有toc，则显示toc，否则显示tags
-                                if (g_current_book && g_current_book->hasToc())
-                                {
-                                        // Request a TOC refresh when switching from reading
-                                        toc_refresh = true;
-                                        show_toc_ui(g_canvas);
-                                        currentState_ = STATE_TOC_DISPLAY;
-                                        return;
-                                }
+                        if (g_current_book && g_current_book->hasToc())
+                        {
+                                // Request a TOC refresh when switching from reading
+                                toc_refresh = true;
+                                show_toc_ui(g_canvas);
+                                currentState_ = STATE_TOC_DISPLAY;
+                                return;
+                        }
                         show_tag_ui(g_canvas);
                         currentState_ = STATE_INDEX_DISPLAY;
                         return;
                 }
-                else if (ty >= PAPER_S3_HEIGHT- corner_h  && tx <= PAPER_S3_WIDTH / 2 + corner_w / 2 && tx >= PAPER_S3_WIDTH/ 2 - corner_w / 2)
+                else if (ty >= PAPER_S3_HEIGHT - corner_h && tx <= PAPER_S3_WIDTH / 2 + corner_w / 2 && tx >= PAPER_S3_WIDTH / 2 - corner_w / 2)
                 {
                         // 随机shuffle章节
                         shutCnt = 0;
@@ -370,7 +370,9 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                                 ui_push_image_to_display_direct("/spiffs/shuffle.png", 220, 430);
                                 g_current_book->goToRandomToC();
                                 g_current_book->renderCurrentPage(font_size);
-                        } else {
+                        }
+                        else
+                        {
                                 ui_push_image_to_display_direct("/spiffs/shuffle.png", 220, 430);
                                 // Try to shuffle
                                 g_current_book->goToRandomPage();
@@ -501,6 +503,11 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                                 sm_dbg_printf("截图成功\n");
 #endif
                         }
+                }
+                else
+                {
+                        if (msg->data.touch.x > 180 && msg->data.touch.x < 360)
+                                bin_font_flush_canvas(false, false, true);
                 }
                 break;
 

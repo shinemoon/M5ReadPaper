@@ -70,14 +70,17 @@ void StateMachineTask::handleReadingQuickMenuState(const SystemMessage_t *msg)
             int16_t ty = msg->data.touch.y;
             if (!is_point_in_reading_quick_menu(tx, ty))
             {
-#if DBG_STATE_MACHINE_TASK
-                sm_dbg_printf("READING_QUICK_MENU: 点击在矩形之外，返回 READING\n");
-#endif
-                quickMenuShown = false;
-                currentState_ = STATE_READING;
-                if (g_current_book)
+                if (ty >= 100) // For Screening
                 {
-                    g_current_book->renderCurrentPage(font_size);
+#if DBG_STATE_MACHINE_TASK
+                    sm_dbg_printf("READING_QUICK_MENU: 点击在矩形之外，返回 READING\n");
+#endif
+                    quickMenuShown = false;
+                    currentState_ = STATE_READING;
+                    if (g_current_book)
+                    {
+                        g_current_book->renderCurrentPage(font_size);
+                    }
                 }
             }
             else
@@ -86,10 +89,14 @@ void StateMachineTask::handleReadingQuickMenuState(const SystemMessage_t *msg)
                 if (ty >= 890 && ty <= 960 && tx >= 50 && tx <= 452)
                 {
                     uint8_t newSpeed = ::autospeed;
-                    if (tx >= 52 && tx <= 150) newSpeed = 0;
-                    else if (tx >= 152 && tx <= 250) newSpeed = 1;
-                    else if (tx >= 252 && tx <= 350) newSpeed = 2;
-                    else if (tx >= 352 && tx <= 450) newSpeed = 3;
+                    if (tx >= 52 && tx <= 150)
+                        newSpeed = 0;
+                    else if (tx >= 152 && tx <= 250)
+                        newSpeed = 1;
+                    else if (tx >= 252 && tx <= 350)
+                        newSpeed = 2;
+                    else if (tx >= 352 && tx <= 450)
+                        newSpeed = 3;
 
                     if (newSpeed != ::autospeed)
                     {
@@ -105,18 +112,33 @@ void StateMachineTask::handleReadingQuickMenuState(const SystemMessage_t *msg)
                         bin_font_flush_canvas(false, false, true);
                     }
                 }
+                else if (tx > 460 && ty > 880) // 点击在快速菜单内部：当坐标 x>460 && y>880 时切换 autoread
+                {
+                    autoread = !autoread;
+#if DBG_STATE_MACHINE_TASK
+                    sm_dbg_printf("READING_QUICK_MENU: 切换 autoread -> %d\n", autoread);
+#endif
+                    // 重新绘制快速菜单并显示状态提示
+                    draw_reading_quick_menu(g_canvas);
+                    bin_font_flush_canvas(false, false, true);
+                }
+                else if (tx > 249 && tx < 460 && ty > 780 && ty < 860)
+                { // 点击在快速菜单内部：手动全刷
+                    bin_font_flush_canvas(false, false, true);
+                    quickMenuShown = false;
+                    currentState_ = STATE_READING;
+                    if (g_current_book)
+                    {
+                        g_current_book->renderCurrentPage(font_size);
+                    }
+                }
                 else
                 {
-                    // 点击在快速菜单内部：当坐标 x>460 && y>880 时切换 autoread
-                    if (tx > 460 && ty > 880)
+                    quickMenuShown = false;
+                    currentState_ = STATE_READING;
+                    if (g_current_book)
                     {
-                        autoread = !autoread;
-#if DBG_STATE_MACHINE_TASK
-                        sm_dbg_printf("READING_QUICK_MENU: 切换 autoread -> %d\n", autoread);
-#endif
-                        // 重新绘制快速菜单并显示状态提示
-                        draw_reading_quick_menu(g_canvas);
-                        bin_font_flush_canvas(false, false, true);
+                        g_current_book->renderCurrentPage(font_size);
                     }
                 }
             }

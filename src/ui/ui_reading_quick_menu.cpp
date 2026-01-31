@@ -1,4 +1,5 @@
 #include "ui_reading_quick_menu.h"
+#include "ui/ui_canvas_utils.h"
 #include "text/bin_font_print.h"
 #include "globals.h"
 
@@ -6,13 +7,16 @@ extern GlobalConfig g_config;
 
 // rectangle dimensions
 static const int QUICK_MENU_WIDTH = PAPER_S3_WIDTH; // 540
-static const int QUICK_MENU_HEIGHT = 80;
+static const int QUICK_MENU_HEIGHT = 200;// One Auto Reading + One Force Fresh
 static const int QUICK_MENU_TOP = PAPER_S3_HEIGHT - QUICK_MENU_HEIGHT; // 960 - 200 = 760
 
 void draw_reading_quick_menu(M5Canvas *canvas)
 {
     if (canvas == nullptr)
         return;
+    /* 
+        自动阅读菜单 
+    */
     // 清除并在底部绘制白色矩形
     // 不清整张画布，直接绘制底部矩形
     //    canvas->fillRect(0, QUICK_MENU_TOP, QUICK_MENU_WIDTH, QUICK_MENU_HEIGHT, TFT_WHITE);
@@ -49,6 +53,17 @@ void draw_reading_quick_menu(M5Canvas *canvas)
         canvas->fillRect(505, 920, 10, 30, TFT_WHITE);
         canvas->fillRect(520, 920, 10, 30, TFT_WHITE);
     }
+    /* 
+        手动全刷ccacaca菜单
+    */
+     canvas->drawRoundRect(249, 789, 302, 62, 10, TFT_WHITE);
+    canvas->drawRoundRect(250, 790, 300, 60, 10, TFT_BLACK);
+    canvas->fillRoundRect(252, 792, 298, 54, 10, TFT_BLACK);
+//    canvas->fillRect(260, 800, 192, 38, TFT_BLACK);
+    bin_font_print("手动全刷", 30, 0,200,252, 805,false,canvas,TEXT_ALIGN_CENTER,200,false,false,false,true);
+    canvas->fillRect(452, 794, 2, 50, TFT_LIGHTGRAY);
+    drawScrew(canvas,495, 819);
+
 }
 
 bool is_point_in_reading_quick_menu(int16_t x, int16_t y)

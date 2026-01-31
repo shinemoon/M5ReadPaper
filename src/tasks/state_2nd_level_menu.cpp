@@ -86,6 +86,7 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
     case MSG_TOUCH_PRESSED:
     {
         TouchZone zone = getTouchZoneGrid(msg->data.touch.x, msg->data.touch.y);
+        if(msg->data.touch.y<=100) return; // For Screen
         // 根据当前二级菜单类型执行相应动作
         if (main_2nd_level_menu_type == MAIN_2ND_MENU_DISPLAY_SETTING)
         {

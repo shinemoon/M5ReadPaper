@@ -31,7 +31,7 @@ enum display_type {
 };
 
 #define FIRST_REFRESH_TH 8  //'MIddle Step' need to refresh to eliminate the HW - Only for Fastmode
-#define SECOND_REFRESH_TH 24 // Full Refresh for Fastmode
+#define SECOND_REFRESH_TH 18 // Full Refresh for Fastmode
 #define FULL_REFRESH_TH 24 // Full Refresh for NormalMode
 
 
