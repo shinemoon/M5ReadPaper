@@ -143,7 +143,7 @@ int8_t fontLoadLoc = 1;
 */
 
 
-#define TEXT_COLORDEPTH 1
+#define TEXT_COLORDEPTH 4
 #define TEXT_COLORDEPTH_HIGH 16
 
 //#define GREY_MAP_COLOR 0xA855
