@@ -30,6 +30,7 @@
     - 列出书籍: `GET /list/book`
     - 列出字体: `GET /list/font`
     - 列出图片: `GET /list/image`
+    - 列出屏幕截图: `GET /list/screenshot`
   - Query 参数 (可选):
     - `page` (整数) — 页码（从1开始），与 `perPage` 一起作用；代码以 `page>0 && perPage>0` 判断是否启用分页
     - `perPage` (整数) — 每页条数
@@ -41,7 +42,7 @@
         "size":12345,
         "isCurrent":0|1,       // 是否为当前打开的书/正在使用的字体
         "isIdxed":0|1,         // 针对书籍：是否存在对应的 .idx 索引
-        "path":"/sd/book/xxx.txt" // 可用于下载/删除的规范路径（注意需要以此 path 参数调用 /download 或 /delete）
+        "path":"/book/xxx.txt" // 可用于下载/删除的完整路径（注意需要以此 path 参数调用 /download 或 /delete）
       }
     - 分页: 返回对象 {"total":N,"page":P,"perPage":M,"files":[...]}（`total` 为总条目数）
   - HTTP 示例 (curl):
@@ -65,24 +66,31 @@
   - 方法: GET (返回上传页面 HTML), POST (multipart/form-data 上传)
   - 说明: 上传使用 multipart/form-data 表单提交。前端可使用 `FormData` 或 `XMLHttpRequest` 发送文件。
   - 表单字段:
-    - `tab` (可选)：目标目录，支持值 `book`, `font`, `image`。服务端将把文件保存到 `/book/`, `/font/` 或 `/image/` 下；默认为 `/`。
-    - 文件字段：通常使用 `file`（后端从 multipart 中读取文件并写入临时文件）。
+    - `tab` (可选)：目标目录，支持值 `book`, `font`, `image`, `scback`。服务端将把文件保存到对应目录：
+      - `book` → `/book/`
+      - `font` → `/font/`
+      - `image` → `/image/`
+      - `scback` → SD根目录的 `/scback.png`（强制文件名，用于锁屏背景）
+      - 默认为 `/`（根目录）
+    - 文件字段：标准的 multipart/form-data 文件上传字段（后端从 multipart 中读取文件并写入临时文件）。
   - 行为与实现细节（关键点）:
     - 流式写入：服务端在上传时以流式写入到 SD 卡的临时路径（目标路径 + `.tmp`），上传完成并验证后再重命名为目标文件。若目标文件已存在，会尝试删除或先重命名为备份（`.upload.bak`）再覆盖。
-    - 内存检查：上传开始时会检查可用堆内存（代码示例中对启动阶段检查 >= ~32KB），写入阶段会再次检查（例如 >= ~24KB），验证阶段若内存很低会跳过验证并返回成功提示。不同阶段可能返回 507/500 等错误。
-    - 存储检查：会检查 SD 剩余空间并预留一定空间（代码内检查以 MB 为单位），如空间不足会返回 507（Insufficient storage space）。
-    - 超时：上传有超时时间（例如 300 秒），超时会返回 408。
-    - 大文件限制：代码中存在一个上限变量（当前实现中为 50MB），如果上传大于该限制，服务器会返回 413。但注意实现中返回的错误文本可能仍写为“20MB supported”（实现有不一致），前端应以状态码为准并对错误信息做容错处理。
+    - 内存检查：上传开始时会检查可用堆内存（需要至少 32KB），写入阶段会再次检查（至少 24KB），验证阶段若内存很低（<16KB）会跳过验证并返回成功提示。不同阶段可能返回 507/500 等错误。
+    - 存储检查：会检查 SD 剩余空间并预留约10MB空间，如空间不足会返回 507（Insufficient storage space）。
+    - 超时：上传有超时时间（300秒/5分钟），超时会返回 408。
+    - 大文件限制：服务器限制单个文件最大 50MB。超过此限制会返回 413。注意：错误消息中可能仍显示"20MB supported"（实现不一致），前端应以状态码为准。
     - 完整性验证：上传结束后会打开临时文件验证大小（允许小幅差异，容忍度为 1% 或 1KB 二者较小者），若差异过大会删除临时文件并返回 500。
     - 覆盖/索引触发：若上传到 `/book/` 并覆盖了当前正在阅读的文件，设备会触发重建索引请求；若上传到 `/font/`，会刷新字体列表；上传到 `/image/` 会使锁屏图片缓存失效。
 
   - 返回值:
     - 成功: HTTP 200 + JSON {"ok":true,"message":"File uploaded successfully"}
-    - 常见错误: HTTP 413 (文件过大), 507 (资源不足), 500 (写入/验证失败), 408 (超时) 等，响应体为 JSON 错误描述。
+    - 常见错误: HTTP 413 (文件过大，超过50MB), 507 (资源不足，内存或存储空间不足), 500 (写入/验证失败), 408 (上传超时300秒) 等，响应体为 JSON 错误描述。
 
   - curl 示例:
     ```bash
     curl -F "tab=book" -F "file=@/path/to/book.txt" http://192.168.4.1/upload
+    # 上传锁屏背景（强制保存为 /scback.png）
+    curl -F "tab=scback" -F "file=@/path/to/background.png" http://192.168.4.1/upload
     ```
 
   - 前端 Fetch 示例 (FormData):

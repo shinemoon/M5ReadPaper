@@ -6,8 +6,8 @@
 - 设备默认地址：`http://192.168.4.1`（AP 模式下）
 - 编码约定：UTF-8
 - CORS：大多数端点已设置 `Access-Control-Allow-Origin: *`；`/upload` 与 `/sync_time` 提供了预检（OPTIONS）支持，其它端点浏览器同源访问不受限。若需跨域 DELETE 等方法，可扩展 OPTIONS 处理。
-- 文件分类固定三类目录：`/book`（书籍）、`/font`（字体）、`/image`（屏保）
-- 重要限制：单文件最大 20MB（服务器强制）。磁盘空间需要预留约 10MB 富余。前端 Demo 对批量上传总和 50MB 做了提示限制（客户端行为）。
+- 文件分类固定四类目录：`/book`（书籍）、`/font`（字体）、`/image`（屏保）、`/screenshot`（屏幕截图）
+- 重要限制：单文件最大 50MB（服务器强制）。磁盘空间需要预留约 10MB 富余。
 
 ---
 
@@ -34,18 +34,34 @@
 
 - 响应：`application/json` 数组，元素结构同下。
 
-### GET /list/book | /list/font | /list/image
-返回对应目录下的条目列表。为减少内存占用，服务端采用流式输出，前端通常做客户端分页。
+### GET /list/book | /list/font | /list/image | /list/screenshot
+返回对应目录下的条目列表。支持分页参数。
 
-- 响应内容（数组元素）：
-  ```json
-  {
-    "name": "example.txt",
-    "type": "file",      // "file" | "dir"
-    "size": 12345,        // 字节，仅文件有
-    "isCurrent": 0        // 书籍：当前正在阅读；字体：当前选中；其余：0 或 1
-  }
-  ```
+- Query 参数（可选）：
+  - `page` （整数）：页码（从 1 开始）
+  - `perPage` （整数）：每页条数
+  - 当 `page > 0 && perPage > 0` 时启用分页，否则返回所有条目（受配置文件上限限制）
+- 响应内容：
+  - 无分页：数组，元素结构：
+    ```json
+    {
+      "name": "example.txt",
+      "type": "file",      // "file" | "dir"
+      "size": 12345,        // 字节，仅文件有
+      "isCurrent": 0,       // 书籍：当前正在阅读；字体：当前选中；其余：0 或 1
+      "isIdxed": 0,         // 书籍专用：是否存在 .idx 索引文件
+      "path": "/book/example.txt"  // 完整路径，用于下载/删除
+    }
+    ```
+  - 分页模式：
+    ```json
+    {
+      "total": 100,
+      "page": 1,
+      "perPage": 20,
+      "files": [ /* 同上面的数组元素 */ ]
+    }
+    ```
 - 说明：
   - 服务器可能对总返回数量有上限（构建时常量），前端如需更多可分页或后续扩展服务端分页参数（未实现）。
 
@@ -77,18 +93,22 @@
 ### GET /upload
 返回一个简单上传页（主要用于本地调试）。多数客户端可直接调用 POST 接口。
 
-### POST /upload?tab=book|font|image
-Multipart 文件上传。字段名固定为 `data`。
+### POST /upload?tab=book|font|image|scback
+Multipart 文件上传。使用标准 multipart/form-data 格式。
 
 - Query：
-  - `tab`：上传的目标目录类别（必填）：`book` / `font` / `image`
+  - `tab`：上传的目标目录类别（必填）：
+    - `book` → `/book/` 目录
+    - `font` → `/font/` 目录
+    - `image` → `/image/` 目录
+    - `scback` → SD根目录的 `/scback.png`（强制文件名，用于锁屏背景）
 - Body（multipart/form-data）：
-  - `data`：文件内容（支持一次一个文件；前端 Demo 做串行多文件上传）
+  - 标准的 multipart 文件上传字段（服务器从请求中解析文件内容）
 - 服务器约束：
-  - 单个文件最大 20MB；超过返回 413。
+  - 单个文件最大 50MB；超过返回 413。
   - 需要足够存储空间（预留约 10MB）；不足返回 507。
   - 上传采用临时文件写入，结束后重命名覆盖同名文件；若覆盖了当前阅读书籍会触发重建索引。
-  - 上传超时 120 秒（可根据网络情况调整固件）。
+  - 上传超时 300 秒（5分钟），超时返回 408。
 - 响应示例：
   - 成功：`{"ok":true,"message":"File uploaded successfully"}`
   - 失败：`{"ok":false,"message":"Write failed"}` 等
@@ -146,7 +166,11 @@ Multipart 文件上传。字段名固定为 `data`。
   ```
 - 上传文件到书籍目录
   ```bash
-  curl -F "data=@example.txt" "http://192.168.4.1/upload?tab=book"
+  curl -F "file=@example.txt" "http://192.168.4.1/upload?tab=book"
+  ```
+- 上传锁屏背景
+  ```bash
+  curl -F "file=@background.png" "http://192.168.4.1/upload?tab=scback"
   ```
 - 同步时间
   ```bash
@@ -170,7 +194,7 @@ Multipart 文件上传。字段名固定为 `data`。
 - 上传文件到书籍目录
   ```powershell
   $file = Get-Item ".\example.txt"
-  Invoke-WebRequest -Uri "http://192.168.4.1/upload?tab=book" -Method Post -Form @{ data = $file }
+  Invoke-WebRequest -Uri "http://192.168.4.1/upload?tab=book" -Method Post -Form @{ file = $file }
   ```
 - 同步时间
   ```powershell
