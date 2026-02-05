@@ -1,0 +1,39 @@
+{
+  "version": "1.6.10",
+  "latestFirmware": "ReadPaper V1.6.10.2",
+  "sections": [
+    {
+      "icon": "📖",
+      "title": "ReadPaper V1.6.10 固件更新",
+      "updates": [
+        {
+          "category": "显示优化",
+          "description": "调整UI刷新细节"
+        },
+        {
+          "category": "显示优化",
+          "description": "部分页面切换特效"
+        },
+        {
+          "category": "功能增强",
+          "description": "可定制截屏背景和截屏质量优化"
+        },
+        {
+          "category": "问题修正",
+          "description": "时间记录精确度修正"
+        }
+      ]
+    },
+    {
+      "icon": "🌐",
+      "title": "ReadPaper Utils V1.6.10 扩展更新",
+      "updates": [
+        {
+          "category": "功能更新",
+          "description": "支持截图自定义背景的管理"
+        }
+      ]
+    }
+  ],
+  "announcement": null
+}
