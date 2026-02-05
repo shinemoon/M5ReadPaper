@@ -1,10 +1,10 @@
 {
     "version": "1.6.11",
-    "latestFirmware": "ReadPaper V1.6.10.3",
+    "latestFirmware": "ReadPaper V1.6.10.4",
     "sections": [
         {
             "icon": "📖",
-            "title": "ReadPaper V1.6.10.3 固件更新",
+            "title": "ReadPaper V1.6.10.4 固件更新",
             "updates": [
                 {
                     "category": "功能增强",
@@ -13,6 +13,16 @@
                 {
                     "category": "显示优化",
                     "description": "锁屏细节调整"
+                }
+            ]
+        },
+        {
+            "icon": "📖",
+            "title": "ReadPaper V1.6.10.3 固件更新",
+            "updates": [
+               {
+                    "category": "问题修正",
+                    "description": "一些显示问题修正"
                 }
             ]
         },
