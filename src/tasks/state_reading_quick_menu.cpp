@@ -124,12 +124,12 @@ void StateMachineTask::handleReadingQuickMenuState(const SystemMessage_t *msg)
                 }
                 else if (tx > 249 && tx < 460 && ty > 780 && ty < 860)
                 { // 点击在快速菜单内部：手动全刷
-                    bin_font_flush_canvas(false, false, true);
+                    //bin_font_flush_canvas(false, false, true);
                     quickMenuShown = false;
                     currentState_ = STATE_READING;
                     if (g_current_book)
                     {
-                        g_current_book->renderCurrentPage(font_size);
+                        g_current_book->renderCurrentPage(font_size,nullptr,true,false,false,4,display_type::RANDOM);
                     }
                 }
                 else

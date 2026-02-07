@@ -27,7 +27,8 @@ enum display_type {
     VSHUTTER_REV = 6,
     HSHUTTER_REV = 7,
     VSHUTTER_NORMAL_REV = 8,
-    HSHUTTER_NORMAL_REV = 9
+    HSHUTTER_NORMAL_REV = 9,
+    RANDOM= 10
 };
 
 #define FIRST_REFRESH_TH 8  //'MIddle Step' need to refresh to eliminate the HW - Only for Fastmode
@@ -47,7 +48,7 @@ enum display_type {
 
 // 统一边距定义
 #define MARGIN_TOP 26
-#define MARGIN_BOTTOM 6
+#define MARGIN_BOTTOM 18
 #define MARGIN_LEFT 27
 #define MARGIN_RIGHT 18
 #define VERTICAL_TOP_DELTA 0

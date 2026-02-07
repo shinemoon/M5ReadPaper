@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>数据中心 - ReadPaper</title>
+  <link rel="stylesheet" href="../vendors/chota.css">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="icon" href="../assets/favicon.png">
+</head>
+<body id="data-center-page">
+  <div data-include="partials/header.html"></div>
+
+  <main class="container">
+    <h4 class="bg-light">数据中心 — 阅读记录管理</h4>
+
+    <div class="row">
+      <div class="col-4 panel data-center-controls">
+        <h5 class="bg-light">控制</h5>
+        <div class="controls-inner">
+          <div id="debugSection" class="field hidden" aria-hidden="true">
+            <h6 class="bg-light" style="padding:6px;margin:0 0 8px 0;font-size:0.95rem">调试功能</h6>
+            <button id="seedFake" class="button" style="width:100%;">填充假数据</button>
+            <button id="clearDb" class="button outline" style="width:100%;margin-top:5px;margin-left:0px;">清空数据库</button>
+          </div>
+
+          <div class="field">
+            <label>搜索（按书名）</label>
+            <input id="searchInput" type="text" placeholder="输入书名或关键字" />
+          </div>
+          
+          <div class="field">
+            <label>月份范围</label>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:5px;">
+              <input id="monthRangeStart" type="month" style="flex:1;" />
+              <span style="color:#666;">至</span>
+              <input id="monthRangeEnd" type="month" style="flex:1;" />
+            </div>
+            <button id="applyMonthRange" class="button outline" style="width:100%;">应用范围</button>
+            <button id="clearMonthRange" class="button outline" style="width:100%;margin-top:5px;margin-left:0px;">清除范围</button>
+          </div>
+        </div>
+
+        <div class="controls-bottom">
+          <div class="field">
+            <button id="importBtn" class="button outline" style="width:100%; margin-bottom:8px;">导入 JSON</button>
+            <input id="importFile" type="file" accept=".json" style="display:none;" />
+            <button id="exportBtn" class="button outline" style="width:100%;">导出 JSON</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-8 panel">
+        <h5 class="bg-light">汇总统计</h5>
+        <div id="summaryChart" style="width:100%; max-width:800px; height:300px; border:1px solid #eee; padding:20px; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:15px; background:#f9f9f9;"></div>
+        
+        <h5 class="bg-light">月份阅读分布</h5>
+        <canvas id="monthlyChart" width="800" height="300" style="width:100%; max-width:800px; border:1px solid #eee;"></canvas>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-12 panel">
+        <h5 class="bg-light">0-24小时阅读分布（曲线）</h5>
+        <canvas id="hourlyChart" width="1200" height="300" style="width:100%; border:1px solid #eee;"></canvas>
+        
+        <h5 class="bg-light">记录列表</h5>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
+          <div id="listSummary" style="color:#666; flex:1; min-width:200px;">加载中…</div>
+          <div style="display:flex; gap:8px; align-items:center; flex:1; min-width:280px; justify-content:flex-end;">
+            <label style="font-size:14px; color:#666; white-space:nowrap;">排序:</label>
+            <select id="sortBy" style="padding:6px 10px; flex:1; max-width:140px;">
+              <option value="timestamp">入库时间</option>
+              <option value="readingTime">阅读时长</option>
+              <option value="bookname">书名</option>
+            </select>
+            <button id="sortOrderBtn" class="sort-order-btn" style="margin-left:0;">↓</button>
+          </div>
+        </div>
+        <div id="recordsContainer" style="max-height:60vh; overflow:auto; background:#fff; border:1px solid #eee; padding:8px"></div>
+        <div id="paginationContainer" style="margin-top:12px; display:flex; justify-content:center; align-items:center; gap:8px;"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <div data-include="partials/footer.html"></div>
+
+  <script src="include-partials.js"></script>
+  <script src="data_center.js"></script>
+</body>
+</html>

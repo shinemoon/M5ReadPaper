@@ -3164,6 +3164,33 @@ void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool
     bool dark = g_config.dark;
     // Timing: record start time for renderCurrentPage -> bin_font_flush_canvas interval
     uint32_t bh_render_start_ms = millis();
+    // If effect is RANDOM, pick a random non-NOEFFECT/non-RANDOM effect
+    if (effect == RANDOM)
+    {
+        // List of available effects excluding NOEFFECT and RANDOM
+        display_type available_effects[] = {
+            VSHUTTER,  
+            HSHUTTER,  
+            VSHUTTER_NORMAL, 
+            HSHUTTER_NORMAL,  
+            VSHUTTER_REV,  
+            HSHUTTER_REV,  
+            VSHUTTER_NORMAL_REV, 
+            HSHUTTER_NORMAL_REV,  
+            RECT,  
+        };
+        size_t count = sizeof(available_effects) / sizeof(available_effects[0]);
+        if (count > 0)
+        {
+            randomSeed(millis());
+            size_t idx = random((int)count);
+            effect = available_effects[idx];
+        }
+        else
+        {
+            effect = NOEFFECT;
+        }
+    }
 
     // ===== 字体页面缓存检查与准备 =====
     // 1. 检查缓存管理器是否已初始化
@@ -3364,7 +3391,8 @@ void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool
         // renderType
         // 1- only addBM
         // 2- back from reading menu
-        // 2- dark switch
+        // 3- dark switch
+        // 4- back from manual refresh in quick menu
         // other - full render
         if (renderType == 1) // then only refresh top right conner
             bin_font_flush_canvas(false, false, false, NOEFFECT, 500, 0, 30, 40);
@@ -3379,8 +3407,12 @@ void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool
         }
         else if (renderType == 3)
         {
-
         }
+        else if (renderType == 4)
+        {
+            bin_font_flush_canvas(false, false, true, effect);
+        }
+
         else
             bin_font_flush_canvas(false, false, false, effect);
 

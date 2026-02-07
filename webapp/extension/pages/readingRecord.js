@@ -158,26 +158,72 @@ const DISPLAY_STEP = 60;
         recordInfo.textContent = `[调试模式] 测试数据 (${data.total} 本书籍)`;
         recordInfo.style.color = '#ff6b6b';
     } else {
-        let apiUrl = 'http://192.168.4.1/api/reading_records';
-        
-        if (bookPath) {
-            apiUrl += `?book=${encodeURIComponent(bookPath)}`;
-        } else if (booksPaths) {
-            apiUrl += `?books=${encodeURIComponent(booksPaths)}`;
-        }
+            let apiUrl = 'http://192.168.4.1/api/reading_records';
+
+            // If caller explicitly requested local source (from data center), load from
+            // local IndexedDB instead of wifi API. This preserves filemanager behavior
+            // which continues to use the wifi API.
+            const src = urlParams.get('src');
+            if (src === 'local' && bookPath) {
+                // We'll bypass api fetch and load records from local IndexedDB below.
+            } else {
+                if (bookPath) {
+                    apiUrl += `?book=${encodeURIComponent(bookPath)}`;
+                } else if (booksPaths) {
+                    apiUrl += `?books=${encodeURIComponent(booksPaths)}`;
+                }
+            }
         // else: fetch all books (default)
 
         try {
             // Show loading
             document.getElementById('loadingIndicator').style.display = 'block';
-            
-            // Fetch records
-            const response = await fetch(apiUrl);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
 
-            data = await response.json();
+            // If src=local (from data center) and a bookPath is provided, read from local IndexedDB
+            if (src === 'local' && bookPath) {
+                const DB_NAME = 'readpaper_data_center';
+                const DB_VERSION = 1;
+                const STORE = 'reading_records';
+                function openDB() {
+                    return new Promise((resolve, reject)=>{
+                        const req = indexedDB.open(DB_NAME, DB_VERSION);
+                        req.onerror = (e)=> reject(e.target.error || e);
+                        req.onupgradeneeded = (e)=> resolve(e.target.result);
+                        req.onsuccess = (e)=> resolve(e.target.result);
+                    });
+                }
+                async function getAll() {
+                    const db = await openDB();
+                    return new Promise((resolve, reject)=>{
+                        const tx = db.transaction(STORE, 'readonly');
+                        const store = tx.objectStore(STORE);
+                        const req = store.getAll();
+                        req.onsuccess = ()=> resolve(req.result || []);
+                        req.onerror = (e)=> reject(e.target.error || e);
+                    });
+                }
+                try {
+                    const all = await getAll();
+                    const decoded = decodeURIComponent(bookPath || '');
+                    const targetName = (decoded.split('/').pop() || '').toString();
+                    const matched = all.filter(r=>{
+                        const name = (r.bookname || r.book_name || (r.book_path? r.book_path.split('/').pop(): '') || '').toString();
+                        return name === targetName || decodeURIComponent(name) === targetName;
+                    });
+                    console.log('[Local DB Filter]', { all: all.length, targetName, matched: matched.length, matchedRecords: matched });
+                    data = { total: matched.length, records: matched };
+                } catch(err) {
+                    console.error('local DB read failed', err);
+                    data = { total: 0, records: [] };
+                }
+            } else {
+                // Fetch records from wifi API
+                const response = await fetch(apiUrl);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                data = await response.json();
+            }
         
         // Update progress
         const progressFill = document.getElementById('progressFill');
@@ -354,21 +400,19 @@ function aggregateRecords(records) {
 }
 
 function renderLast7Days(data) {
-    const today = new Date();
-    const last7Days = [];
+    // 获取所有有阅读记录的日期，按时间排序（从旧到新）
+    const allDates = Object.keys(data.dailyTotal)
+        .filter(dateStr => data.dailyTotal[dateStr] > 0)
+        .sort();
     
-    for (let i = 6; i >= 0; i--) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-        const dateStr = formatDateToYYYYMMDD(date);
-        last7Days.push({
-            date: dateStr,
-            minutes: data.dailyTotal[dateStr] || 0
-        });
-    }
+    // 取最后7天（实际有阅读的最后7天，可能不连续）
+    const last7Days = allDates.slice(-7).map(dateStr => ({
+        date: dateStr,
+        minutes: data.dailyTotal[dateStr]
+    }));
 
     const totalMinutes = last7Days.reduce((sum, day) => sum + day.minutes, 0);
-    const daysWithReading = last7Days.filter(day => day.minutes > 0).length;
+    const daysWithReading = last7Days.length; // 都是有阅读的天数
     const avgMinutes = daysWithReading > 0 ? Math.round(totalMinutes / daysWithReading) : 0;
 
     document.getElementById('last7DaysTotal').textContent = totalMinutes;
@@ -387,40 +431,37 @@ function renderLast7Days(data) {
         bar.style.height = `${height}%`;
         bar.title = `${day.date}: ${day.minutes}分钟`;
         
-        // Only show label if there's reading data
-        if (day.minutes > 0) {
-            const label = document.createElement('div');
-            label.className = 'day-bar-label';
-            label.textContent = day.date.substring(4, 6) + '-' + day.date.substring(6, 8); // MM-DD format
-            bar.appendChild(label);
+        // 显示日期标签
+        const label = document.createElement('div');
+        label.className = 'day-bar-label';
+        label.textContent = day.date.substring(4, 6) + '-' + day.date.substring(6, 8); // MM-DD format
+        bar.appendChild(label);
 
-            // small top label showing minutes
-            const topVal = document.createElement('div');
-            topVal.className = 'bar-top-label';
-            topVal.textContent = `${day.minutes}m`;
-            bar.appendChild(topVal);
-        }
+        // 显示分钟数
+        const topVal = document.createElement('div');
+        topVal.className = 'bar-top-label';
+        topVal.textContent = `${day.minutes}m`;
+        bar.appendChild(topVal);
 
         barsContainer.appendChild(bar);
     }
 }
 
 function renderLast6Months(data) {
-    const today = new Date();
-    const last6Months = [];
+    // 获取所有有阅读记录的月份，按时间排序（从旧到新）
+    const allMonths = Object.keys(data.monthlyTotal)
+        .filter(monthStr => data.monthlyTotal[monthStr] > 0)
+        .sort();
     
-    for (let i = 5; i >= 0; i--) {
-        const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
-        const monthStr = formatDateToYYYYMM(date);
-        last6Months.push({
-            month: monthStr,
-            minutes: data.monthlyTotal[monthStr] || 0
-        });
-    }
+    // 取最后6个月（实际有阅读的最后6个月，可能不连续）
+    const last6Months = allMonths.slice(-6).map(monthStr => ({
+        month: monthStr,
+        minutes: data.monthlyTotal[monthStr]
+    }));
 
     const totalMinutes = last6Months.reduce((sum, month) => sum + month.minutes, 0);
     const totalHours = Math.round(totalMinutes / 60);
-    const monthsWithReading = last6Months.filter(month => month.minutes > 0).length;
+    const monthsWithReading = last6Months.length; // 都是有阅读的月份
     const avgHours = monthsWithReading > 0 ? Math.round(totalMinutes / monthsWithReading / 60) : 0;
 
     document.getElementById('last6MonthsTotal').textContent = totalHours;
@@ -439,19 +480,20 @@ function renderLast6Months(data) {
         bar.style.height = `${height}%`;
         bar.title = `${month.month}: ${Math.round(month.minutes / 60)}小时`;
         
-        // Only show label if there's reading data
-        if (month.minutes > 0) {
-            const label = document.createElement('div');
-            label.className = 'day-bar-label';
-            label.textContent = month.month.substring(4, 6); // Show month only
-            bar.appendChild(label);
-            
-            // small top label showing hours
-            const topVal = document.createElement('div');
-            topVal.className = 'bar-top-label';
-            topVal.textContent = `${Math.round(month.minutes/60)}h`;
-            bar.appendChild(topVal);
-        }
+        // 显示月份标签（YY-MM格式）
+        const label = document.createElement('div');
+        label.className = 'day-bar-label';
+        // month.month 格式为 YYYYMM，转换为 YY-MM
+        const year = month.month.substring(2, 4); // YY
+        const mon = month.month.substring(4, 6);  // MM
+        label.textContent = `${year}-${mon}`;
+        bar.appendChild(label);
+        
+        // 显示小时数
+        const topVal = document.createElement('div');
+        topVal.className = 'bar-top-label';
+        topVal.textContent = `${Math.round(month.minutes/60)}h`;
+        bar.appendChild(topVal);
 
         barsContainer.appendChild(bar);
     }
@@ -916,6 +958,20 @@ async function generateExportImage(mode) {
 // ==================== Event Listeners ====================
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Adjust back button based on source
+    const urlParams = new URLSearchParams(window.location.search);
+    const src = urlParams.get('src');
+    const backBtn = document.querySelector('.back-btn');
+    if (backBtn) {
+        if (src === 'local') {
+            backBtn.href = 'data_center.html';
+            backBtn.textContent = '← 返回数据中心';
+        } else {
+            backBtn.href = 'filemanager.html';
+            backBtn.textContent = '← 返回文件管理';
+        }
+    }
+    
     // Load theme on startup
     loadTheme();
     

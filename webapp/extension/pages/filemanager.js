@@ -11,6 +11,11 @@
   // 后端分页支持检测（首次请求时自动检测）
   let paginationSupported = null; // null=未检测, true=支持, false=不支持
 
+  // IndexedDB configuration for local reading records storage
+  const DB_NAME = 'readpaper_data_center';
+  const DB_VERSION = 1;
+  const STORE = 'reading_records';
+
   const el = id=>document.getElementById(id);
   const fileBody = el('fileBody');
   const pager = el('pager');
@@ -56,6 +61,197 @@
     if(typeof window.niceConfirm === 'function') return window.niceConfirm(message,{title});
     return Promise.resolve(window.confirm ? window.confirm(message) : false);
   };
+
+  // IndexedDB helper functions
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onerror = (e) => reject(e.target.error || e);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(STORE)) {
+          const os = db.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
+          os.createIndex('bookname', 'bookname', { unique: false });
+          os.createIndex('timestamp', 'timestamp', { unique: false });
+        }
+      };
+      req.onsuccess = (e) => resolve(e.target.result);
+    });
+  }
+
+  async function mergeRecordToDB(record) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      const store = tx.objectStore(STORE);
+      const index = store.index('bookname');
+      
+      // Normalize record
+      const bookname = record.bookname || record.book_name || (record.book_path ? record.book_path.split('/').pop() : '');
+      if (!bookname) {
+        console.log('[mergeRecordToDB] Skipping record with no bookname:', record);
+        resolve(); // Skip if no valid bookname
+        return;
+      }
+      
+      const newRecord = {
+        book_path: record.book_path || `/sd/book/${bookname}`,
+        book_name: bookname,
+        bookname: bookname,
+        total_hours: record.total_hours || 0,
+        total_minutes: record.total_minutes || 0,
+        hourly_records: record.hourly_records || {},
+        daily_summary: record.daily_summary || {},
+        monthly_summary: record.monthly_summary || {},
+        timestamp: record.timestamp || Date.now()
+      };
+      
+      console.log('[mergeRecordToDB] Processing:', bookname);
+      
+      // Check if record exists
+      const getReq = index.get(bookname);
+      getReq.onsuccess = () => {
+        const existing = getReq.result;
+        if (existing) {
+          console.log('[mergeRecordToDB] Found existing record, merging data for:', bookname);
+          
+          // Merge hourly_records: for each hour, keep the maximum value (capped at 60)
+          const mergedHourly = {...(existing.hourly_records || {})};
+          for (const [hour, minutes] of Object.entries(newRecord.hourly_records || {})) {
+            const existingMin = mergedHourly[hour] || 0;
+            const newMin = Math.min(Number(minutes) || 0, 60); // Cap at 60
+            mergedHourly[hour] = Math.max(existingMin, newMin);
+          }
+          
+          // Merge daily_summary: sum up all hours for each day
+          const mergedDaily = {};
+          const allDays = new Set([
+            ...Object.keys(existing.daily_summary || {}),
+            ...Object.keys(newRecord.daily_summary || {})
+          ]);
+          
+          for (const day of allDays) {
+            // Calculate from hourly records for this day
+            let dayTotal = 0;
+            for (const [hour, minutes] of Object.entries(mergedHourly)) {
+              if (hour.startsWith(day)) {
+                dayTotal += Number(minutes) || 0;
+              }
+            }
+            if (dayTotal > 0) {
+              mergedDaily[day] = dayTotal;
+            }
+          }
+          
+          // Merge monthly_summary: sum up all days for each month
+          const mergedMonthly = {};
+          for (const [day, minutes] of Object.entries(mergedDaily)) {
+            const month = day.substring(0, 6); // YYYYMM
+            mergedMonthly[month] = (mergedMonthly[month] || 0) + minutes;
+          }
+          
+          // Calculate total time from merged data
+          const totalMinutes = Object.values(mergedHourly).reduce((sum, min) => sum + (Number(min) || 0), 0);
+          const totalHours = Math.floor(totalMinutes / 60);
+          const remainingMinutes = totalMinutes % 60;
+          
+          const mergedRecord = {
+            id: existing.id,
+            book_path: existing.book_path || newRecord.book_path,
+            book_name: bookname,
+            bookname: bookname,
+            total_hours: totalHours,
+            total_minutes: remainingMinutes,
+            hourly_records: mergedHourly,
+            daily_summary: mergedDaily,
+            monthly_summary: mergedMonthly,
+            timestamp: Date.now()
+          };
+          
+          console.log('[mergeRecordToDB] Merged totals:', bookname, 
+            'hours:', totalHours, 'minutes:', remainingMinutes,
+            'hourly entries:', Object.keys(mergedHourly).length);
+          
+          const putReq = store.put(mergedRecord);
+          putReq.onsuccess = () => {
+            console.log('[mergeRecordToDB] Successfully merged and updated:', bookname);
+            resolve();
+          };
+          putReq.onerror = (e) => {
+            console.error('[mergeRecordToDB] Put error:', bookname, e.target.error || e);
+            reject(e.target.error || e);
+          };
+        } else {
+          // Add new record - ensure hourly records don't exceed 60 minutes
+          const cappedHourly = {};
+          for (const [hour, minutes] of Object.entries(newRecord.hourly_records || {})) {
+            cappedHourly[hour] = Math.min(Number(minutes) || 0, 60);
+          }
+          newRecord.hourly_records = cappedHourly;
+          
+          console.log('[mergeRecordToDB] Adding new record:', bookname);
+          const addReq = store.add(newRecord);
+          addReq.onsuccess = () => {
+            console.log('[mergeRecordToDB] Successfully added:', bookname);
+            resolve();
+          };
+          addReq.onerror = (e) => {
+            console.error('[mergeRecordToDB] Add error:', bookname, e.target.error || e);
+            reject(e.target.error || e);
+          };
+        }
+      };
+      getReq.onerror = (e) => {
+        console.error('[mergeRecordToDB] Get error:', bookname, e.target.error || e);
+        reject(e.target.error || e);
+      };
+      tx.onerror = (e) => {
+        console.error('[mergeRecordToDB] Transaction error:', bookname, e.target.error || e);
+        reject(e.target.error || e);
+      };
+    });
+  }
+
+  async function fetchAndStoreReadingRecords(bookPath = null, books = null, all = false) {
+    try {
+      let apiUrl = `${API_BASE}/api/reading_records`;
+      if (bookPath) {
+        apiUrl += `?book=${encodeURIComponent(bookPath)}`;
+      } else if (books) {
+        apiUrl += `?books=${encodeURIComponent(books)}`;
+      }
+      // else: all books (default)
+      
+      console.log('[fetchAndStoreReadingRecords] API URL:', apiUrl);
+      toast('正在获取阅读记录...', 'info', 2000);
+      const response = await fetch(apiUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('[fetchAndStoreReadingRecords] Fetched data:', data);
+      
+      if (data.records && data.records.length > 0) {
+        // Store each record to local DB with merge logic
+        console.log('[fetchAndStoreReadingRecords] Storing', data.records.length, 'records to DB...');
+        for (let i = 0; i < data.records.length; i++) {
+          const record = data.records[i];
+          console.log(`[fetchAndStoreReadingRecords] Storing record ${i+1}/${data.records.length}:`, record.book_name || record.bookname);
+          await mergeRecordToDB(record);
+        }
+        console.log('[fetchAndStoreReadingRecords] All records stored successfully');
+        toast(`已同步 ${data.records.length} 条记录到本地数据库`, 'success', 2000);
+      } else {
+        console.log('[fetchAndStoreReadingRecords] No records found');
+        toast('未获取到阅读记录', 'info', 2000);
+      }
+    } catch (e) {
+      console.error('[fetchAndStoreReadingRecords] Error:', e);
+      toast('获取阅读记录失败: ' + e.message, 'error', 3000);
+      throw e; // Re-throw to let caller know there was an error
+    }
+  }
 
   function formatSize(bytes){
     if(bytes===0) return '0B';
@@ -247,9 +443,10 @@
     // bind reading records buttons (for book category)
     if(currentCat === 'book'){
       fileBody.querySelectorAll('button[data-record]').forEach(btn=>{
-        btn.onclick = ()=>{
+        btn.onclick = async ()=>{
           const bookPath = btn.getAttribute('data-record');
-          window.open(`readingRecord.html?book=${encodeURIComponent(bookPath)}`, '_blank');
+          await fetchAndStoreReadingRecords(bookPath);
+          window.open(`readingRecord.html?book=${encodeURIComponent(bookPath)}&src=local`, '_blank');
         };
       });
     }
@@ -633,21 +830,37 @@
   // Batch reading records button
   const btnBatchRecords = document.getElementById('btnBatchRecords');
   if(btnBatchRecords){
-    btnBatchRecords.onclick = ()=>{
+    btnBatchRecords.onclick = async ()=>{
       if(selectedForDelete.size === 0){
         toast('请先选择要查看阅读记录的书籍', 'error', 3000);
         return;
       }
       const books = Array.from(selectedForDelete).join(',');
-      window.open(`readingRecord.html?books=${encodeURIComponent(books)}`, '_blank');
+      console.log('[btnBatchRecords] Selected books:', books);
+      try {
+        await fetchAndStoreReadingRecords(null, books);
+        console.log('[btnBatchRecords] Records fetched and stored, opening window...');
+        window.open(`readingRecord.html?books=${encodeURIComponent(books)}&src=local`, '_blank');
+      } catch (e) {
+        console.error('[btnBatchRecords] Failed:', e);
+        // Error already shown by fetchAndStoreReadingRecords
+      }
     };
   }
 
   // All reading records button
   const btnAllRecords = document.getElementById('btnAllRecords');
   if(btnAllRecords){
-    btnAllRecords.onclick = ()=>{
-      window.open(`readingRecord.html?all=true`, '_blank');
+    btnAllRecords.onclick = async ()=>{
+      console.log('[btnAllRecords] Fetching all records...');
+      try {
+        await fetchAndStoreReadingRecords(null, null, true);
+        console.log('[btnAllRecords] Records fetched and stored, opening window...');
+        window.open(`readingRecord.html?all=true&src=local`, '_blank');
+      } catch (e) {
+        console.error('[btnAllRecords] Failed:', e);
+        // Error already shown by fetchAndStoreReadingRecords
+      }
     };
   }
 

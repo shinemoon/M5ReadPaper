@@ -455,7 +455,7 @@ static void draw_name_banner(M5Canvas *canvas, const char *name_with_page, int32
     canvas->drawWideLine(0, basey + 50, 545, basey + 50, 1.1f, invert ? TFT_WHITE : TFT_BLACK);
 
     // 绘制书名
-    bin_font_print(name_with_page, 24, invert ? TFT_WHITE : TFT_BLACK, LOCKBOOKNAMEWIDTH, (PAPER_S3_WIDTH-LOCKBOOKNAMEWIDTH)/2 - 12, basey + 20 - 1, false, canvas, TEXT_ALIGN_CENTER, LOCKBOOKNAMEWIDTH, g_current_book ? g_current_book->getKeepOrg() : false);
+    bin_font_print(name_with_page, 24, TFT_BLACK, LOCKBOOKNAMEWIDTH, (PAPER_S3_WIDTH-LOCKBOOKNAMEWIDTH)/2 - 12, basey + 20 - 1, false, canvas, TEXT_ALIGN_CENTER, LOCKBOOKNAMEWIDTH, g_current_book ? g_current_book->getKeepOrg() : false);
 
     // 尝试获取并显示当前章节名（如果存在TOC）
     if (g_current_book && g_current_book->isOpen())

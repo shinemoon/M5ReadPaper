@@ -314,6 +314,113 @@ progress::-moz-progress-bar,
 }
 
 /* Note: compile this SCSS to css/main.css for the page to pick up styles. */
+/* Data center specific adjustments: tidy button layout and responsive behaviour */
+.data-center-controls {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.data-center-controls .controls-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.data-center-controls .controls-bottom {
+  margin-top: 30px;
+}
+
+.data-center-controls .debug-buttons {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.data-center-controls .debug-buttons .button {
+  min-width: 0;
+}
+
+.data-center-controls .button {
+  max-width: 100%;
+  box-sizing: border-box;
+  word-break: break-word;
+}
+
+/* Month picker styling */
+input[type=month] {
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+input[type=month]:focus {
+  outline: none;
+  border-color: var(--primary-color, #f04f0f);
+  box-shadow: 0 0 0 2px rgba(240, 79, 15, 0.1);
+}
+
+/* Month range buttons container */
+.month-range-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  align-items: stretch;
+}
+.month-range-buttons .button {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 720px) {
+  .data-center-controls .debug-buttons,
+  .data-center-controls .field > .button,
+  .data-center-controls .field > .debug-buttons {
+    display: flex;
+    flex-direction: column;
+  }
+  .data-center-controls .debug-buttons .button,
+  .data-center-controls .field > .button {
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 0.5rem;
+  }
+}
+@media (max-width: 400px) {
+  /* defensive: avoid horizontal scroll from large buttons or paddings */
+  #data-center-page, .container, .row {
+    padding-left: 8px;
+    padding-right: 8px;
+    box-sizing: border-box;
+  }
+  #data-center-page #listSummary, .container #listSummary, .row #listSummary {
+    display: none;
+  }
+  .data-center-controls {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+}
+@media (max-width: 768px) {
+  /* Single column layout for small screens */
+  .row .col-4, .row .col-8 {
+    width: 100%;
+    margin-bottom: 20px;
+  }
+  .row .col-4 {
+    order: 2; /* Controls below records on small screens */
+  }
+  .row .col-8 {
+    order: 1; /* Records first on small screens */
+  }
+  /* Hide time column in record list on narrow screens */
+  .time-column {
+    display: none;
+  }
+}
 /* Previewer: fixed height and image fit (moved from inline <style> in main.html) */
 #previewer {
   height: 160px;
@@ -709,6 +816,114 @@ body label {
   align-items: center;
   justify-content: center;
   margin-top: 0.75rem;
+}
+
+.modern-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  flex-wrap: wrap;
+}
+.modern-pagination .pg-btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid #e0e0e0;
+  border-radius: 50%;
+  background: white;
+  color: #333;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modern-pagination .pg-btn:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: #bbb;
+  transform: translateY(-1px);
+}
+.modern-pagination .pg-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+.modern-pagination .pg-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.modern-pagination .pg-btn.active {
+  background: var(--color-primary, #4CAF50);
+  color: white;
+  border-color: var(--color-primary, #4CAF50);
+  font-weight: 600;
+}
+.modern-pagination .pg-ellipsis {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  font-weight: bold;
+  -webkit-user-select: none;
+     -moz-user-select: none;
+          user-select: none;
+}
+.modern-pagination .pg-jump {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  padding-left: 12px;
+  border-left: 1px solid #e0e0e0;
+}
+.modern-pagination .pg-jump input {
+  width: 50px;
+  height: 32px;
+  padding: 4px 8px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  text-align: center;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+.modern-pagination .pg-jump input:focus {
+  outline: none;
+  border-color: var(--color-primary, #4CAF50);
+}
+.modern-pagination .pg-jump button {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.sort-order-btn {
+  min-width: 38px;
+  height: 38px;
+  padding: 0 !important;
+  border: 1px solid #e0e0e0 !important;
+  border-radius: 50% !important;
+  background: white !important;
+  color: #333 !important;
+  font-size: 18px !important;
+  font-weight: 500 !important;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sort-order-btn:hover {
+  background: #f5f5f5 !important;
+  border-color: #bbb !important;
+  transform: translateY(-1px);
+}
+.sort-order-btn:active {
+  transform: translateY(0) !important;
 }
 
 .nowrap {
