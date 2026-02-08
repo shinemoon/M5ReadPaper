@@ -893,22 +893,19 @@ static void parseRecFileToJson(const std::string &rec_file_path, const std::stri
             }
             
             std::string timestamp = ts.c_str();
-            hourlyRecords[timestamp] = mins;
-            
-            // Aggregate by day (YYYYMMDD)
-            if (timestamp.length() >= 8) {
+            // 仅处理格式正确的时间戳（YYYYMMDDHH = 10位）
+            if (timestamp.length() == 10 && mins >= 0) {
+                hourlyRecords[timestamp] = mins;
+                
+                // Aggregate by day (YYYYMMDD)
                 std::string day = timestamp.substr(0, 8);
                 dailySummary[day] += mins;
-            }
-            
-            // Aggregate by month (YYYYMM)
-            if (timestamp.length() >= 6) {
+                
+                // Aggregate by month (YYYYMM)
                 std::string month = timestamp.substr(0, 6);
                 monthlySummary[month] += mins;
-            }
-            
-            // Calculate time period distribution
-            if (timestamp.length() == 10) {
+                
+                // Calculate time period distribution
                 // Extract hour (last 2 digits)
                 int hour = atoi(timestamp.substr(8, 2).c_str());
                 

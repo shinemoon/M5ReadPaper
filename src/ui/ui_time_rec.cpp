@@ -65,7 +65,12 @@ static std::map<std::string, int32_t> parseRecFile(const std::string &rec_file_p
                     mins = val.substring(0, m_pos).toInt();
             }
 
-            records[ts.c_str()] = mins;
+            // 确保 timestamp 格式正确（YYYYMMDDHH = 10位）且 mins 有效
+            std::string ts_str = ts.c_str();
+            if (ts_str.length() == 10 && mins >= 0)
+            {
+                records[ts_str] = mins;
+            }
         }
     }
     rf.close();

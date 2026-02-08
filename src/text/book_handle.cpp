@@ -1939,15 +1939,36 @@ bool saveBookmarkForFile(BookHandle *book)
                                 if (m_pos > 0)
                                     mins = val.substring(0, m_pos).toInt();
                             }
-                            records[ts.c_str()] = mins;
+                            // 确保 timestamp 格式正确（YYYYMMDDHH = 10位数字）
+                            std::string ts_str = ts.c_str();
+                            if (ts_str.length() == 10 && mins >= 0)
+                            {
+                                records[ts_str] = mins;
+                            }
+                            else
+                            {
+                                Serial.printf("[REC] 跳过格式错误的记录: %s:%s\n", ts.c_str(), val.c_str());
+                            }
+                        }
+                        else
+                        {
+                            // 记录格式错误，输出警告但不影响其他记录
+                            Serial.printf("[REC] 跳过无效行（无冒号）: %s\n", line.c_str());
                         }
                     }
                     rf.close();
                 }
             }
 
-            // 更新当前小时的记录
-            records[timestamp_hour] += delta_mins;
+            // 更新当前小时的记录：取本次计算值与已有值的最大值（避免多设备同步时重复累加）
+            // 本次该小时的累计阅读时间 = 原有时间 + 本次增量
+            int32_t old_hour_mins = records[timestamp_hour];
+            int32_t new_hour_mins = old_hour_mins + delta_mins;
+            // 取最大值：正常情况下 new_hour_mins 更大；但在同步/备份恢复场景下可能 old_hour_mins 更大
+            records[timestamp_hour] = std::max(old_hour_mins, new_hour_mins);
+            
+            Serial.printf("[REC] 更新 %s: old=%dm, delta=%dm, new=%dm, final=%dm\n", 
+                         timestamp_hour, old_hour_mins, delta_mins, new_hour_mins, records[timestamp_hour]);
 
             // 计算新的总时间：原有总时间 + 本次增量
             int32_t new_rec_total_mins = old_rec_total_mins + delta_mins;
