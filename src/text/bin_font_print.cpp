@@ -2737,10 +2737,11 @@ void bin_font_print(const std::string &text, uint8_t font_size, uint8_t color, i
 
                 if (needs_minor_shift(unicode))
                 {
-                    // float shift_f = static_cast<float>(render_width) * scale_factor * 1.0f;
-                    float shift_f = g_bin_font.font_size * scale_factor * 0.6f;
+                    // 标点符号向左调整20%的字体大小
+//                    float shift_f = g_bin_font.font_size * scale_factor * 0.2f;
+                    float shift_f = g_bin_font.font_size * scale_factor * 0.25f;
                     int16_t shift_px = static_cast<int16_t>(std::lround(shift_f));
-                    if (shift_px == 0 && render_width > 0)
+                    if (shift_px == 0 && g_bin_font.font_size > 0)
                     {
                         shift_px = 1;
                     }
