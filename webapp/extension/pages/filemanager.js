@@ -695,7 +695,7 @@
               return reject(new Error('HTTP '+xhr.status));
             };
             xhr.timeout = 300000; // 5 minutes
-            const fd = new FormData(); fd.append('data', file, 'scback.png'); xhr.send(fd);
+            const fd = new FormData(); fd.append('data', file, file.name); xhr.send(fd);
           });
           return res;
         } catch(err){
@@ -749,7 +749,7 @@
                 return reject(new Error('HTTP '+xhr.status));
               };
               xhr.timeout = 300000;
-              const fd = new FormData(); fd.append('data', file); xhr.send(fd);
+              const fd = new FormData(); fd.append('data', file, 'scback.png'); xhr.send(fd);
             });
             return res;
           } catch(err){
