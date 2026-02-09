@@ -12,3 +12,6 @@ uint8_t autospeed = 2;
 
 // 字体加载位置: 0=缓存到内存, 1=按需从文件读取
 int8_t fontLoadLoc = 1;
+
+// WiFi STA连接状态，默认未连接
+bool g_wifi_sta_connected = false;

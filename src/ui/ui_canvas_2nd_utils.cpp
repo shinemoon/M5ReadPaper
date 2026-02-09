@@ -325,13 +325,16 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
     case Main2ndLevelMenuType::MAIN_2ND_MENU_CONNECT_METHOD:
     {
         bin_font_print("连接方式", 36, 0, 540, 0, y + 16, false, target, TEXT_ALIGN_CENTER, 540);
-        // Show only the wireless option centered in the rect.
+        // Show wireless and connection settings buttons
         // The wired UI is intentionally hidden; its touch region is moved to the
         // top-right 60x60 area of the center rectangle (handled in touch logic).
         int16_t btn_cx = x + rectW / 2 - 82; // left x so button is centered horizontally
-        int16_t btn_cy = y + rectH / 2;      // center vertically inside the white rect
+        int16_t btn_cy = y + rectH / 2 - 32; // move up by 32 pixels
 
-        draw_button(target, btn_cx, btn_cy, "无线连接", true);
+        draw_button(target, btn_cx, btn_cy, "热点连接", true);
+        // Add connection settings button 64 pixels below the wireless button
+        int16_t btn_cy2 = btn_cy + 104;
+        draw_button(target, btn_cx, btn_cy2, "连接设置", true);
         //        bin_font_print("请按照说明连接WIFI", 28, 0, 540, 0, btn_cy + 45, false, g_canvas, TEXT_ALIGN_CENTER, 540);
 
         // Draw MSC indicator

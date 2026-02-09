@@ -80,6 +80,17 @@ public:
      */
     bool isUploadInProgress() const;
 
+    /**
+     * @brief 从token.json文件读取WiFi AP配置并尝试连接
+     * @return true 连接成功，false 连接失败或配置文件不存在
+     */
+    bool connectToWiFiFromToken();
+
+    /**
+     * @brief 断开WiFi STA连接
+     */
+    void disconnectWiFi();
+
     // 允许 API 路由器访问私有处理函数进行路由绑定
     friend class ApiRouter;
 

@@ -209,20 +209,20 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
 
         if (main_2nd_level_menu_type == MAIN_2ND_MENU_CONNECT_METHOD)
         {
-            // Two buttons were drawn at center: top = 有线连接, bottom = 无线连接
+            // Two buttons: wireless connection (top) and connection settings (bottom)
             int16_t cx = msg->data.touch.x;
             int16_t cy = msg->data.touch.y;
-            // New layout: wireless button is centered in the rect; wired UI is hidden
-            // (wired touch area moved to center rect top-right 60x60). Compute hit
-            // boxes accordingly.
+            // New layout: wireless button moved up by 32, connection settings button 64 pixels below
+            // wired touch area is at top-right 60x60.
             const int16_t rectH = 4 * 96;                        // same rect height as used by the drawer
             const int16_t rectY = (PAPER_S3_HEIGHT - rectH) / 2; // top y of center rect
             const int16_t w = 164;
             const int16_t h = 54;
 
-            // Wireless button centered: its center Y is the screen center (rect center)
+            // Wireless button: moved up by 32 pixels from center
             int16_t btn_cx = PAPER_S3_WIDTH / 2;  // center x
-            int16_t btn_cy = PAPER_S3_HEIGHT / 2; // center y (rect center)
+            int16_t btn_cy = PAPER_S3_HEIGHT / 2 - 32; // moved up by 32
+            int16_t btn_cy2 = btn_cy + 104; // connection settings button 64 pixels below
 
             // Wireless hitbox
             if (cx >= btn_cx - w / 2 && cx <= btn_cx + w / 2 && cy >= btn_cy - 16 && cy <= btn_cy - 16 + h)
@@ -279,6 +279,39 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                     show_main_menu(g_canvas, false, 0, 0, false);
                     currentState_ = STATE_MAIN_MENU;
                 }
+            }
+
+            // Connection settings button hitbox
+            if (cx >= btn_cx - w / 2 && cx <= btn_cx + w / 2 && cy >= btn_cy2 - 16 && cy <= btn_cy2 - 16 + h)
+            {
+#if DBG_STATE_MACHINE_TASK
+                sm_dbg_printf("连接设置按钮被点击\n");
+#endif
+                // 显示等待图片
+                ui_push_image_to_display_direct("/spiffs/wait.png", 240, 450);
+                M5.Display.waitDisplay();
+
+                // 从token.json读取配置并尝试连接WiFi
+                if (g_wifi_hotspot)
+                {
+#if DBG_STATE_MACHINE_TASK
+                    bool connected = g_wifi_hotspot->connectToWiFiFromToken();
+                    if (connected)
+                    {
+                        sm_dbg_printf("WiFi连接成功，g_wifi_sta_connected = true\n");
+                    }
+                    else
+                    {
+                        sm_dbg_printf("WiFi连接失败，g_wifi_sta_connected = false\n");
+                    }
+#else
+                    g_wifi_hotspot->connectToWiFiFromToken();
+#endif
+                }
+
+                // 无论成功失败，都返回主菜单
+                show_main_menu(g_canvas, false, 0, 0, false);
+                currentState_ = STATE_MAIN_MENU;
             }
         }
 

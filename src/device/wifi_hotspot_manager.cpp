@@ -17,6 +17,7 @@
 #include <set>
 #include <map>
 #include "ui/ui_lock_screen.h"
+#include <ArduinoJson.h>
 
 extern GlobalConfig g_config;
 
@@ -1736,4 +1737,118 @@ void wifi_hotspot_cleanup() {
         delete g_wifi_hotspot;
         g_wifi_hotspot = nullptr;
     }
+}
+
+bool WiFiHotspotManager::connectToWiFiFromToken() {
+#if DBG_WIFI_HOTSPOT
+    Serial.println("[WIFI_HOTSPOT] 尝试从token.json连接WiFi...");
+#endif
+
+    // 重置连接状态
+    extern bool g_wifi_sta_connected;
+    g_wifi_sta_connected = false;
+
+    // 读取token.json文件
+    const char* token_path = "/token.json";
+    if (!InternalFS::fs().exists(token_path)) {
+#if DBG_WIFI_HOTSPOT
+        Serial.println("[WIFI_HOTSPOT] 错误: token.json 文件不存在");
+#endif
+        return false;
+    }
+
+    File file = InternalFS::fs().open(token_path, FILE_READ);
+    if (!file) {
+#if DBG_WIFI_HOTSPOT
+        Serial.println("[WIFI_HOTSPOT] 错误: 无法打开token.json文件");
+#endif
+        return false;
+    }
+
+    // 解析JSON文件
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, file);
+    file.close();
+
+    if (error) {
+#if DBG_WIFI_HOTSPOT
+        Serial.printf("[WIFI_HOTSPOT] 错误: JSON解析失败: %s\n", error.c_str());
+#endif
+        return false;
+    }
+
+    // 获取WiFi配置
+    const char* ssid = doc["wifi_ap_name"];
+    const char* password = doc["wifi_ap_password"];
+
+    if (!ssid || !password) {
+#if DBG_WIFI_HOTSPOT
+        Serial.println("[WIFI_HOTSPOT] 错误: token.json缺少必要字段");
+#endif
+        return false;
+    }
+
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] 尝试连接到: %s\n", ssid);
+#endif
+
+    // 停止热点模式（如果正在运行）
+    if (running) {
+        stop();
+        delay(500);
+    }
+
+    // 切换到STA模式
+    WiFi.mode(WIFI_STA);
+    delay(500);
+
+    // 开始连接
+    WiFi.begin(ssid, password);
+
+    // 等待连接，最多10秒
+    int timeout = 20; // 20 * 500ms = 10秒
+    while (WiFi.status() != WL_CONNECTED && timeout > 0) {
+        delay(500);
+        timeout--;
+#if DBG_WIFI_HOTSPOT
+        Serial.print(".");
+#endif
+    }
+
+#if DBG_WIFI_HOTSPOT
+    Serial.println();
+#endif
+
+    if (WiFi.status() == WL_CONNECTED) {
+#if DBG_WIFI_HOTSPOT
+        Serial.println("[WIFI_HOTSPOT] ✅ WiFi连接成功");
+        Serial.printf("[WIFI_HOTSPOT] IP地址: %s\n", WiFi.localIP().toString().c_str());
+#endif
+        g_wifi_sta_connected = true;
+        return true;
+    } else {
+#if DBG_WIFI_HOTSPOT
+        Serial.println("[WIFI_HOTSPOT] ❌ WiFi连接失败");
+#endif
+        WiFi.disconnect();
+        WiFi.mode(WIFI_OFF);
+        g_wifi_sta_connected = false;
+        return false;
+    }
+}
+
+void WiFiHotspotManager::disconnectWiFi() {
+#if DBG_WIFI_HOTSPOT
+    Serial.println("[WIFI_HOTSPOT] 断开WiFi连接...");
+#endif
+
+    WiFi.disconnect();
+    WiFi.mode(WIFI_OFF);
+    
+    extern bool g_wifi_sta_connected;
+    g_wifi_sta_connected = false;
+
+#if DBG_WIFI_HOTSPOT
+    Serial.println("[WIFI_HOTSPOT] WiFi已断开");
+#endif
 }

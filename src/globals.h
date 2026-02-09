@@ -45,3 +45,7 @@ extern bool autoread;
 // 默认初始值为 3
 #include <stdint.h>
 extern uint8_t autospeed;
+
+// WiFi STA连接状态标志
+// true = 已连接到WiFi AP，false = 未连接
+extern bool g_wifi_sta_connected;
