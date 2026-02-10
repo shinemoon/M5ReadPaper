@@ -16,6 +16,7 @@
 #include "config/config_manager.h"
 #include "text/book_handle.h"
 #include "tasks/background_index_task.h"
+#include "esp_sleep.h"
 
 extern M5Canvas *g_canvas;
 extern GlobalConfig g_config;
@@ -46,6 +47,8 @@ void setup()
     Serial.println("========================================");
     Serial.println("[SETUP] ===== 系统重启 =====");
     Serial.printf("[SETUP] 启动时间: %lu ms\n", millis());
+    esp_sleep_wakeup_cause_t wake_cause = esp_sleep_get_wakeup_cause();
+    Serial.printf("[SETUP] 唤醒原因: %d\n", (int)wake_cause);
     Serial.println("========================================");
     printBootTime("Serial initialized");
 
@@ -54,7 +57,7 @@ void setup()
     cfg.clear_display = false;
     M5.begin(cfg);
     // 设置屏幕旋转（上下翻转） initDisplay中已经做了
-//    M5.Display.setRotation(g_config.rotation);
+    //    M5.Display.setRotation(g_config.rotation);
     // 启用陀螺仪/惯性传感器，读取设备朝向到全局变量
     // 之前为了省电调用了 M5.Imu.sleep()，现在改为唤醒并检测方向
     // 尝试初始化 IMU（多数 M5Unified 版本提供 begin()）
@@ -164,15 +167,15 @@ void setup()
 #endif
     }
 
-   // 4. Create global canvas
+    // 4. Create global canvas
 
     g_canvas = new M5Canvas(&M5.Display);
     g_canvas->createSprite(PAPER_S3_WIDTH, PAPER_S3_HEIGHT);
 
     // 初始化显示推送任务，使得 bin_font_flush_canvas 在 setup 阶段也能成功入队
     initializeDisplayPushTask();
- //   bin_font_clear_canvas();
-//    bin_font_flush_canvas(false,false,true);
+    //   bin_font_clear_canvas();
+    //    bin_font_flush_canvas(false,false,true);
     // 4.5 Screen push: 推迟显示启动画面到显示和字体初始化之后，
     // 防止启动画面在字体索引尚未构建时触发对字体的访问，
     // 这可能导致 PROGMEM 字体在上电初始化时出现渲染乱码的问题。
@@ -184,9 +187,11 @@ void setup()
 #endif
     delay(100); // 给 PSRAM 100ms 的稳定时间
     // 执行一次 PSRAM 写入测试，确保其工作正常
-    if (ESP.getPsramSize() > 0) {
-        void* test_ptr = heap_caps_malloc(1024, MALLOC_CAP_SPIRAM);
-        if (test_ptr) {
+    if (ESP.getPsramSize() > 0)
+    {
+        void *test_ptr = heap_caps_malloc(1024, MALLOC_CAP_SPIRAM);
+        if (test_ptr)
+        {
             memset(test_ptr, 0xAA, 1024);
             heap_caps_free(test_ptr);
 #if DBG_SETUP
@@ -201,9 +206,10 @@ void setup()
 
     // 在显示与字体初始化完成后再显示启动画面
     M5.Display.waitDisplay();
-    show_start_screen("");
+    // 唤醒则跳过开始画面
+    if (int(wake_cause) == 0)
+        show_start_screen("");
 
- 
 #if DBG_SETUP
     Serial.printf("[BOOT] 总启动时间: %lu ms\n", millis() - setup_start_time);
     Serial.println("[READY] M5Stack Paper S3 Ready!");
@@ -262,7 +268,7 @@ void setup()
         // 创建新的BookHandle实例并 atomically publish it
         {
             std::shared_ptr<BookHandle> new_book = std::make_shared<BookHandle>(std::string(g_config.currentReadFile),
-                                                                                 area_w, area_h, fsize, TextEncoding::AUTO_DETECT);
+                                                                                area_w, area_h, fsize, TextEncoding::AUTO_DETECT);
 
             // atomically replace global current book
             std::atomic_store(&__g_current_book_shared, new_book);
@@ -271,40 +277,40 @@ void setup()
 
             // 检查BookHandle是否成功创建并打开
             if (new_book != nullptr && new_book->isOpen())
-        {
-#if DBG_SETUP
-            Serial.printf("[SETUP] BookHandle 创建成功，文件: %s\n", g_config.currentReadFile);
-#endif
-            // 只有在配置成功加载的情况下才保存（避免覆盖正确配置）
-            // 如果配置加载失败，说明是使用默认值，此时不应该保存
-            if (config_loaded_successfully)
             {
 #if DBG_SETUP
-                Serial.println("[SETUP] 配置已成功加载，确认书籍可打开，保存配置");
+                Serial.printf("[SETUP] BookHandle 创建成功，文件: %s\n", g_config.currentReadFile);
 #endif
-                config_save();
+                // 只有在配置成功加载的情况下才保存（避免覆盖正确配置）
+                // 如果配置加载失败，说明是使用默认值，此时不应该保存
+                if (config_loaded_successfully)
+                {
+#if DBG_SETUP
+                    Serial.println("[SETUP] 配置已成功加载，确认书籍可打开，保存配置");
+#endif
+                    config_save();
+                }
+                else
+                {
+#if DBG_SETUP
+                    Serial.println("[SETUP] ⚠️ 配置加载失败，跳过保存以避免覆盖有效配置文件");
+#endif
+                }
+#if DBG_BOOK_HANDLE
+                Serial.println("[SETUP] 创建新 BookHandle 成功");
+#endif
             }
             else
             {
 #if DBG_SETUP
-                Serial.println("[SETUP] ⚠️ 配置加载失败，跳过保存以避免覆盖有效配置文件");
+                Serial.printf("[SETUP] BookHandle 创建失败或打开失败，文件: %s\n", g_config.currentReadFile);
 #endif
+                // 清理失败的实例 by resetting shared_ptr (will delete if no other refs)
+                std::atomic_store(&__g_current_book_shared, std::shared_ptr<BookHandle>(nullptr));
+                file_exists = false; // 标记为失败，触发回退逻辑
             }
-#if DBG_BOOK_HANDLE
-            Serial.println("[SETUP] 创建新 BookHandle 成功");
-#endif
-        }
-        else
-        {
-#if DBG_SETUP
-            Serial.printf("[SETUP] BookHandle 创建失败或打开失败，文件: %s\n", g_config.currentReadFile);
-#endif
-            // 清理失败的实例 by resetting shared_ptr (will delete if no other refs)
-            std::atomic_store(&__g_current_book_shared, std::shared_ptr<BookHandle>(nullptr));
-            file_exists = false; // 标记为失败，触发回退逻辑
-        }
-        }  // 闭合 std::shared_ptr 作用域块
-    }  // 闭合 if (file_exists) 块
+        } // 闭合 std::shared_ptr 作用域块
+    } // 闭合 if (file_exists) 块
 
     if (!file_exists)
     {
@@ -327,7 +333,7 @@ void setup()
         {
             // Replace global book with default file's BookHandle
             std::shared_ptr<BookHandle> new_book = std::make_shared<BookHandle>(std::string(g_config.currentReadFile),
-                                                                                 area_w, area_h, fsize, TextEncoding::AUTO_DETECT);
+                                                                                area_w, area_h, fsize, TextEncoding::AUTO_DETECT);
             std::atomic_store(&__g_current_book_shared, new_book);
             // reset autoread when a new book is opened
             autoread = false;

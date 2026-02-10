@@ -1921,6 +1921,11 @@ bool WiFiHotspotManager::connectToWiFiFromToken() {
         return false;
         }
 
+    #if DBG_WIFI_HOTSPOT
+        Serial.printf("[WIFI_HOTSPOT] WiFi SSID: '%s' (len=%d)\n", ssid.c_str(), ssid.length());
+        Serial.printf("[WIFI_HOTSPOT] WiFi PASS: (len=%d)\n", password.length());
+    #endif
+
 #if DBG_WIFI_HOTSPOT
     Serial.printf("[WIFI_HOTSPOT] 尝试连接到: %s\n", ssid.c_str());
 #endif

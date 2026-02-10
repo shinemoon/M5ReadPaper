@@ -964,3 +964,23 @@ uint32_t getDisplayPushCount()
 {
     return s_pushCount;
 }
+
+bool waitDisplayPushIdle(uint32_t timeout_ms)
+{
+    uint32_t start = millis();
+    while (millis() - start < timeout_ms)
+    {
+        bool queue_empty = (!s_displayQueue || uxQueueMessagesWaiting(s_displayQueue) == 0);
+        bool canvas_empty = (!s_canvasQueue || uxQueueMessagesWaiting(s_canvasQueue) == 0);
+        if (!inDisplayPush && queue_empty && canvas_empty)
+        {
+            M5.Display.waitDisplay();
+            vTaskDelay(pdMS_TO_TICKS(2000));
+            return true;
+        }
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+    // Best-effort final wait for the panel
+    M5.Display.waitDisplay();
+    return false;
+}

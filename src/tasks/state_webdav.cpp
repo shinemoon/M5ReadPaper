@@ -9,6 +9,8 @@
 #include "device/wifi_hotspot_manager.h"
 #include "current_book.h"
 #include "globals.h"
+#include "esp_sleep.h"
+#include "tasks/display_push_task.h"
 // for screenshot
 #include "ui/screenshot.h"
 
@@ -19,6 +21,7 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
 {
     // Single-shot draw control (reset when leaving WEBDAV state)
     static bool webdavShown = false;
+    static bool sleepIssued = false;
 
     if (!g_wifi_sta_connected)
     {
@@ -115,6 +118,20 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
             webdavShown = true;
             bin_font_clear_canvas();
             bin_font_flush_canvas(false, false, true, HSHUTTER_NORMAL);
+            if (!sleepIssued)
+            {
+                sleepIssued = true;
+                if (g_wifi_hotspot)
+                {
+                    g_wifi_hotspot->disconnectWiFiDeferred(100);
+                }
+                // Ensure display push queue and panel refresh are done before sleep
+                waitDisplayPushIdle(2000);
+                // Sleep 10 seconds then wake
+                esp_sleep_enable_timer_wakeup(10ULL * 1000000ULL);
+                esp_deep_sleep_start();
+                return;
+            }
         }
         break;
     }
