@@ -154,4 +154,18 @@ void ApiRouter::registerRoutes(WebServer& server, WiFiHotspotManager& mgr) {
         add_cors_headers(server);
         server.send(204);
     });
+
+    // WebDAV config endpoints
+    server.on("/api/webdav_config", HTTP_GET, [&](){
+        add_cors_headers(server);
+        mgr.handleWebdavConfigGet();
+    });
+    server.on("/api/webdav_config", HTTP_POST, [&](){
+        add_cors_headers(server);
+        mgr.handleWebdavConfigUpdate();
+    });
+    server.on("/api/webdav_config", HTTP_OPTIONS, [&](){
+        add_cors_headers(server);
+        server.send(204);
+    });
 }

@@ -18,6 +18,10 @@
 #include <map>
 #include "ui/ui_lock_screen.h"
 #include <ArduinoJson.h>
+#include <HTTPClient.h>
+#include <esp_http_client.h>
+#include <esp_crt_bundle.h>
+#include <mbedtls/base64.h>
 
 extern GlobalConfig g_config;
 
@@ -1146,6 +1150,80 @@ void WiFiHotspotManager::handleReadingRecords() {
 #endif
 }
 
+void WiFiHotspotManager::handleWebdavConfigGet() {
+    if (!webServer) {
+        return;
+    }
+
+    JsonDocument doc;
+    doc["ok"] = true;
+    JsonObject cfg = doc["config"].to<JsonObject>();
+    cfg["url"] = g_config.webdav_url;
+    cfg["username"] = g_config.webdav_user;
+    cfg["password"] = g_config.webdav_pass;
+
+    String payload;
+    serializeJson(doc, payload);
+    webServer->send(200, "application/json", payload);
+}
+
+void WiFiHotspotManager::handleWebdavConfigUpdate() {
+    if (!webServer) {
+        return;
+    }
+
+    String body = webServer->arg("plain");
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, body);
+    if (err) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"invalid json\"}");
+        return;
+    }
+
+    JsonObject cfg = doc["config"].is<JsonObject>() ? doc["config"].as<JsonObject>() : JsonObject();
+
+    auto apply_string = [](char *dest, size_t cap, const char *value) {
+        if (!dest || cap == 0 || !value) {
+            return;
+        }
+        strncpy(dest, value, cap - 1);
+        dest[cap - 1] = '\0';
+    };
+
+    const char *url = nullptr;
+    const char *user = nullptr;
+    const char *pass = nullptr;
+
+    if (!cfg.isNull()) {
+        if (cfg["url"].is<const char*>()) url = cfg["url"].as<const char*>();
+        if (cfg["username"].is<const char*>()) user = cfg["username"].as<const char*>();
+        if (cfg["password"].is<const char*>()) pass = cfg["password"].as<const char*>();
+    }
+    if (doc["url"].is<const char*>()) url = doc["url"].as<const char*>();
+    if (doc["username"].is<const char*>()) user = doc["username"].as<const char*>();
+    if (doc["password"].is<const char*>()) pass = doc["password"].as<const char*>();
+
+    if (url) apply_string(g_config.webdav_url, sizeof(g_config.webdav_url), url);
+    if (user) apply_string(g_config.webdav_user, sizeof(g_config.webdav_user), user);
+    if (pass) apply_string(g_config.webdav_pass, sizeof(g_config.webdav_pass), pass);
+
+    bool saved = config_save();
+
+    JsonDocument resp;
+    resp["ok"] = saved;
+    if (!saved) {
+        resp["message"] = "save failed";
+    }
+    JsonObject outCfg = resp["config"].to<JsonObject>();
+    outCfg["url"] = g_config.webdav_url;
+    outCfg["username"] = g_config.webdav_user;
+    outCfg["password"] = g_config.webdav_pass;
+
+    String payload;
+    serializeJson(resp, payload);
+    webServer->send(saved ? 200 : 500, "application/json", payload);
+}
+
 void WiFiHotspotManager::handleNotFound() {
     String message = "File Not Found\n\n";
     message += "URI: " + webServer->uri() + "\n";
@@ -1866,4 +1944,252 @@ void WiFiHotspotManager::disconnectWiFi() {
 #if DBG_WIFI_HOTSPOT
     Serial.println("[WIFI_HOTSPOT] WiFi已断开");
 #endif
+}
+
+static void wifi_disconnect_task(void *param) {
+    uint32_t delay_ms = param ? *static_cast<uint32_t *>(param) : 0;
+    if (param) {
+        delete static_cast<uint32_t *>(param);
+    }
+    if (delay_ms > 0) {
+        vTaskDelay(pdMS_TO_TICKS(delay_ms));
+    }
+    if (g_wifi_hotspot) {
+        g_wifi_hotspot->disconnectWiFi();
+    }
+    vTaskDelete(nullptr);
+}
+
+void WiFiHotspotManager::disconnectWiFiDeferred(uint32_t delay_ms) {
+    uint32_t *payload = new uint32_t(delay_ms);
+    if (xTaskCreatePinnedToCore(wifi_disconnect_task, "WiFiDisc", 2048, payload, 1, nullptr, 1) != pdPASS) {
+        delete payload;
+        disconnectWiFi();
+    }
+}
+
+bool WiFiHotspotManager::ensureWebdavReadpaperDir() {
+    if (g_config.webdav_url[0] == '\0') {
+#if DBG_WIFI_HOTSPOT
+        Serial.println("[WIFI_HOTSPOT] WebDAV 未配置，跳过连接");
+#endif
+        return false;
+    }
+
+        String base = String(g_config.webdav_url);
+    base.trim();
+            if (!(base.startsWith("http://") || base.startsWith("https://"))) {
+#if DBG_WIFI_HOTSPOT
+        Serial.printf("[WIFI_HOTSPOT] WebDAV 地址无效: %s\n", base.c_str());
+#endif
+        return false;
+    }
+
+    if (!base.endsWith("/")) {
+        base += "/";
+    }
+    String base_url = base;
+    String target = base + "readpaper/";
+
+    String webdav_user = String(g_config.webdav_user);
+    String webdav_pass = String(g_config.webdav_pass);
+    webdav_user.trim();
+    webdav_pass.trim();
+    bool has_auth = (webdav_user.length() > 0 || webdav_pass.length() > 0);
+
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] WebDAV Base: %s\n", base_url.c_str());
+    Serial.printf("[WIFI_HOTSPOT] WebDAV Target: %s\n", target.c_str());
+    Serial.printf("[WIFI_HOTSPOT] WebDAV User: %s\n", webdav_user.c_str());
+    Serial.printf("[WIFI_HOTSPOT] WebDAV Pass: %s\n", webdav_pass.c_str());
+    Serial.printf("[WIFI_HOTSPOT] WebDAV Auth: %s\n", has_auth ? "on" : "off");
+#endif
+
+    auto build_absolute_url = [](const String &base_url, const String &location) -> String {
+        if (location.startsWith("http://") || location.startsWith("https://")) {
+            return location;
+        }
+        String base = base_url;
+        int scheme_pos = base.indexOf("://");
+        if (scheme_pos < 0) {
+            return location;
+        }
+        int host_start = scheme_pos + 3;
+        int host_end = base.indexOf('/', host_start);
+        String origin = (host_end > 0) ? base.substring(0, host_end) : base;
+        if (location.startsWith("/")) {
+            return origin + location;
+        }
+        if (!origin.endsWith("/")) {
+            origin += "/";
+        }
+        return origin + location;
+    };
+
+    auto send_request = [&](const String &url, esp_http_client_method_t method, bool add_depth, int &outCode) -> bool {
+        String current_url = url;
+        const int max_redirects = 5;
+
+        auto do_request = [&](const String &req_url, esp_http_client_auth_type_t auth_type, bool add_basic_header, int &code_out, String &redirect_out) -> bool {
+            esp_http_client_config_t cfg = {};
+            cfg.url = req_url.c_str();
+            cfg.timeout_ms = 8000;
+            cfg.crt_bundle_attach = esp_crt_bundle_attach;
+            cfg.disable_auto_redirect = true;
+            cfg.method = method;
+
+            if (auth_type != HTTP_AUTH_TYPE_NONE && has_auth) {
+                cfg.auth_type = auth_type;
+                cfg.username = webdav_user.c_str();
+                cfg.password = webdav_pass.c_str();
+            }
+
+            esp_http_client_handle_t client = esp_http_client_init(&cfg);
+            if (!client) {
+                return false;
+            }
+
+            esp_http_client_set_method(client, method);
+            if (add_depth) {
+                esp_http_client_set_header(client, "Depth", "0");
+            }
+            esp_http_client_set_header(client, "User-Agent", "ReadPaper-WebDAV");
+
+            if (add_basic_header && has_auth) {
+                char auth_raw[160] = {0};
+                snprintf(auth_raw, sizeof(auth_raw), "%s:%s", webdav_user.c_str(), webdav_pass.c_str());
+                unsigned char b64[256] = {0};
+                size_t out_len = 0;
+                if (mbedtls_base64_encode(b64, sizeof(b64) - 1, &out_len,
+                                          reinterpret_cast<const unsigned char *>(auth_raw),
+                                          strlen(auth_raw)) == 0) {
+                    b64[out_len] = '\0';
+                    String auth_header = String("Basic ") + reinterpret_cast<const char *>(b64);
+                    esp_http_client_set_header(client, "Authorization", auth_header.c_str());
+#if DBG_WIFI_HOTSPOT
+                    // Log first few chars to verify encoding occurred
+                    Serial.printf("[WIFI_HOTSPOT] Gen Auth Header: Basic %.5s... (Len: %d)\n", (char*)b64, out_len);
+#endif
+                }
+            }
+
+            if (method == HTTP_METHOD_MKCOL) {
+                esp_http_client_set_post_field(client, "", 0);
+            }
+
+            esp_err_t err = esp_http_client_open(client, 0);
+            if (err != ESP_OK) {
+                esp_http_client_cleanup(client);
+                return false;
+            }
+
+            err = esp_http_client_fetch_headers(client);
+            if (err < 0) {
+                esp_http_client_close(client);
+                esp_http_client_cleanup(client);
+                return false;
+            }
+
+            code_out = esp_http_client_get_status_code(client);
+            if (code_out == 401) {
+#if DBG_WIFI_HOTSPOT
+                char body[256] = {0};
+                int n = esp_http_client_read_response(client, body, sizeof(body) - 1);
+                if (n > 0) {
+                    body[n] = '\0';
+                    Serial.printf("[WIFI_HOTSPOT] WebDAV 401 body: %s\n", body);
+                }
+                char *auth_hdr = nullptr;
+                if (esp_http_client_get_header(client, "WWW-Authenticate", &auth_hdr) == ESP_OK && auth_hdr) {
+                    Serial.printf("[WIFI_HOTSPOT] WebDAV 401 WWW-Authenticate: %s\n", auth_hdr);
+                } else if (esp_http_client_get_header(client, "www-authenticate", &auth_hdr) == ESP_OK && auth_hdr) {
+                    Serial.printf("[WIFI_HOTSPOT] WebDAV 401 www-authenticate: %s\n", auth_hdr);
+                } else {
+                    Serial.println("[WIFI_HOTSPOT] WebDAV 401 (no WWW-Authenticate header)");
+                }
+#endif
+            }
+            redirect_out = "";
+            if (code_out >= 300 && code_out < 400) {
+                char *loc = nullptr;
+                if (esp_http_client_get_header(client, "Location", &loc) == ESP_OK && loc) {
+                    redirect_out = String(loc);
+                }
+            }
+
+            esp_http_client_close(client);
+            esp_http_client_cleanup(client);
+            return true;
+        };
+
+        for (int i = 0; i <= max_redirects; ++i) {
+            String redirect;
+            if (!do_request(current_url, HTTP_AUTH_TYPE_NONE, has_auth, outCode, redirect)) {
+                return false;
+            }
+
+            if (outCode == 401 && has_auth) {
+                if (!do_request(current_url, HTTP_AUTH_TYPE_DIGEST, false, outCode, redirect)) {
+                    return false;
+                }
+            }
+
+            if (outCode >= 300 && outCode < 400) {
+                if (redirect.length() == 0) {
+                    return false;
+                }
+                current_url = build_absolute_url(current_url, redirect);
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    };
+
+    int mkCode = 0;
+    int optCode = 0;
+    int propCode = 0;
+    // OPTIONS to get auth challenge
+    if (!send_request(base_url, HTTP_METHOD_OPTIONS, false, optCode)) {
+#if DBG_WIFI_HOTSPOT
+        Serial.println("[WIFI_HOTSPOT] WebDAV OPTIONS 请求失败");
+#endif
+        return false;
+    }
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] WebDAV OPTIONS 返回: %d\n", optCode);
+#endif
+    if (optCode == 401 && !has_auth) {
+        return false;
+    }
+
+    // PROPFIND to verify path and challenge response
+    if (!send_request(base_url, HTTP_METHOD_PROPFIND, true, propCode)) {
+#if DBG_WIFI_HOTSPOT
+        Serial.println("[WIFI_HOTSPOT] WebDAV PROPFIND 请求失败");
+#endif
+        return false;
+    }
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] WebDAV PROPFIND 返回: %d\n", propCode);
+#endif
+    if (propCode == 401 && !has_auth) {
+        return false;
+    }
+
+    if (!send_request(target, HTTP_METHOD_MKCOL, false, mkCode)) {
+#if DBG_WIFI_HOTSPOT
+        Serial.println("[WIFI_HOTSPOT] WebDAV MKCOL 请求失败");
+#endif
+        return false;
+    }
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] WebDAV MKCOL 返回: %d\n", mkCode);
+#endif
+    if (mkCode == 200 || mkCode == 201 || mkCode == 204 || mkCode == 405) {
+        return true;
+    }
+    return false;
 }

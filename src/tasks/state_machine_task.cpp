@@ -148,6 +148,9 @@ void StateMachineTask::taskFunction(void *pvParameters)
             case STATE_HELP:
                 handleHelpState(&msg);
                 break;
+            case STATE_WEBDAV:
+                handleWebDavState(&msg);
+                break;
             case STATE_TOC_DISPLAY:
                 handleTocDisplayState(&msg);
                 break;

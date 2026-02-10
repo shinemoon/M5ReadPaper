@@ -152,6 +152,11 @@ bool config_save()
         // 主菜单文件限制
         config_file.printf("main_menu_file_count=%u\n", (unsigned int)g_config.main_menu_file_count);
 
+        // WebDAV 配置
+        config_file.printf("webdav_url=%s\n", g_config.webdav_url);
+        config_file.printf("webdav_user=%s\n", g_config.webdav_user);
+        config_file.printf("webdav_pass=%s\n", g_config.webdav_pass);
+
         // 未来扩展的配置项可以在这里添加
         // config_file.printf("auto_brightness=%s\n", g_config.auto_brightness ? "true" : "false");
         // config_file.printf("font_scale=%d\n", g_config.font_scale);
@@ -377,6 +382,21 @@ static int32_t config_load_from_file(const char* path, GlobalConfig& out_config,
             if (v > MAX_MAIN_MENU_FILE_COUNT) v = MAX_MAIN_MENU_FILE_COUNT;
             temp_config.main_menu_file_count = (uint16_t)v;
         }
+        else if (key == "webdav_url")
+        {
+            strncpy(temp_config.webdav_url, value.c_str(), sizeof(temp_config.webdav_url) - 1);
+            temp_config.webdav_url[sizeof(temp_config.webdav_url) - 1] = '\0';
+        }
+        else if (key == "webdav_user")
+        {
+            strncpy(temp_config.webdav_user, value.c_str(), sizeof(temp_config.webdav_user) - 1);
+            temp_config.webdav_user[sizeof(temp_config.webdav_user) - 1] = '\0';
+        }
+        else if (key == "webdav_pass")
+        {
+            strncpy(temp_config.webdav_pass, value.c_str(), sizeof(temp_config.webdav_pass) - 1);
+            temp_config.webdav_pass[sizeof(temp_config.webdav_pass) - 1] = '\0';
+        }
     }
 
     config_file.close();
@@ -434,6 +454,11 @@ static void init_config_defaults(GlobalConfig& config)
     config.autospeed = 2;
     // 主菜单文件默认上限
     config.main_menu_file_count = MAX_MAIN_MENU_FILE_COUNT;
+
+    // WebDAV 默认配置（空字符串）
+    config.webdav_url[0] = '\0';
+    config.webdav_user[0] = '\0';
+    config.webdav_pass[0] = '\0';
 }
 
 bool config_load()
@@ -610,6 +635,11 @@ void config_reset_to_defaults()
 
     // 主菜单文件默认上限
     g_config.main_menu_file_count = MAX_MAIN_MENU_FILE_COUNT;
+
+    // WebDAV 默认配置（空字符串）
+    g_config.webdav_url[0] = '\0';
+    g_config.webdav_user[0] = '\0';
+    g_config.webdav_pass[0] = '\0';
 
     // 未来的默认配置可以在这里添加
     // g_config.auto_brightness = true;

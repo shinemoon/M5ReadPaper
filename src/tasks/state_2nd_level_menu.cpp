@@ -86,7 +86,8 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
     case MSG_TOUCH_PRESSED:
     {
         TouchZone zone = getTouchZoneGrid(msg->data.touch.x, msg->data.touch.y);
-        if(msg->data.touch.y<=100) return; // For Screen
+        if (msg->data.touch.y <= 100)
+            return; // For Screen
         // 根据当前二级菜单类型执行相应动作
         if (main_2nd_level_menu_type == MAIN_2ND_MENU_DISPLAY_SETTING)
         {
@@ -220,9 +221,9 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
             const int16_t h = 54;
 
             // Wireless button: moved up by 32 pixels from center
-            int16_t btn_cx = PAPER_S3_WIDTH / 2;  // center x
+            int16_t btn_cx = PAPER_S3_WIDTH / 2;       // center x
             int16_t btn_cy = PAPER_S3_HEIGHT / 2 - 32; // moved up by 32
-            int16_t btn_cy2 = btn_cy + 104; // connection settings button 64 pixels below
+            int16_t btn_cy2 = btn_cy + 104;            // connection settings button 64 pixels below
 
             // Wireless hitbox
             if (cx >= btn_cx - w / 2 && cx <= btn_cx + w / 2 && cy >= btn_cy - 16 && cy <= btn_cy - 16 + h)
@@ -303,6 +304,8 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                         sm_dbg_printf("WiFi已连接，执行断开并关闭无线\n");
 #endif
                         g_wifi_hotspot->disconnectWiFi();
+                        show_main_menu(g_canvas, false, 0, 0, false);
+                        currentState_ = STATE_MAIN_MENU;
                     }
                     else
                     {
@@ -326,12 +329,29 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                             g_wifi_hotspot->disconnectWiFi();
                         }
 #endif
+                        if (connected) // Only to WEBDAV after wifi connected.
+                        {
+                            bool webdav_ready = g_wifi_hotspot->ensureWebdavReadpaperDir();
+                            if (webdav_ready)
+                            {
+                                currentState_ = STATE_WEBDAV;
+                            }
+                            else
+                            {
+                                // Treat as WiFi connection failure: close WiFi to save power
+                                g_wifi_hotspot->disconnectWiFiDeferred();
+                                show_main_menu(g_canvas, false, 0, 0, false);
+                                currentState_ = STATE_MAIN_MENU;
+                            }
+                        }
+                        else
+                        {
+                            g_wifi_hotspot->disconnectWiFiDeferred();
+                            show_main_menu(g_canvas, false, 0, 0, false);
+                            currentState_ = STATE_MAIN_MENU;
+                        }
                     }
                 }
-
-                // 无论成功失败，都返回主菜单
-                show_main_menu(g_canvas, false, 0, 0, false);
-                currentState_ = STATE_MAIN_MENU;
             }
         }
 

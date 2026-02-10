@@ -238,6 +238,45 @@ input[type="month"] {
     }
 }
 
+/* WebDAV config page */
+#webdav-page {
+    .webdav-card,
+    .webdav-note {
+        min-height: 100%;
+    }
+
+    .webdav-actions {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .webdav-help {
+        margin: 0.5rem 0 0 0;
+        padding-left: 1.2rem;
+        color: #444;
+        line-height: 1.6;
+    }
+
+    .text-success {
+        color: #2f6e2f;
+        font-weight: 600;
+    }
+
+    .text-error {
+        color: #b30000;
+        font-weight: 600;
+    }
+}
+
+@media (max-width: 768px) {
+    #webdav-page .row .col-6 {
+        width: 100%;
+        margin-bottom: 20px;
+    }
+}
+
 /* Previewer: fixed height and image fit (moved from inline <style> in main.html) */
 #previewer {
     height: 160px;

@@ -117,6 +117,11 @@ struct GlobalConfig {
     // 主菜单文件列表限制（可通过配置文件调整，默认由宏 MAX_MAIN_MENU_FILE_COUNT 设定）
     uint16_t main_menu_file_count = MAX_MAIN_MENU_FILE_COUNT;
 
+    // WebDAV 配置（默认为空）
+    char webdav_url[128] = "";
+    char webdav_user[64] = "";
+    char webdav_pass[64] = "";
+
     // 未来可以添加更多配置项：
     // bool auto_brightness = true;
     // uint8_t font_scale = 100;
