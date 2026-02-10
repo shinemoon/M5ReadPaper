@@ -128,6 +128,8 @@ private:
     void handleReadingRecords();
     void handleWebdavConfigGet();
     void handleWebdavConfigUpdate();
+    void handleWifiConfigGet();
+    void handleWifiConfigUpdate();
 
     // 辅助函数
     String formatFileSize(size_t bytes);

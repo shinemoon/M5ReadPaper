@@ -157,6 +157,10 @@ bool config_save()
         config_file.printf("webdav_user=%s\n", g_config.webdav_user);
         config_file.printf("webdav_pass=%s\n", g_config.webdav_pass);
 
+        // WiFi 配置
+        config_file.printf("wifi_ssid=%s\n", g_config.wifi_ssid);
+        config_file.printf("wifi_pass=%s\n", g_config.wifi_pass);
+
         // 未来扩展的配置项可以在这里添加
         // config_file.printf("auto_brightness=%s\n", g_config.auto_brightness ? "true" : "false");
         // config_file.printf("font_scale=%d\n", g_config.font_scale);
@@ -397,6 +401,16 @@ static int32_t config_load_from_file(const char* path, GlobalConfig& out_config,
             strncpy(temp_config.webdav_pass, value.c_str(), sizeof(temp_config.webdav_pass) - 1);
             temp_config.webdav_pass[sizeof(temp_config.webdav_pass) - 1] = '\0';
         }
+        else if (key == "wifi_ssid")
+        {
+            strncpy(temp_config.wifi_ssid, value.c_str(), sizeof(temp_config.wifi_ssid) - 1);
+            temp_config.wifi_ssid[sizeof(temp_config.wifi_ssid) - 1] = '\0';
+        }
+        else if (key == "wifi_pass")
+        {
+            strncpy(temp_config.wifi_pass, value.c_str(), sizeof(temp_config.wifi_pass) - 1);
+            temp_config.wifi_pass[sizeof(temp_config.wifi_pass) - 1] = '\0';
+        }
     }
 
     config_file.close();
@@ -459,6 +473,10 @@ static void init_config_defaults(GlobalConfig& config)
     config.webdav_url[0] = '\0';
     config.webdav_user[0] = '\0';
     config.webdav_pass[0] = '\0';
+
+    // WiFi 默认配置（空字符串）
+    config.wifi_ssid[0] = '\0';
+    config.wifi_pass[0] = '\0';
 }
 
 bool config_load()

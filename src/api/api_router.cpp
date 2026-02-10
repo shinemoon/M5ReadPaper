@@ -168,4 +168,18 @@ void ApiRouter::registerRoutes(WebServer& server, WiFiHotspotManager& mgr) {
         add_cors_headers(server);
         server.send(204);
     });
+
+    // WiFi config endpoints
+    server.on("/api/wifi_config", HTTP_GET, [&](){
+        add_cors_headers(server);
+        mgr.handleWifiConfigGet();
+    });
+    server.on("/api/wifi_config", HTTP_POST, [&](){
+        add_cors_headers(server);
+        mgr.handleWifiConfigUpdate();
+    });
+    server.on("/api/wifi_config", HTTP_OPTIONS, [&](){
+        add_cors_headers(server);
+        server.send(204);
+    });
 }

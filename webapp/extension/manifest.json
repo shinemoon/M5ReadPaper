@@ -21,7 +21,8 @@
     "extension_pages": "script-src 'self';"
   },
   "host_permissions": [
-    "http://192.168.4.1/*"
+    "http://192.168.4.1/*",
+    "<all_urls>"
   ],
   "permissions": [
     "tabs",

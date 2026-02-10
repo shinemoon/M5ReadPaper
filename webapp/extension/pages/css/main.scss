@@ -12,6 +12,20 @@
     display: none !important;
 }
 
+.icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.35rem 0.5rem;
+    min-width: 34px;
+}
+
+.icon-eye {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
 .flex-row {
     display: flex;
 }
@@ -1337,4 +1351,12 @@ body {
     border-bottom: 1px dotted #000;
     padding-bottom: 6px;
     margin-bottom: 6px;
+}
+
+.eye-button {
+    height:37px;
+}
+
+.field {
+    margin-top:20px;
 }

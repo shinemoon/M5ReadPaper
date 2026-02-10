@@ -12,44 +12,111 @@
   <div data-include="partials/header.html"></div>
 
   <main class="container">
-    <h4 class="bg-light">WebDAV 配置</h4>
+    <h4 class="bg-light">配置中心</h4>
 
-    <div class="row">
-      <div class="col-6 panel webdav-card">
-        <h5 class="bg-light">连接信息</h5>
-        <div class="field">
-          <label for="webdavUrl">地址</label>
-          <input id="webdavUrl" type="text" placeholder="https://example.com/webdav/" />
-          <small class="muted">留空表示关闭 WebDAV。</small>
-        </div>
+    <div class="config-tabs">
+      <button class="tab-btn is-active" type="button" data-tab="wifi">WIFI 配置</button>
+      <button class="tab-btn" type="button" data-tab="webdav">WebDAV 配置</button>
+      <button class="tab-btn" type="button" data-tab="display">展示配置</button>
+    </div>
 
-        <div class="field">
-          <label for="webdavUser">用户名</label>
-          <input id="webdavUser" type="text" placeholder="可留空" />
-        </div>
+    <div class="tab-panel is-active" data-tab="wifi">
+      <div class="row">
+        <div class="col-6 panel webdav-card">
+          <h5 class="bg-light">WiFi 信息</h5>
+          <div class="field">
+            <label for="wifiSsid">SSID</label>
+            <input id="wifiSsid" type="text" placeholder="WiFi 名称" />
+          </div>
 
-        <div class="field">
-          <label for="webdavPassword">密码</label>
-          <div class="flex-row gap-small align-center">
-            <input id="webdavPassword" type="password" placeholder="可留空" />
-            <button id="togglePassword" class="button is-small outline" type="button">显示</button>
+          <div class="field">
+            <label for="wifiPassword">密码</label>
+            <div class="flex-row gap-small align-center">
+              <input id="wifiPassword" type="password" placeholder="WiFi 密码" />
+              <button id="toggleWifiPassword" class="eye-button button is-small outline icon-button" type="button" aria-label="显示密码">
+                <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5c5.5 0 9.6 4.1 11 6.9-.2.4-1.1 2-2.8 3.6C18.5 17.2 15.7 19 12 19s-6.5-1.8-8.2-3.5C2.1 13.9 1.2 12.3 1 11.9 2.4 9.1 6.5 5 12 5zm0 2c-3.7 0-6.9 2.3-8.7 4.9 1.8 2.6 5 4.9 8.7 4.9s6.9-2.3 8.7-4.9C18.9 9.3 15.7 7 12 7zm0 2.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="field webdav-actions">
+            <button id="btnWifiReload" class="button is-small outline" type="button">重新读取</button>
+            <button id="btnWifiSave" class="button primary" type="button">保存到设备</button>
           </div>
         </div>
 
-        <div class="field webdav-actions">
-          <button id="btnReload" class="button is-small outline" type="button">重新读取</button>
-          <button id="btnSave" class="button primary" type="button">保存到设备</button>
-          <span id="webdavStatus" class="muted"></span>
+        <div class="col-6 panel webdav-note">
+          <h5 class="bg-light">说明</h5>
+          <ul class="webdav-help">
+            <li>仅保存到设备配置，不会自动连接。</li>
+            <li>SSID 与密码为空时表示不保存。</li>
+            <li>如需立即生效，请手动触发设备连接逻辑。</li>
+          </ul>
         </div>
       </div>
+    </div>
 
-      <div class="col-6 panel webdav-note">
-        <h5 class="bg-light">说明</h5>
-        <ul class="webdav-help">
-          <li>地址支持 http/https，建议以 / 结尾。</li>
-          <li>用户名和密码可为空，具体取决于你的 WebDAV 服务。</li>
-          <li>保存后会写入设备配置文件，断电后仍保留。</li>
-        </ul>
+    <div class="tab-panel hidden" data-tab="webdav">
+      <div class="row">
+        <div class="col-6 panel webdav-card">
+          <h5 class="bg-light">连接信息</h5>
+          <div class="field">
+            <label for="webdavUrl">地址</label>
+            <input id="webdavUrl" type="text" placeholder="https://example.com/webdav/" />
+            <small class="muted">留空表示关闭 WebDAV。</small>
+          </div>
+
+          <div class="field">
+            <label for="webdavUser">用户名</label>
+            <input id="webdavUser" type="text" placeholder="可留空" />
+          </div>
+
+          <div class="field">
+            <label for="webdavPassword">密码</label>
+            <div class="flex-row gap-small align-center">
+              <input id="webdavPassword" type="password" placeholder="可留空" />
+              <button id="togglePassword" class="eye-button is-small outline icon-button" type="button" aria-label="显示密码">
+                <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5c5.5 0 9.6 4.1 11 6.9-.2.4-1.1 2-2.8 3.6C18.5 17.2 15.7 19 12 19s-6.5-1.8-8.2-3.5C2.1 13.9 1.2 12.3 1 11.9 2.4 9.1 6.5 5 12 5zm0 2c-3.7 0-6.9 2.3-8.7 4.9 1.8 2.6 5 4.9 8.7 4.9s6.9-2.3 8.7-4.9C18.9 9.3 15.7 7 12 7zm0 2.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="field webdav-actions">
+            <button id="btnReload" class="button is-small outline" type="button">重新读取</button>
+            <button id="btnSave" class="button primary" type="button">保存到设备</button>
+          </div>
+        </div>
+
+        <div class="col-6 panel webdav-note">
+          <h5 class="bg-light">说明</h5>
+          <ul class="webdav-help">
+            <li>地址支持 http/https，建议以 / 结尾。</li>
+            <li>用户名和密码可为空，具体取决于你的 WebDAV 服务。</li>
+            <li>保存后会写入设备配置文件，断电后仍保留。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-panel hidden" data-tab="display">
+      <div class="row">
+        <div class="col-6 panel webdav-card">
+          <h5 class="bg-light">展示设置</h5>
+          <div class="field">
+            <p class="muted">此区域预留用于展示相关设置，后续可按需接入设备配置。</p>
+          </div>
+        </div>
+
+        <div class="col-6 panel webdav-note">
+          <h5 class="bg-light">说明</h5>
+          <ul class="webdav-help">
+            <li>展示设置将随版本逐步开放。</li>
+          </ul>
+        </div>
       </div>
     </div>
   </main>

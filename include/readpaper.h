@@ -122,6 +122,10 @@ struct GlobalConfig {
     char webdav_user[64] = "";
     char webdav_pass[64] = "";
 
+    // WiFi 配置（默认为空）
+    char wifi_ssid[64] = "";
+    char wifi_pass[64] = "";
+
     // 未来可以添加更多配置项：
     // bool auto_brightness = true;
     // uint8_t font_scale = 100;

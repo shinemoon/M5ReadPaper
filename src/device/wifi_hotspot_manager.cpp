@@ -1224,6 +1224,74 @@ void WiFiHotspotManager::handleWebdavConfigUpdate() {
     webServer->send(saved ? 200 : 500, "application/json", payload);
 }
 
+void WiFiHotspotManager::handleWifiConfigGet() {
+    if (!webServer) {
+        return;
+    }
+
+    JsonDocument doc;
+    doc["ok"] = true;
+    JsonObject cfg = doc["config"].to<JsonObject>();
+    cfg["ssid"] = g_config.wifi_ssid;
+    cfg["password"] = g_config.wifi_pass;
+
+    String payload;
+    serializeJson(doc, payload);
+    webServer->send(200, "application/json", payload);
+}
+
+void WiFiHotspotManager::handleWifiConfigUpdate() {
+    if (!webServer) {
+        return;
+    }
+
+    String body = webServer->arg("plain");
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, body);
+    if (err) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"invalid json\"}");
+        return;
+    }
+
+    JsonObject cfg = doc["config"].is<JsonObject>() ? doc["config"].as<JsonObject>() : JsonObject();
+
+    auto apply_string = [](char *dest, size_t cap, const char *value) {
+        if (!dest || cap == 0 || !value) {
+            return;
+        }
+        strncpy(dest, value, cap - 1);
+        dest[cap - 1] = '\0';
+    };
+
+    const char *ssid = nullptr;
+    const char *pass = nullptr;
+
+    if (!cfg.isNull()) {
+        if (cfg["ssid"].is<const char*>()) ssid = cfg["ssid"].as<const char*>();
+        if (cfg["password"].is<const char*>()) pass = cfg["password"].as<const char*>();
+    }
+    if (doc["ssid"].is<const char*>()) ssid = doc["ssid"].as<const char*>();
+    if (doc["password"].is<const char*>()) pass = doc["password"].as<const char*>();
+
+    if (ssid) apply_string(g_config.wifi_ssid, sizeof(g_config.wifi_ssid), ssid);
+    if (pass) apply_string(g_config.wifi_pass, sizeof(g_config.wifi_pass), pass);
+
+    bool saved = config_save();
+
+    JsonDocument resp;
+    resp["ok"] = saved;
+    if (!saved) {
+        resp["message"] = "save failed";
+    }
+    JsonObject outCfg = resp["config"].to<JsonObject>();
+    outCfg["ssid"] = g_config.wifi_ssid;
+    outCfg["password"] = g_config.wifi_pass;
+
+    String payload;
+    serializeJson(resp, payload);
+    webServer->send(saved ? 200 : 500, "application/json", payload);
+}
+
 void WiFiHotspotManager::handleNotFound() {
     String message = "File Not Found\n\n";
     message += "URI: " + webServer->uri() + "\n";
@@ -1819,7 +1887,7 @@ void wifi_hotspot_cleanup() {
 
 bool WiFiHotspotManager::connectToWiFiFromToken() {
 #if DBG_WIFI_HOTSPOT
-    Serial.println("[WIFI_HOTSPOT] 尝试从token.json连接WiFi...");
+    Serial.println("[WIFI_HOTSPOT] 尝试从配置连接WiFi...");
 #endif
 
     // 确保NVS已初始化（STA连接需要WiFi/NVS就绪）
@@ -1841,48 +1909,20 @@ bool WiFiHotspotManager::connectToWiFiFromToken() {
     extern bool g_wifi_sta_connected;
     g_wifi_sta_connected = false;
 
-    // 读取token.json文件
-    const char* token_path = "/token.json";
-    if (!InternalFS::fs().exists(token_path)) {
-#if DBG_WIFI_HOTSPOT
-        Serial.println("[WIFI_HOTSPOT] 错误: token.json 文件不存在");
-#endif
+        String ssid = String(g_config.wifi_ssid);
+        String password = String(g_config.wifi_pass);
+        ssid.trim();
+        password.trim();
+
+        if (ssid.length() == 0) {
+    #if DBG_WIFI_HOTSPOT
+        Serial.println("[WIFI_HOTSPOT] 错误: WiFi SSID 未配置");
+    #endif
         return false;
-    }
-
-    File file = InternalFS::fs().open(token_path, FILE_READ);
-    if (!file) {
-#if DBG_WIFI_HOTSPOT
-        Serial.println("[WIFI_HOTSPOT] 错误: 无法打开token.json文件");
-#endif
-        return false;
-    }
-
-    // 解析JSON文件
-    JsonDocument doc;
-    DeserializationError error = deserializeJson(doc, file);
-    file.close();
-
-    if (error) {
-#if DBG_WIFI_HOTSPOT
-        Serial.printf("[WIFI_HOTSPOT] 错误: JSON解析失败: %s\n", error.c_str());
-#endif
-        return false;
-    }
-
-    // 获取WiFi配置
-    const char* ssid = doc["wifi_ap_name"];
-    const char* password = doc["wifi_ap_password"];
-
-    if (!ssid || !password) {
-#if DBG_WIFI_HOTSPOT
-        Serial.println("[WIFI_HOTSPOT] 错误: token.json缺少必要字段");
-#endif
-        return false;
-    }
+        }
 
 #if DBG_WIFI_HOTSPOT
-    Serial.printf("[WIFI_HOTSPOT] 尝试连接到: %s\n", ssid);
+    Serial.printf("[WIFI_HOTSPOT] 尝试连接到: %s\n", ssid.c_str());
 #endif
 
     // 停止热点模式（如果正在运行）
@@ -1896,7 +1936,7 @@ bool WiFiHotspotManager::connectToWiFiFromToken() {
     delay(500);
 
     // 开始连接
-    WiFi.begin(ssid, password);
+    WiFi.begin(ssid.c_str(), password.c_str());
 
     // 等待连接，最多10秒
     int timeout = 20; // 20 * 500ms = 10秒
