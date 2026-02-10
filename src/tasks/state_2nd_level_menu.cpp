@@ -292,21 +292,41 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                 M5.Display.waitDisplay();
 
                 // 从token.json读取配置并尝试连接WiFi
+                // 确保热点管理器已初始化（连接设置不依赖先进入热点页面）
+                wifi_hotspot_init();
+
                 if (g_wifi_hotspot)
                 {
-#if DBG_STATE_MACHINE_TASK
-                    bool connected = g_wifi_hotspot->connectToWiFiFromToken();
-                    if (connected)
+                    if (g_wifi_sta_connected)
                     {
-                        sm_dbg_printf("WiFi连接成功，g_wifi_sta_connected = true\n");
+#if DBG_STATE_MACHINE_TASK
+                        sm_dbg_printf("WiFi已连接，执行断开并关闭无线\n");
+#endif
+                        g_wifi_hotspot->disconnectWiFi();
                     }
                     else
                     {
-                        sm_dbg_printf("WiFi连接失败，g_wifi_sta_connected = false\n");
-                    }
+#if DBG_STATE_MACHINE_TASK
+                        bool connected = g_wifi_hotspot->connectToWiFiFromToken();
+                        if (connected)
+                        {
+                            sm_dbg_printf("WiFi连接成功，g_wifi_sta_connected = true\n");
+                        }
+                        else
+                        {
+                            sm_dbg_printf("WiFi连接失败，g_wifi_sta_connected = false\n");
+                            // 失败时确保关闭无线，节能
+                            g_wifi_hotspot->disconnectWiFi();
+                        }
 #else
-                    g_wifi_hotspot->connectToWiFiFromToken();
+                        bool connected = g_wifi_hotspot->connectToWiFiFromToken();
+                        if (!connected)
+                        {
+                            // 失败时确保关闭无线，节能
+                            g_wifi_hotspot->disconnectWiFi();
+                        }
 #endif
+                    }
                 }
 
                 // 无论成功失败，都返回主菜单

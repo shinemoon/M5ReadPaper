@@ -5,6 +5,7 @@
 #include "tasks/state_machine_task.h"
 #include "ui/ui_canvas_utils.h"
 #include "config/config_manager.h"
+#include "globals.h"
 #include <cstring>
 
 extern M5Canvas *g_canvas;
@@ -334,7 +335,8 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
         draw_button(target, btn_cx, btn_cy, "热点连接", true);
         // Add connection settings button 64 pixels below the wireless button
         int16_t btn_cy2 = btn_cy + 104;
-        draw_button(target, btn_cx, btn_cy2, "连接设置", true);
+        const char *wifi_toggle_label = g_wifi_sta_connected ? "关闭无线" : "打开无线";
+        draw_button(target, btn_cx, btn_cy2, wifi_toggle_label, true);
         //        bin_font_print("请按照说明连接WIFI", 28, 0, 540, 0, btn_cy + 45, false, g_canvas, TEXT_ALIGN_CENTER, 540);
 
         // Draw MSC indicator

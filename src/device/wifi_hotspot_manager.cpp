@@ -1744,6 +1744,21 @@ bool WiFiHotspotManager::connectToWiFiFromToken() {
     Serial.println("[WIFI_HOTSPOT] 尝试从token.json连接WiFi...");
 #endif
 
+    // 确保NVS已初始化（STA连接需要WiFi/NVS就绪）
+    esp_err_t nvs_ret = nvs_flash_init();
+    if (nvs_ret == ESP_ERR_NVS_NO_FREE_PAGES || nvs_ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+#if DBG_WIFI_HOTSPOT
+        Serial.println("[WIFI_HOTSPOT] NVS分区满或版本不匹配，正在擦除并重新初始化...");
+#endif
+        nvs_flash_erase();
+        nvs_ret = nvs_flash_init();
+    }
+#if DBG_WIFI_HOTSPOT
+    if (nvs_ret != ESP_OK) {
+        Serial.printf("[WIFI_HOTSPOT] 错误: NVS初始化失败 (%s)\n", esp_err_to_name(nvs_ret));
+    }
+#endif
+
     // 重置连接状态
     extern bool g_wifi_sta_connected;
     g_wifi_sta_connected = false;
