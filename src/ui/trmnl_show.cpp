@@ -10,6 +10,7 @@
 #include <esp_http_client.h>
 #include <esp_crt_bundle.h>
 #include <mbedtls/base64.h>
+#include "ui/ui_canvas_image.h"
 
 extern M5Canvas *g_canvas;
 extern WiFiHotspotManager *g_wifi_hotspot;
@@ -59,7 +60,7 @@ static bool fetch_webdav_rdt_config(String &out_content)
     {
         char auth_raw[160];
         snprintf(auth_raw, sizeof(auth_raw), "%s:%s", webdav_user.c_str(), webdav_pass.c_str());
-        
+
         unsigned char b64[256] = {0};
         size_t out_len = 0;
         if (mbedtls_base64_encode(b64, sizeof(b64) - 1, &out_len,
@@ -78,7 +79,7 @@ static bool fetch_webdav_rdt_config(String &out_content)
     cfg.timeout_ms = 10000;
     cfg.buffer_size = 4096;
     cfg.buffer_size_tx = 1024;
-    cfg.crt_bundle_attach = esp_crt_bundle_attach;  // 启用证书验证
+    cfg.crt_bundle_attach = esp_crt_bundle_attach; // 启用证书验证
     cfg.disable_auto_redirect = false;
 
     if (has_auth)
@@ -225,17 +226,17 @@ bool show_default_trmnl(M5Canvas *canvas)
     // 清空画布
     bin_font_clear_canvas();
 
+    ui_push_image_to_canvas("/spiffs/screenlow.png", 0, 0);
     // 标题区域
-    const int16_t title_y = 40;
-    const int16_t content_start_y = 120;
+    const int16_t title_y = 60;
+    const int16_t content_start_y = 80;
     const int16_t line_height = 50;
-    
+
     // 显示标题
-    bin_font_print("WebDAV 文件同步", 36, TFT_BLACK, 
-                   PAPER_S3_WIDTH, 0, title_y, false, canvas, TEXT_ALIGN_CENTER);
+    bin_font_print("无线连接状态", 36, TFT_BLACK, PAPER_S3_WIDTH, 30, title_y, false, canvas, TEXT_ALIGN_LEFT);
 
     // 分隔线
-    canvas->drawLine(80, title_y + 45, PAPER_S3_WIDTH - 80, title_y + 45, TFT_BLACK);
+    canvas->drawWideLine(0, title_y + 45, PAPER_S3_WIDTH - 80, title_y + 45, 1.2f, TFT_BLACK);
 
     int16_t current_y = content_start_y;
 
@@ -244,29 +245,28 @@ bool show_default_trmnl(M5Canvas *canvas)
     {
         // 检查是否配置了 WebDAV（通过 webdav_url 判断）
         bool has_webdav = (strlen(g_config.webdav_url) > 0);
-        
+
         if (has_webdav)
         {
             // ===== WebDAV 云同步模式 =====
-            bin_font_print("模式: WebDAV 云同步", 24, TFT_BLACK, 
-                           PAPER_S3_WIDTH - 160, 80, current_y, false, canvas, TEXT_ALIGN_LEFT);
             current_y += line_height;
 
             // 显示连接的 WiFi SSID（显示最近成功连接的，或第一个非空的）
             int wifi_idx = g_config.wifi_last_success_idx >= 0 ? g_config.wifi_last_success_idx : 0;
-            bool wifi_found = false;
-            for (int i = 0; i < 3; i++) {
+            for (int i = 0; i < 3; i++)
+            {
                 int check_idx = (wifi_idx + i) % 3;
-                if (strlen(g_config.wifi_ssid[check_idx]) > 0) {
+                if (strlen(g_config.wifi_ssid[check_idx]) > 0)
+                {
                     std::string wifi_text = "WiFi: ";
                     wifi_text += g_config.wifi_ssid[check_idx];
-                    if (check_idx == g_config.wifi_last_success_idx) {
-                        wifi_text += " ✓";
+                    if (check_idx == g_config.wifi_last_success_idx)
+                    {
+                        wifi_text += "";
                     }
-                    bin_font_print(wifi_text, 28, TFT_BLACK, 
-                                   PAPER_S3_WIDTH - 160, 80, current_y, false, canvas, TEXT_ALIGN_LEFT);
+                    bin_font_print(wifi_text, 28, TFT_BLACK,
+                                   PAPER_S3_WIDTH - 160, 30, current_y, false, canvas, TEXT_ALIGN_LEFT);
                     current_y += line_height;
-                    wifi_found = true;
                     break;
                 }
             }
@@ -274,107 +274,99 @@ bool show_default_trmnl(M5Canvas *canvas)
             // 显示 IP 地址
             std::string ip_text = "IP地址: ";
             ip_text += g_wifi_hotspot->getIPAddress().c_str();
-            bin_font_print(ip_text, 28, TFT_BLACK, 
-                           PAPER_S3_WIDTH - 160, 80, current_y, false, canvas, TEXT_ALIGN_LEFT);
+            bin_font_print(ip_text, 28, TFT_BLACK,
+                           PAPER_S3_WIDTH - 160, 30, current_y, false, canvas, TEXT_ALIGN_LEFT);
             current_y += line_height;
+
+            // 显示标题
+            //            bin_font_print("WebDaV状态", 36, TFT_BLACK, PAPER_S3_WIDTH - 30, 0, current_y, false, canvas, TEXT_ALIGN_RIGHT);
+            // 分隔线
+            // canvas->drawLine(50, current_y + 45, PAPER_S3_WIDTH - 80, current_y + 45, TFT_BLACK);
 
             // 显示 WebDAV 服务器地址
-            current_y += 20;
-            bin_font_print("WebDAV 服务器:", 24, TFT_BLACK, 
-                           PAPER_S3_WIDTH - 160, 80, current_y, false, canvas, TEXT_ALIGN_LEFT);
-            current_y += line_height - 10;
-
-            bin_font_print(g_config.webdav_url, 24, TFT_BLACK, 
-                           PAPER_S3_WIDTH - 160, 80, current_y, false, canvas, TEXT_ALIGN_LEFT);
-            current_y += line_height;
+            current_y += 320;
+            bin_font_print("WebDAV 服务器:", 24, TFT_BLACK,
+                           PAPER_S3_WIDTH - 30, 0, current_y, false, canvas, TEXT_ALIGN_RIGHT);
+            current_y += 35;
+            canvas->drawLine(50, current_y, PAPER_S3_WIDTH, current_y, TFT_BLACK);
+            canvas->drawWideLine(270, current_y, PAPER_S3_WIDTH, current_y, 1.2f, TFT_BLACK);
+            current_y += 24;
+            bin_font_print(g_config.webdav_url, 24, TFT_BLACK,
+                           PAPER_S3_WIDTH - 30, 0, current_y, false, canvas, TEXT_ALIGN_RIGHT);
+            current_y += 40;
 
             // 显示用户名
             if (strlen(g_config.webdav_user) > 0)
             {
                 std::string user_text = "用户: ";
                 user_text += g_config.webdav_user;
-                bin_font_print(user_text, 24, TFT_BLACK, 
-                               PAPER_S3_WIDTH - 160, 80, current_y, false, canvas, TEXT_ALIGN_LEFT);
+                bin_font_print(user_text, 24, TFT_BLACK,
+                               PAPER_S3_WIDTH - 30, 0, current_y, false, canvas, TEXT_ALIGN_RIGHT);
                 current_y += line_height;
             }
-
+            canvas->drawLine(0, 760, PAPER_S3_WIDTH - 60, 760, TFT_BLACK);
+            canvas->drawWideLine(0, 760, PAPER_S3_WIDTH - 360, 760, 1.2f, TFT_BLACK);
             // 同步状态提示
-            current_y += 20;
-            bin_font_print("✓ 云同步已就绪", 28, TFT_BLACK, 
-                           PAPER_S3_WIDTH, 0, current_y, false, canvas, TEXT_ALIGN_CENTER);
+            bin_font_print("设置就绪，请通过扩展配置显示。", 24, TFT_BLACK,
+                           PAPER_S3_WIDTH - 30, 30, 780, false, canvas, TEXT_ALIGN_LEFT);
         }
-        else if (g_wifi_hotspot->isRunning())
+        else
         {
-            // ===== 本地热点模式 =====
-            bin_font_print("模式: 本地热点", 24, TFT_BLACK, 
-                           PAPER_S3_WIDTH - 160, 80, current_y, false, canvas, TEXT_ALIGN_LEFT);
+            // ===== WebDAV 云同步模式 =====
             current_y += line_height;
 
-            // 显示热点 SSID
-            std::string ssid_text = "WiFi名称: ";
-            ssid_text += g_wifi_hotspot->getSSID();
-            bin_font_print(ssid_text, 28, TFT_BLACK, 
-                           PAPER_S3_WIDTH - 160, 80, current_y, false, canvas, TEXT_ALIGN_LEFT);
-            current_y += line_height;
-
-            // 显示热点密码
-            std::string pwd_text = "密码: ";
-            pwd_text += g_wifi_hotspot->getPassword();
-            bin_font_print(pwd_text, 28, TFT_BLACK, 
-                           PAPER_S3_WIDTH - 160, 80, current_y, false, canvas, TEXT_ALIGN_LEFT);
-            current_y += line_height;
+            // 显示连接的 WiFi SSID（显示最近成功连接的，或第一个非空的）
+            int wifi_idx = g_config.wifi_last_success_idx >= 0 ? g_config.wifi_last_success_idx : 0;
+            for (int i = 0; i < 3; i++)
+            {
+                int check_idx = (wifi_idx + i) % 3;
+                if (strlen(g_config.wifi_ssid[check_idx]) > 0)
+                {
+                    std::string wifi_text = "WiFi: ";
+                    wifi_text += g_config.wifi_ssid[check_idx];
+                    if (check_idx == g_config.wifi_last_success_idx)
+                    {
+                        wifi_text += "";
+                    }
+                    bin_font_print(wifi_text, 28, TFT_BLACK,
+                                   PAPER_S3_WIDTH - 160, 30, current_y, false, canvas, TEXT_ALIGN_LEFT);
+                    current_y += line_height;
+                    break;
+                }
+            }
 
             // 显示 IP 地址
             std::string ip_text = "IP地址: ";
             ip_text += g_wifi_hotspot->getIPAddress().c_str();
-            bin_font_print(ip_text, 28, TFT_BLACK, 
-                           PAPER_S3_WIDTH - 160, 80, current_y, false, canvas, TEXT_ALIGN_LEFT);
+            bin_font_print(ip_text, 28, TFT_BLACK,
+                           PAPER_S3_WIDTH - 160, 30, current_y, false, canvas, TEXT_ALIGN_LEFT);
             current_y += line_height;
 
-            // 显示本地 WebDAV 访问地址
-            current_y += 20;
-            bin_font_print("访问地址:", 24, TFT_BLACK, 
-                           PAPER_S3_WIDTH - 160, 80, current_y, false, canvas, TEXT_ALIGN_LEFT);
-            current_y += line_height - 10;
-
-            std::string webdav_url = "http://";
-            webdav_url += g_wifi_hotspot->getIPAddress().c_str();
-            bin_font_print(webdav_url, 28, TFT_BLACK, 
-                           PAPER_S3_WIDTH - 160, 80, current_y, false, canvas, TEXT_ALIGN_LEFT);
-            current_y += line_height + 20;
-
-            // 连接的客户端数量
-            int clients = g_wifi_hotspot->getConnectedClients();
-            char client_info[64];
-            snprintf(client_info, sizeof(client_info), "已连接设备: %d", clients);
-            bin_font_print(client_info, 24, TFT_BLACK, 
-                           PAPER_S3_WIDTH - 160, 80, current_y, false, canvas, TEXT_ALIGN_LEFT);
+            // 显示 WebDAV 服务器地址
+            current_y += 320;
+            bin_font_print("WebDAV 服务器:", 24, TFT_BLACK,
+                           PAPER_S3_WIDTH - 30, 0, current_y, false, canvas, TEXT_ALIGN_RIGHT);
+            current_y += 35;
+            canvas->drawLine(50, current_y, PAPER_S3_WIDTH, current_y, TFT_BLACK);
+            canvas->drawWideLine(270, current_y, PAPER_S3_WIDTH, current_y, 1.2f, TFT_BLACK);
+            current_y += 24;
+            bin_font_print("没有有效WebDAV配置", 24, TFT_BLACK,
+                           PAPER_S3_WIDTH - 30, 0, current_y, false, canvas, TEXT_ALIGN_RIGHT);
+            current_y += 40;
         }
-        else
-        {
-            // WiFi 已连接但服务未配置
-            bin_font_print("WiFi 已连接", 32, TFT_BLACK, 
-                           PAPER_S3_WIDTH, 0, PAPER_S3_HEIGHT / 2 - 40, false, canvas, TEXT_ALIGN_CENTER);
-            
-            std::string ip_text = "IP: ";
-            ip_text += g_wifi_hotspot->getIPAddress().c_str();
-            bin_font_print(ip_text, 28, TFT_BLACK, 
-                           PAPER_S3_WIDTH, 0, PAPER_S3_HEIGHT / 2 + 20, false, canvas, TEXT_ALIGN_CENTER);
-        }
-
-        // 操作提示
-        bin_font_print("点击屏幕返回菜单", 24, TFT_BLACK, 
-                       PAPER_S3_WIDTH, 0, PAPER_S3_HEIGHT - 80, false, canvas, TEXT_ALIGN_CENTER);
     }
     else
     {
-        // WiFi 未连接
-        bin_font_print("WiFi 未连接", 32, TFT_BLACK, 
-                       PAPER_S3_WIDTH, 0, PAPER_S3_HEIGHT / 2 - 40, false, canvas, TEXT_ALIGN_CENTER);
-        
-        bin_font_print("请检查网络配置", 28, TFT_BLACK, 
-                       PAPER_S3_WIDTH, 0, PAPER_S3_HEIGHT / 2 + 20, false, canvas, TEXT_ALIGN_CENTER);
+        // ===== WebDAV 云同步模式 =====
+        current_y += line_height;
+        bin_font_print("WiFi 未连接", 28, TFT_BLACK,
+                       PAPER_S3_WIDTH - 160, 30, current_y, false, canvas, TEXT_ALIGN_LEFT);
+        current_y += line_height;
     }
+    // 操作提示
+    bin_font_print("点击屏幕返回菜单", 24, TFT_BLACK,
+                   PAPER_S3_WIDTH, 0, PAPER_S3_HEIGHT - 80, false, canvas, TEXT_ALIGN_CENTER);
+    canvas->drawLine(120, PAPER_S3_HEIGHT - 50, PAPER_S3_WIDTH - 120, PAPER_S3_HEIGHT - 50, TFT_BLACK);
 
     return true;
 }

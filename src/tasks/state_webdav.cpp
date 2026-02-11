@@ -25,7 +25,7 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
     static bool sleepIssued = false;
 
     // if (!g_wifi_sta_connected)
-    if (false)  // Now there will be always default TRMNL
+    if (false) // Now there will be always default TRMNL
     {
 #if DBG_STATE_MACHINE_TASK
         sm_dbg_printf("WEBDAV状态检测到WiFi断开，返回主菜单\n");
@@ -43,25 +43,28 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
     switch (msg->type)
     {
     case MSG_TIMER_MIN_TIMEOUT:
-        if (++shutCnt == READING_IDLE_WAIT_MIN)
-        {
-#if DBG_STATE_MACHINE_TASK
-            sm_dbg_printf("WEBDAV状态收到超时，进入IDLE\n");
-#endif
-            shutCnt = 0;
-            show_lockscreen(PAPER_S3_WIDTH, PAPER_S3_HEIGHT, 30, "双击屏幕解锁");
-            if (g_current_book)
+        // Do not timeout in WEBDAV
+        /*
+            if (++shutCnt == READING_IDLE_WAIT_MIN)
             {
-                TextPageResult tp = g_current_book->currentPage();
-                if (tp.success)
+    #if DBG_STATE_MACHINE_TASK
+                sm_dbg_printf("WEBDAV状态收到超时，进入IDLE\n");
+    #endif
+                shutCnt = 0;
+                show_lockscreen(PAPER_S3_WIDTH, PAPER_S3_HEIGHT, 30, "双击屏幕解锁");
+                if (g_current_book)
                 {
-                    insertAutoTagForFile(g_current_book->filePath(), tp.file_pos);
-                    g_current_book->refreshTagsCache();
+                    TextPageResult tp = g_current_book->currentPage();
+                    if (tp.success)
+                    {
+                        insertAutoTagForFile(g_current_book->filePath(), tp.file_pos);
+                        g_current_book->refreshTagsCache();
+                    }
                 }
+                currentState_ = STATE_IDLE;
+                webdavShown = false;
             }
-            currentState_ = STATE_IDLE;
-            webdavShown = false;
-        }
+                */
         break;
 
     case MSG_BATTERY_STATUS_CHANGED:
@@ -91,7 +94,7 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
         currentState_ = STATE_READING;
         if (g_current_book)
         {
-            g_current_book->renderCurrentPage(font_size, nullptr, true, false, false, false, HSHUTTER_NORMAL_REV);
+            g_current_book->renderCurrentPage(font_size, nullptr, true, false, false, false, RECT);
         }
         break;
 
@@ -119,7 +122,8 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
         {
             webdavShown = true;
             // 显示 TRMNL 界面（尝试从 WebDAV 读取配置，失败则显示默认）
-            trmnl_display(g_canvas);
+            //trmnl_display(g_canvas);
+            show_default_trmnl(g_canvas);
             bin_font_flush_canvas(false, false, true, RECT);
             if (!sleepIssued)
             {
