@@ -157,9 +157,12 @@ bool config_save()
         config_file.printf("webdav_user=%s\n", g_config.webdav_user);
         config_file.printf("webdav_pass=%s\n", g_config.webdav_pass);
 
-        // WiFi 配置
-        config_file.printf("wifi_ssid=%s\n", g_config.wifi_ssid);
-        config_file.printf("wifi_pass=%s\n", g_config.wifi_pass);
+        // WiFi 配置（3组）
+        for (int i = 0; i < 3; i++) {
+            config_file.printf("wifi_ssid_%d=%s\n", i, g_config.wifi_ssid[i]);
+            config_file.printf("wifi_pass_%d=%s\n", i, g_config.wifi_pass[i]);
+        }
+        config_file.printf("wifi_last_success_idx=%d\n", g_config.wifi_last_success_idx);
 
         // 未来扩展的配置项可以在这里添加
         // config_file.printf("auto_brightness=%s\n", g_config.auto_brightness ? "true" : "false");
@@ -401,15 +404,36 @@ static int32_t config_load_from_file(const char* path, GlobalConfig& out_config,
             strncpy(temp_config.webdav_pass, value.c_str(), sizeof(temp_config.webdav_pass) - 1);
             temp_config.webdav_pass[sizeof(temp_config.webdav_pass) - 1] = '\0';
         }
+        else if (key.startsWith("wifi_ssid_"))
+        {
+            int idx = key.substring(10).toInt();
+            if (idx >= 0 && idx < 3) {
+                strncpy(temp_config.wifi_ssid[idx], value.c_str(), sizeof(temp_config.wifi_ssid[idx]) - 1);
+                temp_config.wifi_ssid[idx][sizeof(temp_config.wifi_ssid[idx]) - 1] = '\0';
+            }
+        }
+        else if (key.startsWith("wifi_pass_"))
+        {
+            int idx = key.substring(10).toInt();
+            if (idx >= 0 && idx < 3) {
+                strncpy(temp_config.wifi_pass[idx], value.c_str(), sizeof(temp_config.wifi_pass[idx]) - 1);
+                temp_config.wifi_pass[idx][sizeof(temp_config.wifi_pass[idx]) - 1] = '\0';
+            }
+        }
+        else if (key == "wifi_last_success_idx")
+        {
+            temp_config.wifi_last_success_idx = value.toInt();
+        }
+        // 兼容旧版本单组配置
         else if (key == "wifi_ssid")
         {
-            strncpy(temp_config.wifi_ssid, value.c_str(), sizeof(temp_config.wifi_ssid) - 1);
-            temp_config.wifi_ssid[sizeof(temp_config.wifi_ssid) - 1] = '\0';
+            strncpy(temp_config.wifi_ssid[0], value.c_str(), sizeof(temp_config.wifi_ssid[0]) - 1);
+            temp_config.wifi_ssid[0][sizeof(temp_config.wifi_ssid[0]) - 1] = '\0';
         }
         else if (key == "wifi_pass")
         {
-            strncpy(temp_config.wifi_pass, value.c_str(), sizeof(temp_config.wifi_pass) - 1);
-            temp_config.wifi_pass[sizeof(temp_config.wifi_pass) - 1] = '\0';
+            strncpy(temp_config.wifi_pass[0], value.c_str(), sizeof(temp_config.wifi_pass[0]) - 1);
+            temp_config.wifi_pass[0][sizeof(temp_config.wifi_pass[0]) - 1] = '\0';
         }
     }
 
@@ -474,9 +498,12 @@ static void init_config_defaults(GlobalConfig& config)
     config.webdav_user[0] = '\0';
     config.webdav_pass[0] = '\0';
 
-    // WiFi 默认配置（空字符串）
-    config.wifi_ssid[0] = '\0';
-    config.wifi_pass[0] = '\0';
+    // WiFi 默认配置（3组，空字符串）
+    for (int i = 0; i < 3; i++) {
+        config.wifi_ssid[i][0] = '\0';
+        config.wifi_pass[i][0] = '\0';
+    }
+    config.wifi_last_success_idx = -1;
 }
 
 bool config_load()

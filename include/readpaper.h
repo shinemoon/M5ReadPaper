@@ -122,9 +122,11 @@ struct GlobalConfig {
     char webdav_user[64] = "";
     char webdav_pass[64] = "";
 
-    // WiFi 配置（默认为空）
-    char wifi_ssid[64] = "";
-    char wifi_pass[64] = "";
+    // WiFi 配置（支持3组配置，默认为空）
+    char wifi_ssid[3][64] = {"", "", ""};
+    char wifi_pass[3][64] = {"", "", ""};
+    // 最近一次成功连接的WiFi索引（0-2），-1表示无历史记录
+    int8_t wifi_last_success_idx = -1;
 
     // 未来可以添加更多配置项：
     // bool auto_brightness = true;

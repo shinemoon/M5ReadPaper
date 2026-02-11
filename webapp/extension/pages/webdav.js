@@ -3,14 +3,25 @@
   const urlEl = document.getElementById('webdavUrl');
   const userEl = document.getElementById('webdavUser');
   const passEl = document.getElementById('webdavPassword');
-  const wifiSsidEl = document.getElementById('wifiSsid');
-  const wifiPassEl = document.getElementById('wifiPassword');
+  
+  // WiFi���置元素（3组）
+  const wifiSsidEls = [
+    document.getElementById('wifiSsid0'),
+    document.getElementById('wifiSsid1'),
+    document.getElementById('wifiSsid2')
+  ];
+  const wifiPassEls = [
+    document.getElementById('wifiPassword0'),
+    document.getElementById('wifiPassword1'),
+    document.getElementById('wifiPassword2')
+  ];
+  
   const btnReload = document.getElementById('btnReload');
   const btnSave = document.getElementById('btnSave');
   const btnWifiReload = document.getElementById('btnWifiReload');
   const btnWifiSave = document.getElementById('btnWifiSave');
   const btnToggle = document.getElementById('togglePassword');
-  const btnToggleWifi = document.getElementById('toggleWifiPassword');
+  const btnToggleWifiAll = document.querySelectorAll('.toggle-wifi-password');
   const tabButtons = document.querySelectorAll('.config-tabs .tab-btn');
 
   const getNotePanel = (tabKey) => {
@@ -54,9 +65,7 @@
 
   const setWifiDisabled = (disabled) => {
     if (btnWifiReload) btnWifiReload.disabled = disabled;
-    if (btnWifiSave) btnWifiSave.disabled = disabled;
   };
-
   const b64EncodeUtf8 = (text) => {
     try {
       return btoa(unescape(encodeURIComponent(text)));
@@ -133,6 +142,7 @@
               if (passEl) passEl.value = normalizeField(c.password);
               setStatus('使用扩展本地配置（离线回退）', 'success', 'webdav');
               setWebdavDisabled(false);
+              updateLoadCurrentButtonState();
               return;
             }
             setStatus(`读取失败: ${e.message}`, 'error', 'webdav');
@@ -146,6 +156,7 @@
       setStatus(`读取失败: ${e.message}`, 'error', 'webdav');
     } finally {
       setWebdavDisabled(false);
+      updateLoadCurrentButtonState();
     }
   }
 
@@ -304,6 +315,10 @@
       } catch (e) {
         // ignore
       }
+      
+      // 更新按钮状态
+      updateLoadCurrentButtonState();
+      updateUploadButtonState();
     } catch (e) {
       setStatus(`保存失败: ${e.message}`, 'error', 'webdav');
     } finally {
@@ -318,11 +333,13 @@
     try {
       if (chrome && chrome.storage && chrome.storage.local) {
         await new Promise((resolve) => {
-          chrome.storage.local.get('wifi_config', (res) => {
-            const c = res && res.wifi_config ? res.wifi_config : null;
-            if (c) {
-              if (wifiSsidEl) wifiSsidEl.value = normalizeField(c.ssid);
-              if (wifiPassEl) wifiPassEl.value = normalizeField(c.password);
+          chrome.storage.local.get('wifi_configs', (res) => {
+            const configs = res && res.wifi_configs ? res.wifi_configs : null;
+            if (configs && Array.isArray(configs)) {
+              for (let i = 0; i < 3 && i < configs.length; i++) {
+                if (wifiSsidEls[i]) wifiSsidEls[i].value = normalizeField(configs[i].ssid);
+                if (wifiPassEls[i]) wifiPassEls[i].value = normalizeField(configs[i].password);
+              }
               setStatus('已加载扩展本地配置', 'success', 'wifi');
             }
             resolve();
@@ -338,14 +355,37 @@
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const j = await r.json();
       if (!j || j.ok !== true) throw new Error(j && j.message ? j.message : '读取失败');
-      const cfg = j.config || {};
-      if (wifiSsidEl) wifiSsidEl.value = normalizeField(cfg.ssid);
-      if (wifiPassEl) wifiPassEl.value = normalizeField(cfg.password);
-      setStatus('已同步设备配置', 'success', 'wifi');
+      
+      const configs = j.configs || [];
+      const lastSuccessIdx = j.last_success_idx || -1;
+      
+      for (let i = 0; i < 3; i++) {
+        if (wifiSsidEls[i]) wifiSsidEls[i].value = i < configs.length ? normalizeField(configs[i].ssid) : '';
+        if (wifiPassEls[i]) wifiPassEls[i].value = i < configs.length ? normalizeField(configs[i].password) : '';
+        
+        // 标记最近成功的配置
+        const group = wifiSsidEls[i]?.closest('.wifi-config-group');
+        if (group) {
+          if (i === lastSuccessIdx) {
+            group.classList.add('last-success');
+          } else {
+            group.classList.remove('last-success');
+          }
+        }
+      }
+      
+      setStatus('已同步设备配置' + (lastSuccessIdx >= 0 ? ` (最近成功: WiFi ${lastSuccessIdx + 1})` : ''), 'success', 'wifi');
 
       try {
         if (chrome && chrome.storage && chrome.storage.local) {
-          chrome.storage.local.set({ wifi_config: { ssid: normalizeField(cfg.ssid), password: normalizeField(cfg.password) } });
+          const storageConfigs = [];
+          for (let i = 0; i < 3; i++) {
+            storageConfigs.push({
+              ssid: i < configs.length ? normalizeField(configs[i].ssid) : '',
+              password: i < configs.length ? normalizeField(configs[i].password) : ''
+            });
+          }
+          chrome.storage.local.set({ wifi_configs: storageConfigs });
         }
       } catch (e) {
         // ignore
@@ -353,11 +393,13 @@
     } catch (e) {
       try {
         if (chrome && chrome.storage && chrome.storage.local) {
-          chrome.storage.local.get('wifi_config', (res) => {
-            const c = res && res.wifi_config ? res.wifi_config : null;
-            if (c) {
-              if (wifiSsidEl) wifiSsidEl.value = normalizeField(c.ssid);
-              if (wifiPassEl) wifiPassEl.value = normalizeField(c.password);
+          chrome.storage.local.get('wifi_configs', (res) => {
+            const configs = res && res.wifi_configs ? res.wifi_configs : null;
+            if (configs && Array.isArray(configs)) {
+              for (let i = 0; i < 3 && i < configs.length; i++) {
+                if (wifiSsidEls[i]) wifiSsidEls[i].value = normalizeField(configs[i].ssid);
+                if (wifiPassEls[i]) wifiPassEls[i].value = normalizeField(configs[i].password);
+              }
               setStatus('使用扩展本地配置（离线回退）', 'success', 'wifi');
               setWifiDisabled(false);
               return;
@@ -379,10 +421,16 @@
     setWifiDisabled(true);
     setStatus('保存中...', 'info', 'wifi');
     try {
-      const payload = {
-        ssid: normalizeField(wifiSsidEl ? wifiSsidEl.value : ''),
-        password: normalizeField(wifiPassEl ? wifiPassEl.value : '')
-      };
+      const configs = [];
+      for (let i = 0; i < 3; i++) {
+        configs.push({
+          ssid: normalizeField(wifiSsidEls[i] ? wifiSsidEls[i].value : ''),
+          password: normalizeField(wifiPassEls[i] ? wifiPassEls[i].value : '')
+        });
+      }
+      
+      const payload = { configs: configs };
+      
       const r = await fetch(`${API_BASE}/api/wifi_config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -396,7 +444,7 @@
 
       try {
         if (chrome && chrome.storage && chrome.storage.local) {
-          chrome.storage.local.set({ wifi_config: { ssid: payload.ssid, password: payload.password } });
+          chrome.storage.local.set({ wifi_configs: configs });
         }
       } catch (e) {
         // ignore
@@ -419,6 +467,25 @@
       const isMatch = btn.getAttribute('data-tab') === tabKey;
       btn.classList.toggle('is-active', isMatch);
     });
+    
+    // 切换到展示配置时，更新"读取当前"和"更新到WebDAV"按钮状态，以及背景预览
+    if (tabKey === 'display') {
+      updateLoadCurrentButtonState();
+      updateUploadButtonState();
+      // 延迟一下确保 DOM 已经显示
+      setTimeout(() => {
+        const canvas = document.getElementById('bgCanvas');
+        if (canvas && (canvas.width === 0 || canvas.height === 0)) {
+          const container = document.getElementById('screenPreviewContainer');
+          if (container) {
+            const rect = container.getBoundingClientRect();
+            canvas.width = rect.width || 450;
+            canvas.height = rect.height || 800;
+          }
+        }
+        updateBackgroundPreview();
+      }, 100);
+    }
   };
 
   if (btnReload) btnReload.addEventListener('click', loadConfig);
@@ -432,13 +499,19 @@
       btnToggle.setAttribute('aria-label', next === 'password' ? '显示密码' : '隐藏密码');
     });
   }
-  if (btnToggleWifi && wifiPassEl) {
-    btnToggleWifi.addEventListener('click', () => {
-      const next = wifiPassEl.type === 'password' ? 'text' : 'password';
-      wifiPassEl.type = next;
-      btnToggleWifi.setAttribute('aria-label', next === 'password' ? '显示密码' : '隐藏密码');
+  
+  // WiFi密码显示/隐藏（支持3组）
+  btnToggleWifiAll.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-target');
+      const targetEl = document.getElementById(targetId);
+      if (targetEl) {
+        const next = targetEl.type === 'password' ? 'text' : 'password';
+        targetEl.type = next;
+        btn.setAttribute('aria-label', next === 'password' ? '显示密码' : '隐藏密码');
+      }
     });
-  }
+  });
   tabButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       const key = btn.getAttribute('data-tab');
@@ -446,15 +519,1729 @@
     });
   });
 
+  // ========== 展示配置相关 ==========
+  const SCREEN_COLS = 9;
+  const SCREEN_ROWS = 16;
+  let selectedCell = null; // 当前选中的单元格（单选模式）
+  let components = []; // 已添加的组件列表
+  let expandedComponentId = null; // 当前展开的组件 id
+  let backgroundImage = null; // 背景图（base64 或 URL）
+  let hasBgPic = false; // 是否启用背景图
+  let availableFonts = []; // 系统可用字体列表
+
+  // 获取系统字体列表
+  async function loadSystemFonts() {
+    try {
+      // 尝试使用 Font Access API
+      if ('queryLocalFonts' in window) {
+        console.log('使用 Font Access API 获取字体...');
+        const status = await navigator.permissions.query({ name: 'local-fonts' });
+        
+        if (status.state === 'granted' || status.state === 'prompt') {
+          const fonts = await window.queryLocalFonts();
+          const fontFamilies = new Set();
+          
+          fonts.forEach(font => {
+            if (font.family) {
+              fontFamilies.add(font.family);
+            }
+          });
+          
+          availableFonts = Array.from(fontFamilies).sort();
+          console.log(`获取到 ${availableFonts.length} 个系统字体`);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Font Access API 不可用:', e);
+    }
+    
+    // 回退方案：通过 canvas 检测字体是否实际可用
+    console.log('使用 Canvas 检测可用字体...');
+    const testFonts = [
+      // 英文字体
+      'Arial', 'Arial Black', 'Arial Narrow', 'Arial Rounded MT Bold',
+      'Helvetica', 'Helvetica Neue',
+      'Times', 'Times New Roman',
+      'Georgia', 'Garamond', 'Palatino', 'Palatino Linotype',
+      'Courier', 'Courier New',
+      'Verdana', 'Geneva', 'Tahoma',
+      'Trebuchet MS',
+      'Comic Sans MS', 'Comic Sans',
+      'Impact', 'Charcoal',
+      'Lucida Console', 'Lucida Sans', 'Lucida Grande', 'Lucida Sans Unicode',
+      'Monaco', 'Consolas', 'Menlo',
+      'Brush Script MT',
+      'Copperplate', 'Papyrus',
+      'Century Gothic', 'Century Schoolbook', 'Futura',
+      'Gill Sans', 'Optima',
+      'Cambria', 'Calibri', 'Candara', 'Constantia', 'Corbel',
+      'Segoe UI', 'Segoe Print', 'Segoe Script',
+      'Franklin Gothic Medium',
+      'Book Antiqua', 'Bookman Old Style',
+      'MS Sans Serif', 'MS Serif',
+      'System', 'System-ui', 'sans-serif', 'serif', 'monospace',
+      'Rockwell', 'Rockwell Extra Bold',
+      'Baskerville',
+      'Didot',
+      'Hoefler Text',
+      'American Typewriter',
+      'Andale Mono',
+      'Courier Prime',
+      'Noto Sans', 'Noto Serif',
+      // 中文字体（只保留中文名）
+      '微软雅黑',
+      '微软雅黑 Light',
+      '黑体',
+      '宋体',
+      '新宋体',
+      '楷体',
+      '仿宋',
+      '幼圆',
+      '华文仿宋',
+      '华文楷体',
+      '华文宋体',
+      '华文黑体',
+      '华文中宋',
+      '华文细黑',
+      '华文新魏',
+      '华文琥珀',
+      '华文行楷',
+      '华文隶书',
+      '苹方-简',
+      '苹方-繁',
+      '苹方 SC',
+      '苹方 TC',
+      '苹方 HK',
+      '思源黑体',
+      '思源宋体',
+      '文泉驿微米黑',
+      '文泉驿正黑',
+      '文泉驿点阵正黑',
+      '冬青黑体简体中文',
+      '兰亭黑-简',
+      '兰亭黑-繁',
+      '娃娃体-简',
+      '手札体-简',
+      '翩翩体-简',
+      '圆体-简',
+      '方正兰亭黑',
+      '方正舒体',
+      '方正姚体',
+      '方正书宋',
+      '方正黑体',
+      '方正楷体',
+      '隶书',
+      '汉仪旗黑',
+      '汉仪大宋简',
+      '汉仪楷体简',
+      '印品雅圆体',
+      '造字工房悦黑',
+      '造字工房尚黑',
+      '站酷高端黑',
+      '站酷快乐体',
+      'Noto Sans CJK SC',
+      'Noto Sans CJK TC',
+      'Noto Serif CJK SC',
+      'Noto Serif CJK TC'
+    ];
+    
+    availableFonts = detectAvailableFonts(testFonts);
+    console.log(`检测到 ${availableFonts.length} 个可用字体`);
+  }
+  
+  // 通过 Canvas 检测字体是否可用
+  function detectAvailableFonts(fontList) {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    const testStrings = [
+      'mmmmmmmmmmlli',
+      '中文测试字体',
+      'abcdefghijklmnopqrstuvwxyz',
+      '0123456789'
+    ];
+    const testSize = '72px';
+    const baseFonts = ['monospace', 'sans-serif', 'serif'];
+    
+    // 测量基准字体的宽度
+    const baseWidths = {};
+    baseFonts.forEach(baseFont => {
+      baseWidths[baseFont] = [];
+      testStrings.forEach(testString => {
+        context.font = testSize + ' ' + baseFont;
+        baseWidths[baseFont].push(context.measureText(testString).width);
+      });
+    });
+    
+    // 检测每个字体
+    const available = [];
+    fontList.forEach(font => {
+      let detected = false;
+      
+      for (let baseFont of baseFonts) {
+        for (let i = 0; i < testStrings.length; i++) {
+          context.font = testSize + ' "' + font + '",' + baseFont;
+          const width = context.measureText(testStrings[i]).width;
+          
+          // 如果宽度与基准字体不同，说明该字体存在
+          if (Math.abs(width - baseWidths[baseFont][i]) > 0.1) {
+            detected = true;
+            break;
+          }
+        }
+        if (detected) break;
+      }
+      
+      if (detected) {
+        available.push(font);
+      }
+    });
+    
+    return available.sort();
+  }
+
+  // 初始化屏幕预览
+  function initScreenPreview() {
+    const preview = document.getElementById('screenPreview');
+    const canvas = document.getElementById('bgCanvas');
+    if (!preview) return;
+
+    preview.innerHTML = '';
+    preview.style.display = 'grid';
+    preview.style.gridTemplateColumns = `repeat(${SCREEN_COLS}, 1fr)`;
+    preview.style.gridTemplateRows = `repeat(${SCREEN_ROWS}, 1fr)`;
+
+    // 初始化背景canvas
+    if (canvas) {
+      // 等待容器渲染后再设置 canvas 尺寸
+      setTimeout(() => {
+        const container = document.getElementById('screenPreviewContainer');
+        if (container) {
+          const rect = container.getBoundingClientRect();
+          canvas.width = rect.width || 450;
+          canvas.height = rect.height || 800;
+        }
+      }, 100);
+    }
+
+    for (let row = 0; row < SCREEN_ROWS; row++) {
+      for (let col = 0; col < SCREEN_COLS; col++) {
+        const cell = document.createElement('div');
+        cell.className = 'screen-cell';
+        cell.dataset.row = row;
+        cell.dataset.col = col;
+        cell.addEventListener('click', () => toggleCellSelection(row, col));
+        preview.appendChild(cell);
+      }
+    }
+
+    updateBackgroundPreview();
+  }
+
+  // 更新背景预览
+  function updateBackgroundPreview() {
+    const canvas = document.getElementById('bgCanvas');
+    const preview = document.getElementById('screenPreview');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    
+    // 确保 canvas 有正确的尺寸
+    if (canvas.width === 0 || canvas.height === 0) {
+      const container = document.getElementById('screenPreviewContainer');
+      if (container) {
+        const rect = container.getBoundingClientRect();
+        canvas.width = rect.width || 450;
+        canvas.height = rect.height || 800;
+        console.log('Canvas 尺寸初始化:', canvas.width, 'x', canvas.height);
+      }
+    }
+    
+    // 绘制预览组件（包含高亮和文本）
+    const drawPreviewComponents = () => {
+      // 计算单元格尺寸（预览画布）
+      const cellWidth = canvas.width / SCREEN_COLS;
+      const cellHeight = canvas.height / SCREEN_ROWS;
+      
+      components.forEach((comp) => {
+        const x = comp.col * cellWidth;
+        const y = comp.row * cellHeight;
+        const w = comp.width * cellWidth;
+        const h = comp.height * cellHeight;
+        
+        // 绘制组件（支持旋转）
+        const cx = x + w / 2;
+        const cy = y + h / 2;
+        const angle = (comp.rotation || 0) * Math.PI / 180;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(angle);
+
+        // 黄色占位高亮已隐藏（允许组件重叠）
+
+        // 内容背景色
+        if (comp.text && comp.type === 'text') {
+          if (comp.bgColor !== 'transparent' && comp.bgColor !== undefined) {
+            const bgGray = (comp.bgColor || 0) * 17;
+            ctx.fillStyle = `rgb(${bgGray}, ${bgGray}, ${bgGray})`;
+            ctx.fillRect(-w/2, -h/2, w, h);
+          }
+
+          // 文本
+          const textGray = (comp.textColor || 0) * 17;
+          ctx.fillStyle = `rgb(${textGray}, ${textGray}, ${textGray})`;
+          const fontSize = (comp.fontSize || 24) * (canvas.width / 540);
+          const fontFamily = comp.fontFamily || 'Arial';
+          ctx.font = `${fontSize}px ${fontFamily}, sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+
+          const maxCharsPerLine = Math.floor(w / (fontSize * 0.6));
+          const lines = [];
+          let currentLine = '';
+          for (let i = 0; i < comp.text.length; i++) {
+            currentLine += comp.text[i];
+            if (currentLine.length >= maxCharsPerLine || i === comp.text.length - 1) {
+              lines.push(currentLine);
+              currentLine = '';
+            }
+          }
+
+          const lineHeight = fontSize * 1.2;
+          const startYLocal = -(lines.length - 1) * lineHeight / 2;
+          lines.forEach((line, idx) => {
+            ctx.fillText(line, 0, startYLocal + idx * lineHeight);
+          });
+        }
+
+        ctx.restore();
+      });
+    };
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (backgroundImage && hasBgPic) {
+      const img = new Image();
+      img.onload = function() {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        drawPreviewComponents(); // 在背景之上绘制组件
+      };
+      img.onerror = function() {
+        console.error('背景图加载失败');
+        drawPreviewComponents(); // 即使背景图失败也绘制组件
+      };
+      img.src = backgroundImage;
+      
+      // 添加 has-background class
+      if (preview && !preview.classList.contains('has-background')) {
+        preview.classList.add('has-background');
+      }
+    } else {
+      drawPreviewComponents(); // 无背景图时也绘制组件
+      // 移除 has-background class
+      if (preview && preview.classList.contains('has-background')) {
+        preview.classList.remove('has-background');
+      }
+    }
+  }
+
+  // 切换单元格选中状态（单选模式）
+  function toggleCellSelection(row, col) {
+    // 清除之前的选中
+    if (selectedCell) {
+      const oldCell = document.querySelector(`.screen-cell[data-row="${selectedCell.row}"][data-col="${selectedCell.col}"]`);
+      if (oldCell) {
+        oldCell.classList.remove('selected');
+      }
+    }
+    
+    // 如果点击的是同一个单元格，则取消选中
+    if (selectedCell && selectedCell.row === row && selectedCell.col === col) {
+      selectedCell = null;
+      return;
+    }
+    
+    // 选中新单元格
+    selectedCell = { row, col };
+    const cell = document.querySelector(`.screen-cell[data-row="${row}"][data-col="${col}"]`);
+    if (cell) {
+      cell.classList.add('selected');
+    }
+  }
+
+  // 更新屏幕预览，显示组件占用情况
+  function updateScreenPreview() {
+    // 清除所有occupied标记
+    document.querySelectorAll('.screen-cell').forEach(cell => {
+      cell.classList.remove('occupied');
+      cell.title = '';
+    });
+
+    // 标记被组件占用的单元格
+    components.forEach((comp, idx) => {
+      for (let r = comp.row; r < comp.row + comp.height && r < SCREEN_ROWS; r++) {
+        for (let c = comp.col; c < comp.col + comp.width && c < SCREEN_COLS; c++) {
+          const cell = document.querySelector(`.screen-cell[data-row="${r}"][data-col="${c}"]`);
+          if (cell) {
+            cell.classList.add('occupied');
+            cell.title = `组件 ${idx + 1}: ${comp.type}`;
+          }
+        }
+      }
+    });
+  }
+
+  // 添加组件
+  function addComponent() {
+    if (!selectedCell) {
+      alert('请先在左侧预览区域选择起始位置');
+      return;
+    }
+
+    const minRow = selectedCell.row;
+    const minCol = selectedCell.col;
+
+    const type = document.getElementById('componentType')?.value || 'text';
+    const width = parseInt(document.getElementById('componentWidth')?.value || 3);
+    const height = parseInt(document.getElementById('componentHeight')?.value || 2);
+
+    // 检查是否超出边界
+    if (minCol + width > SCREEN_COLS) {
+      alert(`组件宽度超出屏幕范围（${minCol + 1} + ${width} > ${SCREEN_COLS}）`);
+      return;
+    }
+    if (minRow + height > SCREEN_ROWS) {
+      alert(`组件高度超出屏幕范围（${minRow + 1} + ${height} > ${SCREEN_ROWS}）`);
+      return;
+    }
+
+    // 允许组件交叠，按添加顺序渲染（后添加的在上层）
+
+    const component = {
+      id: Date.now(),
+      type: type,
+      row: minRow,
+      col: minCol,
+      width: width,
+      height: height,
+      text: '示例文本',
+      fontSize: 24,
+      fontFamily: 'Arial',
+      textColor: 0,  // 0-15 灰度级别，0=黑色，15=白色
+      bgColor: 'transparent',  // 'transparent' 或 0-15 灰度级别
+      rotation: 0, // 旋转角度，单位度，默认 0
+      dynamic: type !== 'text'  // text类型自动为false（预渲染），其他类型为true（设备动态渲染）
+    };
+
+    components.push(component);
+    
+    // 清除选中状态
+    if (selectedCell) {
+      const cell = document.querySelector(`.screen-cell[data-row="${selectedCell.row}"][data-col="${selectedCell.col}"]`);
+      if (cell) {
+        cell.classList.remove('selected');
+      }
+    }
+    selectedCell = null;
+
+    updateScreenPreview();
+    updateComponentList();
+  }
+
+  // 将组件类型转换为中文标签
+  function getComponentTypeLabel(type) {
+    switch ((type || '').toLowerCase()) {
+      case 'text':
+        return '预渲染文本';
+      case 'image':
+        return '图片';
+      case 'video':
+        return '视频';
+      case 'clock':
+        return '时钟';
+      case 'barcode':
+        return '条码';
+      default:
+        // 首字母大写作为兜底
+        return type ? (type.charAt(0).toUpperCase() + type.slice(1)) : '组件';
+    }
+  }
+
+  // 更新组件列表显示
+  function updateComponentList() {
+    const listEl = document.getElementById('componentList');
+    if (!listEl) return;
+
+    // 保留标题
+    listEl.innerHTML = '<h6>已添加组件</h6>';
+
+    if (components.length === 0) {
+      listEl.innerHTML += '<p class="muted">暂无组件</p>';
+      return;
+    }
+
+    components.forEach((comp, idx) => {
+      const item = document.createElement('div');
+      item.className = 'component-item';
+      item.dataset.componentId = comp.id;
+      
+      const header = document.createElement('div');
+      header.className = 'component-item-header';
+      header.style.cursor = 'pointer';
+      header.style.userSelect = 'none';
+      
+      const toggleIcon = document.createElement('span');
+      toggleIcon.className = 'toggle-icon';
+      toggleIcon.textContent = '▶';
+      toggleIcon.style.display = 'inline-block';
+      toggleIcon.style.marginRight = '8px';
+      toggleIcon.style.transition = 'transform 0.2s';
+      
+      const title = document.createElement('strong');
+      const typeLabel = getComponentTypeLabel(comp.type);
+      title.textContent = `组件 ${idx + 1} - ${typeLabel}`;
+      
+      const info = document.createElement('span');
+      info.className = 'muted';
+      info.textContent = `位置: (${comp.col + 1}, ${comp.row + 1}) | 尺寸: ${comp.width}x${comp.height}`;
+      
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'button is-small error';
+      deleteBtn.textContent = '删除';
+      deleteBtn.dataset.componentId = comp.id;
+      deleteBtn.style.marginLeft = 'auto';
+      
+      header.appendChild(toggleIcon);
+      header.appendChild(title);
+      header.appendChild(info);
+      header.appendChild(deleteBtn);
+      
+      const field = document.createElement('div');
+      field.className = 'field';
+      
+      const textLabel = document.createElement('label');
+      textLabel.textContent = '文本内容';
+      
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = comp.text || '';
+      input.dataset.componentId = comp.id;
+      input.className = 'component-text-input';
+      
+      field.appendChild(textLabel);
+      field.appendChild(input);
+      
+      // 字体大小
+      const sizeField = document.createElement('div');
+      sizeField.className = 'field';
+      
+      const sizeLabel = document.createElement('label');
+      sizeLabel.textContent = '字体大小';
+      
+      const sizeInput = document.createElement('input');
+      sizeInput.type = 'number';
+      sizeInput.value = comp.fontSize || 24;
+      sizeInput.min = 12;
+      sizeInput.max = 72;
+      sizeInput.dataset.componentId = comp.id;
+      sizeInput.className = 'component-fontsize-input';
+      
+      sizeField.appendChild(sizeLabel);
+      sizeField.appendChild(sizeInput);
+      
+      // 列 / 行 位置选择
+      const posField = document.createElement('div');
+      posField.className = 'field';
+
+      const colLabel = document.createElement('label');
+      colLabel.textContent = '列 (1-' + SCREEN_COLS + ')';
+
+      const colSelect = document.createElement('select');
+      colSelect.dataset.componentId = comp.id;
+      colSelect.className = 'component-col-select';
+      for (let c = 0; c < SCREEN_COLS; c++) {
+        const opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = (c + 1).toString();
+        if (c === comp.col) opt.selected = true;
+        colSelect.appendChild(opt);
+      }
+
+      const rowLabel = document.createElement('label');
+      rowLabel.textContent = '行 (1-' + SCREEN_ROWS + ')';
+
+      const rowSelect = document.createElement('select');
+      rowSelect.dataset.componentId = comp.id;
+      rowSelect.className = 'component-row-select';
+      for (let r = 0; r < SCREEN_ROWS; r++) {
+        const opt = document.createElement('option');
+        opt.value = r;
+        opt.textContent = (r + 1).toString();
+        if (r === comp.row) opt.selected = true;
+        rowSelect.appendChild(opt);
+      }
+
+      posField.appendChild(colLabel);
+      posField.appendChild(colSelect);
+      posField.appendChild(rowLabel);
+      posField.appendChild(rowSelect);
+      
+      // 字体选择
+      const fontField = document.createElement('div');
+      fontField.className = 'field';
+      
+      const fontLabel = document.createElement('label');
+      fontLabel.textContent = '字体';
+      
+      const fontSelect = document.createElement('select');
+      fontSelect.dataset.componentId = comp.id;
+      fontSelect.className = 'component-fontfamily-input';
+      
+      // 使用动态获取的字体列表
+      const fonts = availableFonts.length > 0 ? availableFonts : ['Arial', '微软雅黑'];
+      
+      fonts.forEach(font => {
+        const option = document.createElement('option');
+        option.value = font;
+        option.textContent = font;
+        if (font === (comp.fontFamily || 'Arial')) {
+          option.selected = true;
+        }
+        fontSelect.appendChild(option);
+      });
+      
+      fontField.appendChild(fontLabel);
+      fontField.appendChild(fontSelect);
+      
+      // 文本颜色选择
+      const textColorField = document.createElement('div');
+      textColorField.className = 'field';
+      
+      const textColorLabel = document.createElement('label');
+      textColorLabel.textContent = '文本颜色（16级灰度）';
+      
+      const textColorSelect = document.createElement('select');
+      textColorSelect.dataset.componentId = comp.id;
+      textColorSelect.className = 'component-textcolor-input';
+      
+      for (let i = 0; i <= 15; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        const grayValue = i * 17;
+        const grayHex = grayValue.toString(16).padStart(2, '0');
+        option.textContent = `级别 ${i} (#${grayHex}${grayHex}${grayHex})`;
+        option.style.backgroundColor = `rgb(${grayValue}, ${grayValue}, ${grayValue})`;
+        option.style.color = i < 8 ? '#ffffff' : '#000000';
+        if (i === (comp.textColor || 0)) {
+          option.selected = true;
+        }
+        textColorSelect.appendChild(option);
+      }
+      
+      textColorField.appendChild(textColorLabel);
+      textColorField.appendChild(textColorSelect);
+      
+      // 背景颜色选择
+      const bgColorField = document.createElement('div');
+      bgColorField.className = 'field';
+      
+      const bgColorLabel = document.createElement('label');
+      bgColorLabel.textContent = '背景颜色';
+      
+      const bgColorSelect = document.createElement('select');
+      bgColorSelect.dataset.componentId = comp.id;
+      bgColorSelect.className = 'component-bgcolor-input';
+      
+      // 透明选项
+      const transparentOption = document.createElement('option');
+      transparentOption.value = 'transparent';
+      transparentOption.textContent = '透明';
+      if (comp.bgColor === 'transparent' || comp.bgColor === undefined) {
+        transparentOption.selected = true;
+      }
+      bgColorSelect.appendChild(transparentOption);
+      
+      // 16级灰度
+      for (let i = 0; i <= 15; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        const grayValue = i * 17;
+        const grayHex = grayValue.toString(16).padStart(2, '0');
+        option.textContent = `级别 ${i} (#${grayHex}${grayHex}${grayHex})`;
+        option.style.backgroundColor = `rgb(${grayValue}, ${grayValue}, ${grayValue})`;
+        option.style.color = i < 8 ? '#ffffff' : '#000000';
+        if (i === comp.bgColor) {
+          option.selected = true;
+        }
+        bgColorSelect.appendChild(option);
+      }
+      
+      bgColorField.appendChild(bgColorLabel);
+      bgColorField.appendChild(bgColorSelect);
+
+      // 旋转角度
+      const rotField = document.createElement('div');
+      rotField.className = 'field';
+
+      const rotLabel = document.createElement('label');
+      rotLabel.textContent = '旋转角度（度）';
+
+      const rotInput = document.createElement('input');
+      rotInput.type = 'number';
+      rotInput.min = -180;
+      rotInput.max = 180;
+      rotInput.step = 1;
+      rotInput.value = comp.rotation || 0;
+      rotInput.dataset.componentId = comp.id;
+      rotInput.className = 'component-rotation-input';
+
+      rotField.appendChild(rotLabel);
+      rotField.appendChild(rotInput);
+      
+      // 创建详情容器（默认折叠）
+      const detailsContainer = document.createElement('div');
+      detailsContainer.className = 'component-details';
+      // 默认折叠；若该组件之前处于展开状态，则保持展开
+      detailsContainer.style.display = (typeof expandedComponentId !== 'undefined' && expandedComponentId === comp.id) ? 'block' : 'none';
+      detailsContainer.style.marginTop = '10px';
+      
+      detailsContainer.appendChild(field);
+      detailsContainer.appendChild(posField);
+      detailsContainer.appendChild(sizeField);
+      detailsContainer.appendChild(fontField);
+      detailsContainer.appendChild(textColorField);
+      detailsContainer.appendChild(bgColorField);
+      detailsContainer.appendChild(rotField);
+      
+      // 添加折叠/展开功能（只允许一个展开）
+      header.addEventListener('click', (e) => {
+        // 如果点击的是删除按钮，不触发折叠
+        if (e.target === deleteBtn || e.target.closest('.button.is-small.error')) {
+          return;
+        }
+        const isExpanded = detailsContainer.style.display !== 'none';
+
+        if (!isExpanded) {
+          // 收起所有其他详情并重置图标
+          listEl.querySelectorAll('.component-details').forEach(dc => {
+            dc.style.display = 'none';
+          });
+          listEl.querySelectorAll('.toggle-icon').forEach(ti => {
+            ti.style.transform = 'rotate(0deg)';
+          });
+
+          // 展开当前并记录 id
+          detailsContainer.style.display = 'block';
+          toggleIcon.style.transform = 'rotate(90deg)';
+          expandedComponentId = comp.id;
+        } else {
+          // 收起当前并清除记录
+          detailsContainer.style.display = 'none';
+          toggleIcon.style.transform = 'rotate(0deg)';
+          if (expandedComponentId === comp.id) expandedComponentId = null;
+        }
+      });
+      
+      item.appendChild(header);
+      item.appendChild(detailsContainer);
+      listEl.appendChild(item);
+    });
+  }
+
+  // 删除组件
+  function removeComponent(id) {
+    components = components.filter(c => c.id !== id);
+    if (expandedComponentId === id) expandedComponentId = null;
+    updateScreenPreview();
+    updateComponentList();
+    updateBackgroundPreview(); // 重新渲染canvas以移除已删除组件的内容
+  }
+
+  // 更新组件文本
+  function updateComponentText(id, text) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      comp.text = text;
+      updateBackgroundPreview(); // 实时更新预览
+    }
+  }
+
+  // 更新组件列
+  function updateComponentCol(id, col) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      comp.col = Math.max(0, Math.min(SCREEN_COLS - 1, parseInt(col) || 0));
+      updateScreenPreview();
+      updateComponentList();
+      updateBackgroundPreview(); // 更新画布渲染
+    }
+  }
+
+  // 更新组件行
+  function updateComponentRow(id, row) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      comp.row = Math.max(0, Math.min(SCREEN_ROWS - 1, parseInt(row) || 0));
+      updateScreenPreview();
+      updateComponentList();
+      updateBackgroundPreview(); // 更新画布渲染
+    }
+  }
+  
+  // 更新组件字体大小
+  function updateComponentFontSize(id, fontSize) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      comp.fontSize = parseInt(fontSize) || 24;
+      updateBackgroundPreview(); // 实时更新预览
+    }
+  }
+
+  // 更新组件旋转角度
+  function updateComponentRotation(id, rotation) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      comp.rotation = parseInt(rotation) || 0;
+      updateBackgroundPreview(); // 实时更新预览
+    }
+  }
+  
+  // 更新组件字体
+  function updateComponentFontFamily(id, fontFamily) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      comp.fontFamily = fontFamily;
+      updateBackgroundPreview(); // 实时更新预览
+    }
+  }
+  
+  // 更新组件文本颜色
+  function updateComponentTextColor(id, color) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      comp.textColor = parseInt(color) || 0;
+      updateBackgroundPreview();
+    }
+  }
+  
+  // 更新组件背景颜色
+  function updateComponentBgColor(id, color) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      comp.bgColor = color === 'transparent' ? 'transparent' : parseInt(color);
+      updateBackgroundPreview();
+    }
+  }
+  
+  // 复位配置
+  function resetConfig() {
+    if (components.length === 0 && !backgroundImage) {
+      alert('当前没有配置需要复位');
+      return;
+    }
+    
+    if (!confirm('确定要清空所有组件和背景图吗？此操作不可恢复！')) {
+      return;
+    }
+    
+    // 清空所有数据
+    components = [];
+    backgroundImage = null;
+    hasBgPic = false;
+    selectedCell = null;
+    
+    // 清除选中状态
+    document.querySelectorAll('.screen-cell.selected').forEach(cell => {
+      cell.classList.remove('selected');
+    });
+    
+    // 更新界面
+    updateScreenPreview();
+    updateComponentList();
+    updateBackgroundPreview();
+    
+    // 更新复选框
+    const chkIncludeBgPic = document.getElementById('chkIncludeBgPic');
+    if (chkIncludeBgPic) {
+      chkIncludeBgPic.checked = false;
+    }
+    
+    // 清空本地存储
+    try {
+      if (chrome && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.remove(['display_config', 'background_image', 'has_bg_pic']);
+      }
+    } catch (e) {
+      // ignore
+    }
+    
+    setStatus('配置已复位', 'success', 'display');
+  }
+
+  // 生成渲染图片 (.png) - 540x960 分辨率
+  async function generateRenderImage() {
+    return new Promise((resolve, reject) => {
+      try {
+        // 创建离屏 canvas，尺寸为 540x960（M5Paper 分辨率）
+        const canvas = document.createElement('canvas');
+        canvas.width = 540;
+        canvas.height = 960;
+        const ctx = canvas.getContext('2d');
+
+        // 清空背景为白色
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 绘制背景图（如果有）
+        const drawComponents = () => {
+          // 计算单元格尺寸
+          const cellWidth = canvas.width / SCREEN_COLS; // 540 / 9 = 60
+          const cellHeight = canvas.height / SCREEN_ROWS; // 960 / 16 = 60
+
+          // 绘制组件（只渲染 dynamic = false 的组件）
+          components.forEach((comp) => {
+            // 跳过需要设备动态渲染的组件
+            if (comp.dynamic) {
+              return;
+            }
+            
+            const x = comp.col * cellWidth;
+            const y = comp.row * cellHeight;
+            const w = comp.width * cellWidth;
+            const h = comp.height * cellHeight;
+
+            // 绘制文本（支持旋转）
+            if (comp.text && comp.type === 'text') {
+              const cx = x + w / 2;
+              const cy = y + h / 2;
+              const angle = (comp.rotation || 0) * Math.PI / 180;
+              ctx.save();
+              ctx.translate(cx, cy);
+              ctx.rotate(angle);
+
+              // 背景色
+              if (comp.bgColor !== 'transparent' && comp.bgColor !== undefined) {
+                const bgGray = (comp.bgColor || 0) * 17;
+                ctx.fillStyle = `rgb(${bgGray}, ${bgGray}, ${bgGray})`;
+                ctx.fillRect(-w/2, -h/2, w, h);
+              }
+
+              // 文本
+              const textGray = (comp.textColor || 0) * 17;
+              ctx.fillStyle = `rgb(${textGray}, ${textGray}, ${textGray})`;
+              const fontSize = comp.fontSize || 24;
+              const fontFamily = comp.fontFamily || 'Arial';
+              ctx.font = `${fontSize}px ${fontFamily}, sans-serif`;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+
+              // 文本换行处理
+              const maxCharsPerLine = Math.floor(w / (fontSize * 0.6));
+              const lines = [];
+              let currentLine = '';
+              for (let i = 0; i < comp.text.length; i++) {
+                currentLine += comp.text[i];
+                if (currentLine.length >= maxCharsPerLine || i === comp.text.length - 1) {
+                  lines.push(currentLine);
+                  currentLine = '';
+                }
+              }
+
+              const lineHeight = fontSize * 1.2;
+              const startYLocal = -(lines.length - 1) * lineHeight / 2;
+              lines.forEach((line, idx) => {
+                ctx.fillText(line, 0, startYLocal + idx * lineHeight);
+              });
+
+              ctx.restore();
+            }
+          });
+
+          // 转换为 PNG 格式（自动压缩）
+          canvas.toBlob((blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error('无法生成 PNG 图片'));
+            }
+          }, 'image/png', 0.9); // PNG 格式，质量 0.9
+        };
+
+        // 如果有背景图，先绘制背景
+        if (backgroundImage && hasBgPic) {
+          const img = new Image();
+          img.onload = function() {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            drawComponents();
+          };
+          img.onerror = function() {
+            console.error('背景图加载失败，仅绘制组件');
+            drawComponents();
+          };
+          img.src = backgroundImage;
+        } else {
+          drawComponents();
+        }
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
+  // 生成RDT配置JSON
+  function generateRDTConfig() {
+    return {
+      version: '1.0',
+      bgpic: hasBgPic,
+      screen: {
+        width: SCREEN_COLS,
+        height: SCREEN_ROWS
+      },
+      components: components.map(comp => ({
+        type: comp.type,
+        position: {
+          x: comp.col,
+          y: comp.row
+        },
+        size: {
+          width: comp.width,
+          height: comp.height
+        },
+        config: {
+          text: comp.text,
+          fontSize: comp.fontSize || 24,
+          fontFamily: comp.fontFamily || 'Arial',
+          textColor: comp.textColor !== undefined ? comp.textColor : 0,
+          bgColor: comp.bgColor !== undefined ? comp.bgColor : 'transparent',
+          rotation: comp.rotation !== undefined ? comp.rotation : 0
+        },
+        dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
+      }))
+    };
+  }
+
+  // 从 WebDAV 读取当前配置
+  async function loadFromWebDAV() {
+    try {
+      setStatus('从 WebDAV 读取配置...', 'info', 'display');
+      
+      // 获取 WebDAV 配置
+      const url = urlEl ? urlEl.value.trim() : '';
+      const username = userEl ? userEl.value.trim() : '';
+      const password = passEl ? passEl.value : '';
+      
+      if (!url) {
+        setStatus('请先配置 WebDAV', 'error', 'display');
+        return;
+      }
+
+      let base = url;
+      if (!base.endsWith('/')) base += '/';
+      const rdtUrl = base + 'readpaper/readpaper.rdt';
+
+      const headers = {};
+      if (username || password) {
+        const raw = username + ':' + password;
+        const b64 = b64EncodeUtf8(raw);
+        if (b64) {
+          headers['Authorization'] = 'Basic ' + b64;
+        }
+      }
+
+      // 读取 RDT 文件
+      const response = await fetch(rdtUrl, {
+        method: 'GET',
+        headers: headers,
+        credentials: 'omit',
+        cache: 'no-store'
+      });
+
+      if (response.status === 404) {
+        setStatus('WebDAV 上未找到 readpaper.rdt 文件', 'error', 'display');
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const content = await response.text();
+      const config = JSON.parse(content);
+
+      // 解析配置
+      if (config.components && Array.isArray(config.components)) {
+        components = config.components.map((comp, idx) => ({
+          id: Date.now() + idx,
+          type: comp.type || 'text',
+          row: comp.position.y,
+          col: comp.position.x,
+          width: comp.size.width,
+          height: comp.size.height,
+          text: comp.config.text || '',
+          fontSize: comp.config.fontSize || 24,
+          fontFamily: comp.config.fontFamily || 'Arial'
+        }));
+      }
+
+      // 处理 bgpic
+      hasBgPic = !!config.bgpic;
+      
+      if (hasBgPic) {
+        // 尝试读取背景图 _0.png
+        const bgUrl = base + 'readpaper/readpaper_0.png';
+        try {
+          const bgResponse = await fetch(bgUrl, {
+            method: 'GET',
+            headers: headers,
+            credentials: 'omit',
+            cache: 'no-store'
+          });
+          
+          if (bgResponse.ok) {
+            const blob = await bgResponse.blob();
+            const reader = new FileReader();
+            reader.onload = function(e) {
+              backgroundImage = e.target.result;
+              // 延迟更新确保图片加载完成
+              setTimeout(() => {
+                updateBackgroundPreview();
+              }, 50);
+            };
+            reader.readAsDataURL(blob);
+          }
+        } catch (e) {
+          console.warn('无法读取背景图:', e);
+        }
+      } else {
+        backgroundImage = null;
+        updateBackgroundPreview();
+      }
+
+      updateScreenPreview();
+      updateComponentList();
+      
+      // 更新复选框状态
+      const chkIncludeBgPic = document.getElementById('chkIncludeBgPic');
+      if (chkIncludeBgPic) {
+        chkIncludeBgPic.checked = hasBgPic;
+      }
+      
+      setStatus('已从 WebDAV 加载配置', 'success', 'display');
+    } catch (e) {
+      console.error('加载配置失败:', e);
+      setStatus(`加载失败: ${e.message}`, 'error', 'display');
+    }
+  }
+
+  // 修改背景图
+  async function changeBgImage() {
+    const input = document.getElementById('bgImageInput');
+    if (!input) return;
+    
+    input.click();
+  }
+
+  // 处理背景图文件选择
+  function handleBgImageSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // 验证文件类型
+    if (!file.type.match(/^image\/(png|jpeg|jpg)$/)) {
+      alert('请选择 PNG 或 JPG 格式的图片');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      backgroundImage = e.target.result;
+      hasBgPic = true;
+      
+      // 更新复选框
+      const chkIncludeBgPic = document.getElementById('chkIncludeBgPic');
+      if (chkIncludeBgPic) {
+        chkIncludeBgPic.checked = true;
+      }
+      
+      // 确保在图片加载完成后更新预览
+      setTimeout(() => {
+        updateBackgroundPreview();
+        setStatus('背景图已更新（请查看左侧预览）', 'success', 'display');
+      }, 50);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // 保存到本地
+  async function saveToLocal() {
+    try {
+      const config = generateRDTConfig();
+      
+      // 保存 .rdt 文件
+      const rdtBlob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+      const rdtUrl = URL.createObjectURL(rdtBlob);
+      const rdtLink = document.createElement('a');
+      rdtLink.href = rdtUrl;
+      rdtLink.download = 'readpaper.rdt';
+      rdtLink.click();
+      URL.revokeObjectURL(rdtUrl);
+      
+      // 生成并保存渲染图片
+      setStatus('生成渲染图片...', 'info', 'display');
+      const pngBlob = await generateRenderImage();
+      const pngUrl = URL.createObjectURL(pngBlob);
+      const pngLink = document.createElement('a');
+      pngLink.href = pngUrl;
+      pngLink.download = 'readpaper.png';
+      pngLink.click();
+      URL.revokeObjectURL(pngUrl);
+      
+      // 如果有背景图，也一起保存
+      if (backgroundImage && hasBgPic) {
+        // 将背景图转换为 Blob
+        const bgResponse = await fetch(backgroundImage);
+        const bgBlob = await bgResponse.blob();
+        const bgUrl = URL.createObjectURL(bgBlob);
+        const bgLink = document.createElement('a');
+        bgLink.href = bgUrl;
+        bgLink.download = 'readpaper_0.png';
+        bgLink.click();
+        URL.revokeObjectURL(bgUrl);
+        
+        setStatus('已保存 .rdt、.png 和背景图到本地', 'success', 'display');
+      } else {
+        setStatus('已保存 .rdt 和 .png 文件到本地', 'success', 'display');
+      }
+      
+      // 保存到本地存储
+      try {
+        if (chrome && chrome.storage && chrome.storage.local) {
+          chrome.storage.local.set({ 
+            display_config: config,
+            background_image: backgroundImage,
+            has_bg_pic: hasBgPic
+          });
+        }
+      } catch (e) {
+        // ignore
+      }
+    } catch (e) {
+      console.error('保存失败:', e);
+      setStatus(`保存失败: ${e.message}`, 'error', 'display');
+    }
+  }
+
+  // 上传到WebDAV
+  async function uploadToWebDAV() {
+    const config = generateRDTConfig();
+    const content = JSON.stringify(config, null, 2);
+    
+    try {
+      setStatus('上传中...', 'info', 'display');
+      
+      // 获取 WebDAV 配置
+      const url = urlEl ? urlEl.value.trim() : '';
+      const username = userEl ? userEl.value.trim() : '';
+      const password = passEl ? passEl.value : '';
+      
+      if (!url) {
+        setStatus('请先配置 WebDAV', 'error', 'display');
+        return;
+      }
+
+      let base = url;
+      if (!base.endsWith('/')) base += '/';
+      const rdtUrl = base + 'readpaper/readpaper.rdt';
+
+      const headers = {};
+      if (username || password) {
+        const raw = username + ':' + password;
+        const b64 = b64EncodeUtf8(raw);
+        if (b64) {
+          headers['Authorization'] = 'Basic ' + b64;
+        }
+      }
+      headers['Content-Type'] = 'application/json';
+
+      // 上传配置文件
+      const response = await fetch(rdtUrl, {
+        method: 'PUT',
+        headers: headers,
+        body: content,
+        credentials: 'omit',
+        cache: 'no-store'
+      });
+
+      if (!response.ok) {
+        throw new Error(`上传配置失败: HTTP ${response.status}`);
+      }
+
+      // 生成并上传渲染图片
+      setStatus('生成并上传渲染图片...', 'info', 'display');
+      const pngBlob = await generateRenderImage();
+      const pngUrl = base + 'readpaper/readpaper.png';
+      
+      const pngHeaders = {};
+      if (username || password) {
+        const raw = username + ':' + password;
+        const b64 = b64EncodeUtf8(raw);
+        if (b64) {
+          pngHeaders['Authorization'] = 'Basic ' + b64;
+        }
+      }
+      pngHeaders['Content-Type'] = 'image/png';
+
+      const pngResponse = await fetch(pngUrl, {
+        method: 'PUT',
+        headers: pngHeaders,
+        body: pngBlob,
+        credentials: 'omit',
+        cache: 'no-store'
+      });
+
+      if (!pngResponse.ok) {
+        throw new Error(`上传渲染图片失败: HTTP ${pngResponse.status}`);
+      }
+
+      let uploadedFiles = ['配置文件', '渲染图片'];
+
+      // 如果有背景图且用户选中了包含背景图选项，则上传背景图
+      const chkIncludeBgPic = document.getElementById('chkIncludeBgPic');
+      if (hasBgPic && backgroundImage && chkIncludeBgPic && chkIncludeBgPic.checked) {
+        const bgUrl = base + 'readpaper/readpaper_0.png';
+        
+        // 将 base64 转换为 blob
+        const mimeMatch = backgroundImage.match(/^data:([^;]+);base64,/);
+        const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+        const base64Data = backgroundImage.split(',')[1];
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: mimeType });
+
+        const bgHeaders = {};
+        if (username || password) {
+          const raw = username + ':' + password;
+          const b64 = b64EncodeUtf8(raw);
+          if (b64) {
+            bgHeaders['Authorization'] = 'Basic ' + b64;
+          }
+        }
+        bgHeaders['Content-Type'] = mimeType;
+
+        const bgResponse = await fetch(bgUrl, {
+          method: 'PUT',
+          headers: bgHeaders,
+          body: blob,
+          credentials: 'omit',
+          cache: 'no-store'
+        });
+
+        if (!bgResponse.ok) {
+          throw new Error(`上传背景图失败: HTTP ${bgResponse.status}`);
+        }
+        
+        uploadedFiles.push('背景图');
+      }
+      
+      setStatus(`已上传 ${uploadedFiles.join('、')} 到 WebDAV`, 'success', 'display');
+      
+      // 保存到本地存储
+      try {
+        if (chrome && chrome.storage && chrome.storage.local) {
+          chrome.storage.local.set({ 
+            display_config: config,
+            background_image: backgroundImage,
+            has_bg_pic: hasBgPic
+          });
+        }
+      } catch (e) {
+        // ignore
+      }
+      
+      // 更新"读取当前"按钮状态
+      updateLoadCurrentButtonState();
+    } catch (e) {
+      console.error('上传失败:', e);
+      setStatus(`上传失败: ${e.message}`, 'error', 'display');
+    }
+  }
+
+  // 加载配置
+  async function loadDisplayConfig() {
+    try {
+      if (chrome && chrome.storage && chrome.storage.local) {
+        await new Promise((resolve) => {
+          chrome.storage.local.get(['display_config', 'background_image', 'has_bg_pic'], (res) => {
+            const config = res && res.display_config;
+            if (config && config.components) {
+                components = config.components.map((comp, idx) => ({
+                id: Date.now() + idx,
+                type: comp.type || 'text',
+                row: comp.position.y,
+                col: comp.position.x,
+                width: comp.size.width,
+                height: comp.size.height,
+                text: comp.config.text || '',
+                fontSize: comp.config.fontSize || 24,
+                fontFamily: comp.config.fontFamily || 'Arial',
+                  textColor: comp.config.textColor !== undefined ? comp.config.textColor : 0,
+                  bgColor: comp.config.bgColor !== undefined ? comp.config.bgColor : 'transparent',
+                  rotation: comp.config.rotation !== undefined ? comp.config.rotation : 0,
+                  dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
+              }));
+              updateScreenPreview();
+              updateComponentList();
+            }
+
+            // 加载背景图
+            if (res.has_bg_pic && res.background_image) {
+              hasBgPic = true;
+              backgroundImage = res.background_image;
+              // 延迟更新以确保 DOM 已准备好
+              setTimeout(() => {
+                updateBackgroundPreview();
+              }, 100);
+            }
+
+            // 更新复选框
+            const chkIncludeBgPic = document.getElementById('chkIncludeBgPic');
+            if (chkIncludeBgPic) {
+              chkIncludeBgPic.checked = hasBgPic;
+            }
+
+            resolve();
+          });
+        });
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  // 检查 WebDAV 上是否存在 readpaper.rdt
+  async function checkWebDAVRDT() {
+    try {
+      const url = urlEl ? urlEl.value.trim() : '';
+      const username = userEl ? userEl.value.trim() : '';
+      const password = passEl ? passEl.value : '';
+      
+      if (!url) {
+        return false;
+      }
+
+      let base = url;
+      if (!base.endsWith('/')) base += '/';
+      const rdtUrl = base + 'readpaper/readpaper.rdt';
+
+      const headers = {};
+      if (username || password) {
+        const raw = username + ':' + password;
+        const b64 = b64EncodeUtf8(raw);
+        if (b64) {
+          headers['Authorization'] = 'Basic ' + b64;
+        }
+      }
+
+      const response = await fetch(rdtUrl, {
+        method: 'HEAD',
+        headers: headers,
+        credentials: 'omit',
+        cache: 'no-store'
+      });
+
+      return response.ok;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // 检查 WebDAV 服务是否可访问（用于决定上传按钮是否可用）
+  async function checkWebDAVReachable() {
+    try {
+      const url = urlEl ? urlEl.value.trim() : '';
+      const username = userEl ? userEl.value.trim() : '';
+      const password = passEl ? passEl.value : '';
+      if (!url) {
+        console.log('[WebDAV检测] 未配置 URL');
+        return false;
+      }
+
+      let base = url;
+      if (!base.endsWith('/')) base += '/';
+
+      const headers = {};
+      if (username || password) {
+        const raw = username + ':' + password;
+        const b64 = b64EncodeUtf8(raw);
+        if (b64) headers['Authorization'] = 'Basic ' + b64;
+      }
+
+      console.log('[WebDAV检测] 开始检测:', base);
+
+      // 策略1: 尝试 OPTIONS 请求（最轻量，CORS 友好）
+      try {
+        const optResponse = await fetch(base, {
+          method: 'OPTIONS',
+          headers: headers,
+          redirect: 'manual',
+          credentials: 'omit',
+          cache: 'no-store'
+        });
+        
+        if (optResponse.status === 401) {
+          console.warn('[WebDAV检测] OPTIONS 鉴权失败 (401)');
+          return false;
+        }
+        
+        if (optResponse.status >= 200 && optResponse.status < 500) {
+          console.log(`[WebDAV检测] OPTIONS 成功 (HTTP ${optResponse.status}) - 可达`);
+          return true;
+        }
+      } catch (optErr) {
+        console.warn('[WebDAV检测] OPTIONS 请求失败，降级到 HEAD:', optErr.message);
+      }
+
+      // 策略2: 降级到 HEAD 请求
+      try {
+        const headResponse = await fetch(base, {
+          method: 'HEAD',
+          headers: headers,
+          redirect: 'manual',
+          credentials: 'omit',
+          cache: 'no-store'
+        });
+        
+        if (headResponse.status === 401) {
+          console.warn('[WebDAV检测] HEAD 鉴权失败 (401)');
+          return false;
+        }
+        
+        if (headResponse.status >= 200 && headResponse.status < 500) {
+          console.log(`[WebDAV检测] HEAD 成功 (HTTP ${headResponse.status}) - 可达`);
+          return true;
+        }
+      } catch (headErr) {
+        console.warn('[WebDAV检测] HEAD 请求失败，最后尝试 PROPFIND:', headErr.message);
+      }
+
+      // 策略3: 最后尝试 PROPFIND（标准 WebDAV 方法）
+      const propHeaders = { ...headers, 'Depth': '0' };
+      const propResponse = await fetch(base, {
+        method: 'PROPFIND',
+        headers: propHeaders,
+        redirect: 'manual',
+        credentials: 'omit',
+        cache: 'no-store'
+      });
+      
+      if (propResponse.status === 401) {
+        console.warn('[WebDAV检测] PROPFIND 鉴权失败 (401)');
+        return false;
+      }
+      
+      if (propResponse.status >= 200 && propResponse.status < 500) {
+        console.log(`[WebDAV检测] PROPFIND 成功 (HTTP ${propResponse.status}) - 可达`);
+        return true;
+      }
+      
+      console.error(`[WebDAV检测] 所有方法均返回异常状态 (${propResponse.status})`);
+      return false;
+    } catch (e) {
+      console.error('[WebDAV检测] 完全失败 - 可能是网络错误或 CORS 阻止:', e);
+      // 如果所有请求都失败（通常是 CORS 或网络问题），保守地返回 true
+      // 让用户尝试上传，由实际上传操作报告真实错误
+      console.warn('[WebDAV检测] 由于无法确定连通性，允许用户尝试上传');
+      return true;
+    }
+  }
+
+  // 更新"读取当前"按钮状态
+  async function updateLoadCurrentButtonState() {
+    const btnLoadCurrent = document.getElementById('btnLoadCurrent');
+    if (!btnLoadCurrent) return;
+
+    const exists = await checkWebDAVRDT();
+    btnLoadCurrent.disabled = !exists;
+    
+    if (!exists) {
+      btnLoadCurrent.title = 'WebDAV 上不存在 readpaper.rdt 文件';
+    } else {
+      btnLoadCurrent.title = '从 WebDAV 读取配置';
+    }
+  }
+
+  // 更新上传按钮状态
+  async function updateUploadButtonState() {
+    const btn = document.getElementById('btnUploadToWebdav');
+    if (!btn) return;
+    const reachable = await checkWebDAVReachable();
+    btn.disabled = !reachable;
+    if (!reachable) {
+      btn.title = '无法连接到 WebDAV，请检查地址或凭据';
+    } else {
+      btn.title = '上传配置到 WebDAV';
+    }
+  }
+
+  // 绑定展示配置事件
+  const btnAddComponent = document.getElementById('btnAddComponent');
+  const btnUploadToWebdav = document.getElementById('btnUploadToWebdav');
+  const btnSaveLocal = document.getElementById('btnSaveLocal');
+  const btnLoadCurrent = document.getElementById('btnLoadCurrent');
+  const btnChangeBg = document.getElementById('btnChangeBg');
+  const bgImageInput = document.getElementById('bgImageInput');
+  const btnResetConfig = document.getElementById('btnResetConfig');
+
+  if (btnAddComponent) {
+    btnAddComponent.addEventListener('click', addComponent);
+  }
+  if (btnUploadToWebdav) {
+    btnUploadToWebdav.addEventListener('click', uploadToWebDAV);
+  }
+  if (btnSaveLocal) {
+    btnSaveLocal.addEventListener('click', saveToLocal);
+  }
+  if (btnLoadCurrent) {
+    btnLoadCurrent.addEventListener('click', loadFromWebDAV);
+  }
+  if (btnChangeBg) {
+    btnChangeBg.addEventListener('click', changeBgImage);
+  }
+  if (bgImageInput) {
+    bgImageInput.addEventListener('change', handleBgImageSelect);
+  }
+  if (btnResetConfig) {
+    btnResetConfig.addEventListener('click', resetConfig);
+  }
+
+  // 使用事件委托处理组件列表中的删除和文本更新
+  const componentList = document.getElementById('componentList');
+  if (componentList) {
+    componentList.addEventListener('click', (e) => {
+      // 处理删除按钮点击
+      if (e.target.classList.contains('button') && e.target.classList.contains('error')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          removeComponent(id);
+        }
+      }
+    });
+    
+    componentList.addEventListener('input', (e) => {
+      // 处理文本输入变化
+      if (e.target.tagName === 'INPUT' && e.target.type === 'text' && e.target.classList.contains('component-text-input')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          updateComponentText(id, e.target.value);
+        }
+      }
+      // 处理字体大小输入变化
+      if (e.target.tagName === 'INPUT' && e.target.type === 'number' && e.target.classList.contains('component-fontsize-input')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          updateComponentFontSize(id, e.target.value);
+        }
+      }
+      // 处理旋转角度输入变化
+      if (e.target.tagName === 'INPUT' && e.target.type === 'number' && e.target.classList.contains('component-rotation-input')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          updateComponentRotation(id, e.target.value);
+        }
+      }
+    });
+    
+    componentList.addEventListener('change', (e) => {
+      // 处理字体选择变化
+      if (e.target.tagName === 'SELECT' && e.target.classList.contains('component-fontfamily-input')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          updateComponentFontFamily(id, e.target.value);
+        }
+      }
+      // 处理文本颜色变化
+      if (e.target.tagName === 'SELECT' && e.target.classList.contains('component-textcolor-input')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          updateComponentTextColor(id, e.target.value);
+        }
+      }
+      // 处理背景颜色变化
+      if (e.target.tagName === 'SELECT' && e.target.classList.contains('component-bgcolor-input')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          updateComponentBgColor(id, e.target.value);
+        }
+      }
+      // 处理列/行位置变化
+      if (e.target.tagName === 'SELECT' && e.target.classList.contains('component-col-select')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          updateComponentCol(id, e.target.value);
+        }
+      }
+      if (e.target.tagName === 'SELECT' && e.target.classList.contains('component-row-select')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          updateComponentRow(id, e.target.value);
+        }
+      }
+    });
+  }
+
+  // 监听 bgpic 复选框变化
+  const chkIncludeBgPic = document.getElementById('chkIncludeBgPic');
+  if (chkIncludeBgPic) {
+    chkIncludeBgPic.addEventListener('change', (e) => {
+      const wasChecked = hasBgPic;
+      hasBgPic = e.target.checked;
+      
+      // 如果取消勾选，提示用户
+      if (!hasBgPic && wasChecked && backgroundImage) {
+        if (!confirm('取消勾选将不会在上传时包含背景图，但本地预览仍保留。确定吗？')) {
+          e.target.checked = true;
+          hasBgPic = true;
+          return;
+        }
+      }
+      
+      updateBackgroundPreview();
+    });
+  }
+
+  // ========== 初始化 ==========
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
       activateTab('wifi');
+      await loadSystemFonts(); // 先加载字体
+      // 先尽快加载本地草稿并初始化预览，避免被 WebDAV 探测阻塞
+      await loadDisplayConfig();
+      initScreenPreview();
+
+      // 后台异步加载设备配置与 WebDAV 探测，不阻塞 UI
       loadWifiConfig();
       loadConfig();
+      updateLoadCurrentButtonState();
+      updateUploadButtonState();
     });
   } else {
-    activateTab('wifi');
-    loadWifiConfig();
-    loadConfig();
+    (async () => {
+      activateTab('wifi');
+      await loadSystemFonts(); // 先加载字体
+      // 先尽快加载本地草稿并初始化预览，避免被 WebDAV 探测阻塞
+      await loadDisplayConfig();
+      initScreenPreview();
+
+      // 后台异步加载设备配置与 WebDAV 探测，不阻塞 UI
+      loadWifiConfig();
+      loadConfig();
+      updateLoadCurrentButtonState();
+      updateUploadButtonState();
+    })();
   }
 })();

@@ -5,6 +5,7 @@
 #include "device/ui_display.h"
 #include "ui/ui_canvas_utils.h"
 #include "ui/ui_lock_screen.h"
+#include "ui/trmnl_show.h"
 #include "test/per_file_debug.h"
 #include "device/wifi_hotspot_manager.h"
 #include "current_book.h"
@@ -23,7 +24,8 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
     static bool webdavShown = false;
     static bool sleepIssued = false;
 
-    if (!g_wifi_sta_connected)
+    // if (!g_wifi_sta_connected)
+    if (false)  // Now there will be always default TRMNL
     {
 #if DBG_STATE_MACHINE_TASK
         sm_dbg_printf("WEBDAV状态检测到WiFi断开，返回主菜单\n");
@@ -116,8 +118,9 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
         if (!webdavShown)
         {
             webdavShown = true;
-            bin_font_clear_canvas();
-            bin_font_flush_canvas(false, false, true, HSHUTTER_NORMAL);
+            // 显示 TRMNL 界面（尝试从 WebDAV 读取配置，失败则显示默认）
+            trmnl_display(g_canvas);
+            bin_font_flush_canvas(false, false, true, RECT);
             if (!sleepIssued)
             {
                 sleepIssued = true;
@@ -126,10 +129,10 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
                     g_wifi_hotspot->disconnectWiFiDeferred(100);
                 }
                 // Ensure display push queue and panel refresh are done before sleep
-                waitDisplayPushIdle(2000);
+                //              waitDisplayPushIdle(2000);
                 // Sleep 10 seconds then wake
-                esp_sleep_enable_timer_wakeup(10ULL * 1000000ULL);
-                esp_deep_sleep_start();
+                //                esp_sleep_enable_timer_wakeup(10ULL * 1000000ULL);
+                //               esp_deep_sleep_start();
                 return;
             }
         }

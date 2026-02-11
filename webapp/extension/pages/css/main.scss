@@ -151,22 +151,27 @@ progress::-moz-progress-bar,
     height: 100%;
     box-sizing: border-box;
 }
+
 .data-center-controls .controls-inner {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
 }
+
 .data-center-controls .controls-bottom {
     margin-top: 30px;
 }
+
 .data-center-controls .debug-buttons {
     display: flex;
     gap: 0.5rem;
     align-items: center;
 }
+
 .data-center-controls .debug-buttons .button {
     min-width: 0;
 }
+
 .data-center-controls .button {
     max-width: 100%;
     box-sizing: border-box;
@@ -180,6 +185,7 @@ input[type="month"] {
     border-radius: 4px;
     font-size: 0.9rem;
     box-sizing: border-box;
+
     &:focus {
         outline: none;
         border-color: var(--primary-color, #f04f0f);
@@ -194,7 +200,7 @@ input[type="month"] {
     gap: 5px;
     width: 100%;
     align-items: stretch;
-    
+
     .button {
         width: 100%;
         box-sizing: border-box;
@@ -202,14 +208,16 @@ input[type="month"] {
 }
 
 @media (max-width: 720px) {
+
     .data-center-controls .debug-buttons,
-    .data-center-controls .field > .button,
-    .data-center-controls .field > .debug-buttons {
+    .data-center-controls .field>.button,
+    .data-center-controls .field>.debug-buttons {
         display: flex;
         flex-direction: column;
     }
+
     .data-center-controls .debug-buttons .button,
-    .data-center-controls .field > .button {
+    .data-center-controls .field>.button {
         width: 100%;
         box-sizing: border-box;
         margin-bottom: 0.5rem;
@@ -217,16 +225,20 @@ input[type="month"] {
 }
 
 @media (max-width: 400px) {
+
     /* defensive: avoid horizontal scroll from large buttons or paddings */
-    #data-center-page, .container, .row {
+    #data-center-page,
+    .container,
+    .row {
         padding-left: 8px;
         padding-right: 8px;
         box-sizing: border-box;
 
         #listSummary {
-            display:none;
+            display: none;
         }
     }
+
     .data-center-controls {
         padding-left: 4px;
         padding-right: 4px;
@@ -234,18 +246,24 @@ input[type="month"] {
 }
 
 @media (max-width: 768px) {
+
     /* Single column layout for small screens */
-    .row .col-4, .row .col-8 {
+    .row .col-4,
+    .row .col-8 {
         width: 100%;
         margin-bottom: 20px;
     }
+
     .row .col-4 {
-        order: 2; /* Controls below records on small screens */
+        order: 2;
+        /* Controls below records on small screens */
     }
+
     .row .col-8 {
-        order: 1; /* Records first on small screens */
+        order: 1;
+        /* Records first on small screens */
     }
-    
+
     /* Hide time column in record list on narrow screens */
     .time-column {
         display: none;
@@ -254,6 +272,7 @@ input[type="month"] {
 
 /* WebDAV config page */
 #webdav-page {
+
     .webdav-card,
     .webdav-note {
         min-height: 100%;
@@ -282,12 +301,218 @@ input[type="month"] {
         color: #b30000;
         font-weight: 600;
     }
+
+    // WiFi配置组样式
+    .wifi-config-group {
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        background-color: #fafafa;
+        transition: all 0.3s ease;
+
+        &:hover {
+            border-color: #c0c0c0;
+            background-color: #f5f5f5;
+        }
+
+        &.last-success {
+            border-color: #2f6e2f;
+            border-width: 2px;
+            background-color: #f0f8f0;
+
+            .wifi-group-title::after {
+                content: " ✓ 最近成功";
+                color: #2f6e2f;
+                font-size: 0.85em;
+                font-weight: normal;
+            }
+        }
+
+        .wifi-group-title {
+            margin: 0 0 0.75rem 0;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .field {
+            margin-top: 0.75rem;
+        }
+    }
+
+    // 配置标签样式
+    .config-tabs {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        border-bottom: 2px solid #e0e0e0;
+
+        .tab-btn {
+            padding: 0.75rem 1.25rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 1rem;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s ease;
+
+            &:hover {
+                color: #333;
+                background-color: #f5f5f5;
+            }
+
+            &.is-active {
+                color: var(--color-primary, #f04f0f);
+                border-bottom-color: var(--color-primary, #f04f0f);
+                font-weight: 600;
+            }
+        }
+    }
+
+    // 标签面板样式
+    .tab-panel {
+        &.hidden {
+            display: none;
+        }
+
+        &.is-active {
+            display: block;
+        }
+    }
+
+    // 展示配置相关样式
+    .screen-preview-container {
+        position: relative;
+        width: 100%;
+        max-width: 450px;
+        aspect-ratio: 9 / 16;
+        margin: 1rem auto;
+    }
+
+    .screen-bg-canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+        display: block;
+    }
+
+    .screen-preview {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 2;
+        display: grid;
+        width: 100%;
+        max-width: 450px;
+        border: 2px solid #333;
+//        background-color: #fff;
+        gap: 0;
+        cursor: pointer;
+
+        .screen-cell {
+            border: 1px solid #eee;
+            background-color: rgba(250, 250, 250, 0.0); // 更透明的格栅背景
+            transition: all 0.2s ease;
+            cursor: pointer;
+
+            &:hover {
+                background-color: rgba(232, 244, 248, 0.28);
+            }
+
+            &.selected {
+                background-color: rgba(179, 217, 255, 0.6);
+                border-color: #0066cc;
+            }
+
+            // 当有背景图时，降低格栅的显著程度
+            .screen-preview.has-background & {
+                background-color: rgba(250, 250, 250, 0.08);
+            }
+
+            &.occupied {
+                background-color: transparent; // 不填充，仅显示浅黄色边框
+                border-color: rgb(241 167 121 / 90%);
+                box-shadow: inset 0 0 0 2px rgba(255, 235, 59, 0.45);
+
+                &:hover {
+                    box-shadow: inset 0 0 0 2px rgba(253, 216, 53, 0.65);
+                }
+            }
+        }
+    }
+
+    .component-list {
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e0e0e0;
+
+        h6 {
+            margin-bottom: 0.75rem;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .component-item {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background-color: #f9f9f9;
+
+            .component-item-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 0.5rem;
+                margin-bottom: 0.75rem;
+                flex-wrap: wrap;
+
+                strong {
+                    font-size: 0.95rem;
+                }
+
+                .muted {
+                    font-size: 0.85rem;
+                    flex: 1;
+                    min-width: 120px;
+                }
+
+                button {
+                    margin: 0;
+                }
+            }
+
+            .field {
+                margin-top: 0.5rem;
+
+                label {
+                    font-size: 0.9rem;
+                    margin-bottom: 0.25rem;
+                }
+
+                input {
+                    width: 100%;
+                }
+            }
+        }
+    }
 }
 
 @media (max-width: 768px) {
     #webdav-page .row .col-6 {
         width: 100%;
         margin-bottom: 20px;
+    }
+
+    #webdav-page .screen-preview {
+        max-width: 100%;
     }
 }
 
@@ -356,9 +581,23 @@ input[type="month"] {
 }
 
 /* 轨道 */
-.dual-range-input::-webkit-slider-track { background: #e0e0e0; height: 6px; border-radius: 3px; }
-.dual-range-input::-moz-range-track { background: #e0e0e0; height: 6px; border-radius: 3px; }
-.dual-range-input::-ms-track { background: #e0e0e0; height: 6px; border-radius: 3px; }
+.dual-range-input::-webkit-slider-track {
+    background: #e0e0e0;
+    height: 6px;
+    border-radius: 3px;
+}
+
+.dual-range-input::-moz-range-track {
+    background: #e0e0e0;
+    height: 6px;
+    border-radius: 3px;
+}
+
+.dual-range-input::-ms-track {
+    background: #e0e0e0;
+    height: 6px;
+    border-radius: 3px;
+}
 
 /* 方形滑块：矩形外观，微调位置向下 1px */
 .dual-range-input::-webkit-slider-thumb {
@@ -370,13 +609,22 @@ input[type="month"] {
     background: #fff;
     border: 2px solid var(--color-primary);
     cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
     transition: all 0.15s ease;
-    margin-top: -2px; /* 向下移动 1px（相较于之前的 -7px） */
+    margin-top: -2px;
+    /* 向下移动 1px（相较于之前的 -7px） */
 }
 
-.dual-range-input::-webkit-slider-thumb:hover { transform: scale(1.15); box-shadow: 0 3px 10px rgba(240,79,15,0.4); }
-.dual-range-input::-webkit-slider-thumb:active { transform: scale(1.05); background: var(--color-primary); border-color: #c03d0c; }
+.dual-range-input::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 3px 10px rgba(240, 79, 15, 0.4);
+}
+
+.dual-range-input::-webkit-slider-thumb:active {
+    transform: scale(1.05);
+    background: var(--color-primary);
+    border-color: #c03d0c;
+}
 
 .dual-range-input::-moz-range-thumb {
     width: 20px;
@@ -385,13 +633,22 @@ input[type="month"] {
     background: #fff;
     border: 2px solid var(--color-primary);
     cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
     transition: all 0.15s ease;
-    transform: translateY(1px); /* Firefox 下向下偏移 1px */
+    transform: translateY(1px);
+    /* Firefox 下向下偏移 1px */
 }
 
-.dual-range-input::-moz-range-thumb:hover { transform: scale(1.15); box-shadow: 0 3px 10px rgba(240,79,15,0.4); }
-.dual-range-input::-moz-range-thumb:active { transform: scale(1.05); background: var(--color-primary); border-color: #c03d0c; }
+.dual-range-input::-moz-range-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 3px 10px rgba(240, 79, 15, 0.4);
+}
+
+.dual-range-input::-moz-range-thumb:active {
+    transform: scale(1.05);
+    background: var(--color-primary);
+    border-color: #c03d0c;
+}
 
 .dual-range-input::-ms-thumb {
     width: 20px;
@@ -400,13 +657,19 @@ input[type="month"] {
     background: #fff;
     border: 2px solid var(--color-primary);
     cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-    margin-top: -6px; /* IE/Edge 微调 */
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    margin-top: -6px;
+    /* IE/Edge 微调 */
 }
 
-.dual-range-input:focus { outline: none; }
+.dual-range-input:focus {
+    outline: none;
+}
+
 .dual-range-input:focus::-webkit-slider-thumb,
-.dual-range-input:focus::-moz-range-thumb { box-shadow: 0 0 0 3px rgba(240,79,15,0.2), 0 2px 6px rgba(0,0,0,0.2); }
+.dual-range-input:focus::-moz-range-thumb {
+    box-shadow: 0 0 0 3px rgba(240, 79, 15, 0.2), 0 2px 6px rgba(0, 0, 0, 0.2);
+}
 
 /* EDC Book 的滑块样式与 V3 统一（仅样式） */
 #edcThresholdControls input[type="range"] {
@@ -420,9 +683,23 @@ input[type="month"] {
     cursor: pointer;
 }
 
-#edcThresholdControls input[type="range"]::-webkit-slider-track { background: #e0e0e0; height: 6px; border-radius: 3px; }
-#edcThresholdControls input[type="range"]::-moz-range-track { background: #e0e0e0; height: 6px; border-radius: 3px; }
-#edcThresholdControls input[type="range"]::-ms-track { background: #e0e0e0; height: 6px; border-radius: 3px; }
+#edcThresholdControls input[type="range"]::-webkit-slider-track {
+    background: #e0e0e0;
+    height: 6px;
+    border-radius: 3px;
+}
+
+#edcThresholdControls input[type="range"]::-moz-range-track {
+    background: #e0e0e0;
+    height: 6px;
+    border-radius: 3px;
+}
+
+#edcThresholdControls input[type="range"]::-ms-track {
+    background: #e0e0e0;
+    height: 6px;
+    border-radius: 3px;
+}
 
 #edcThresholdControls input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
@@ -433,13 +710,21 @@ input[type="month"] {
     background: #fff;
     border: 2px solid var(--color-primary);
     cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
     transition: all 0.15s ease;
     margin-top: -2px;
 }
 
-#edcThresholdControls input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); box-shadow: 0 3px 10px rgba(240,79,15,0.4); }
-#edcThresholdControls input[type="range"]::-webkit-slider-thumb:active { transform: scale(1.05); background: var(--color-primary); border-color: #c03d0c; }
+#edcThresholdControls input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 3px 10px rgba(240, 79, 15, 0.4);
+}
+
+#edcThresholdControls input[type="range"]::-webkit-slider-thumb:active {
+    transform: scale(1.05);
+    background: var(--color-primary);
+    border-color: #c03d0c;
+}
 
 #edcThresholdControls input[type="range"]::-moz-range-thumb {
     width: 20px;
@@ -448,13 +733,21 @@ input[type="month"] {
     background: #fff;
     border: 2px solid var(--color-primary);
     cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
     transition: all 0.15s ease;
     transform: translateY(1px);
 }
 
-#edcThresholdControls input[type="range"]::-moz-range-thumb:hover { transform: scale(1.15); box-shadow: 0 3px 10px rgba(240,79,15,0.4); }
-#edcThresholdControls input[type="range"]::-moz-range-thumb:active { transform: scale(1.05); background: var(--color-primary); border-color: #c03d0c; }
+#edcThresholdControls input[type="range"]::-moz-range-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 3px 10px rgba(240, 79, 15, 0.4);
+}
+
+#edcThresholdControls input[type="range"]::-moz-range-thumb:active {
+    transform: scale(1.05);
+    background: var(--color-primary);
+    border-color: #c03d0c;
+}
 
 #edcThresholdControls input[type="range"]::-ms-thumb {
     width: 20px;
@@ -463,7 +756,7 @@ input[type="month"] {
     background: #fff;
     border: 2px solid var(--color-primary);
     cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
     margin-top: -6px;
 }
 
@@ -752,13 +1045,13 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    
+
     &:hover {
         background: #f5f5f5 !important;
         border-color: #bbb !important;
         transform: translateY(-1px);
     }
-    
+
     &:active {
         transform: translateY(0) !important;
     }
@@ -1354,9 +1647,9 @@ body {
 }
 
 .eye-button {
-    height:37px;
+    height: 37px;
 }
 
 .field {
-    margin-top:20px;
+    margin-top: 20px;
 }

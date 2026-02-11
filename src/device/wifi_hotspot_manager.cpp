@@ -268,8 +268,14 @@ const char* WiFiHotspotManager::getPassword() const {
 }
 
 String WiFiHotspotManager::getIPAddress() const {
+    // 优先返回热点模式的IP
     if (running) {
         return WiFi.softAPIP().toString();
+    }
+    // 如果是STA模式连接成功，返回STA模式的IP
+    extern bool g_wifi_sta_connected;
+    if (g_wifi_sta_connected && WiFi.status() == WL_CONNECTED) {
+        return WiFi.localIP().toString();
     }
     return "0.0.0.0";
 }
@@ -1231,9 +1237,15 @@ void WiFiHotspotManager::handleWifiConfigGet() {
 
     JsonDocument doc;
     doc["ok"] = true;
-    JsonObject cfg = doc["config"].to<JsonObject>();
-    cfg["ssid"] = g_config.wifi_ssid;
-    cfg["password"] = g_config.wifi_pass;
+    JsonArray configs = doc["configs"].to<JsonArray>();
+    
+    for (int i = 0; i < 3; i++) {
+        JsonObject cfg = configs.add<JsonObject>();
+        cfg["ssid"] = g_config.wifi_ssid[i];
+        cfg["password"] = g_config.wifi_pass[i];
+    }
+    
+    doc["last_success_idx"] = g_config.wifi_last_success_idx;
 
     String payload;
     serializeJson(doc, payload);
@@ -1253,8 +1265,6 @@ void WiFiHotspotManager::handleWifiConfigUpdate() {
         return;
     }
 
-    JsonObject cfg = doc["config"].is<JsonObject>() ? doc["config"].as<JsonObject>() : JsonObject();
-
     auto apply_string = [](char *dest, size_t cap, const char *value) {
         if (!dest || cap == 0 || !value) {
             return;
@@ -1263,6 +1273,27 @@ void WiFiHotspotManager::handleWifiConfigUpdate() {
         dest[cap - 1] = '\0';
     };
 
+    // 支持新格式（configs数组）
+    if (doc["configs"].is<JsonArray>()) {
+        JsonArray configs = doc["configs"].as<JsonArray>();
+        int idx = 0;
+        for (JsonVariant v : configs) {
+            if (idx >= 3) break;
+            if (v.is<JsonObject>()) {
+                JsonObject cfg = v.as<JsonObject>();
+                if (cfg["ssid"].is<const char*>()) {
+                    apply_string(g_config.wifi_ssid[idx], sizeof(g_config.wifi_ssid[idx]), cfg["ssid"].as<const char*>());
+                }
+                if (cfg["password"].is<const char*>()) {
+                    apply_string(g_config.wifi_pass[idx], sizeof(g_config.wifi_pass[idx]), cfg["password"].as<const char*>());
+                }
+            }
+            idx++;
+        }
+    }
+    
+    // 兼容旧格式（单组ssid/password）
+    JsonObject cfg = doc["config"].is<JsonObject>() ? doc["config"].as<JsonObject>() : JsonObject();
     const char *ssid = nullptr;
     const char *pass = nullptr;
 
@@ -1273,8 +1304,8 @@ void WiFiHotspotManager::handleWifiConfigUpdate() {
     if (doc["ssid"].is<const char*>()) ssid = doc["ssid"].as<const char*>();
     if (doc["password"].is<const char*>()) pass = doc["password"].as<const char*>();
 
-    if (ssid) apply_string(g_config.wifi_ssid, sizeof(g_config.wifi_ssid), ssid);
-    if (pass) apply_string(g_config.wifi_pass, sizeof(g_config.wifi_pass), pass);
+    if (ssid) apply_string(g_config.wifi_ssid[0], sizeof(g_config.wifi_ssid[0]), ssid);
+    if (pass) apply_string(g_config.wifi_pass[0], sizeof(g_config.wifi_pass[0]), pass);
 
     bool saved = config_save();
 
@@ -1283,9 +1314,13 @@ void WiFiHotspotManager::handleWifiConfigUpdate() {
     if (!saved) {
         resp["message"] = "save failed";
     }
-    JsonObject outCfg = resp["config"].to<JsonObject>();
-    outCfg["ssid"] = g_config.wifi_ssid;
-    outCfg["password"] = g_config.wifi_pass;
+    JsonArray outConfigs = resp["configs"].to<JsonArray>();
+    for (int i = 0; i < 3; i++) {
+        JsonObject outCfg = outConfigs.add<JsonObject>();
+        outCfg["ssid"] = g_config.wifi_ssid[i];
+        outCfg["password"] = g_config.wifi_pass[i];
+    }
+    resp["last_success_idx"] = g_config.wifi_last_success_idx;
 
     String payload;
     serializeJson(resp, payload);
@@ -1909,27 +1944,6 @@ bool WiFiHotspotManager::connectToWiFiFromToken() {
     extern bool g_wifi_sta_connected;
     g_wifi_sta_connected = false;
 
-        String ssid = String(g_config.wifi_ssid);
-        String password = String(g_config.wifi_pass);
-        ssid.trim();
-        password.trim();
-
-        if (ssid.length() == 0) {
-    #if DBG_WIFI_HOTSPOT
-        Serial.println("[WIFI_HOTSPOT] 错误: WiFi SSID 未配置");
-    #endif
-        return false;
-        }
-
-    #if DBG_WIFI_HOTSPOT
-        Serial.printf("[WIFI_HOTSPOT] WiFi SSID: '%s' (len=%d)\n", ssid.c_str(), ssid.length());
-        Serial.printf("[WIFI_HOTSPOT] WiFi PASS: (len=%d)\n", password.length());
-    #endif
-
-#if DBG_WIFI_HOTSPOT
-    Serial.printf("[WIFI_HOTSPOT] 尝试连接到: %s\n", ssid.c_str());
-#endif
-
     // 停止热点模式（如果正在运行）
     if (running) {
         stop();
@@ -1940,39 +1954,106 @@ bool WiFiHotspotManager::connectToWiFiFromToken() {
     WiFi.mode(WIFI_STA);
     delay(500);
 
-    // 开始连接
-    WiFi.begin(ssid.c_str(), password.c_str());
-
-    // 等待连接，最多10秒
-    int timeout = 20; // 20 * 500ms = 10秒
-    while (WiFi.status() != WL_CONNECTED && timeout > 0) {
-        delay(500);
-        timeout--;
-#if DBG_WIFI_HOTSPOT
-        Serial.print(".");
-#endif
+    // 构建尝试顺序：优先尝试最近成功的WiFi
+    int try_order[3];
+    int try_count = 0;
+    
+    // 先添加最近成功的索引
+    if (g_config.wifi_last_success_idx >= 0 && g_config.wifi_last_success_idx < 3) {
+        String ssid = String(g_config.wifi_ssid[g_config.wifi_last_success_idx]).c_str();
+        ssid.trim();
+        if (ssid.length() > 0) {
+            try_order[try_count++] = g_config.wifi_last_success_idx;
+        }
+    }
+    
+    // 再添加其他配置
+    for (int i = 0; i < 3; i++) {
+        if (i == g_config.wifi_last_success_idx) {
+            continue; // 跳过已添加的
+        }
+        String ssid = String(g_config.wifi_ssid[i]).c_str();
+        ssid.trim();
+        if (ssid.length() > 0) {
+            try_order[try_count++] = i;
+        }
     }
 
+    if (try_count == 0) {
 #if DBG_WIFI_HOTSPOT
-    Serial.println();
+        Serial.println("[WIFI_HOTSPOT] 错误: 没有配置任何WiFi");
 #endif
-
-    if (WiFi.status() == WL_CONNECTED) {
-#if DBG_WIFI_HOTSPOT
-        Serial.println("[WIFI_HOTSPOT] ✅ WiFi连接成功");
-        Serial.printf("[WIFI_HOTSPOT] IP地址: %s\n", WiFi.localIP().toString().c_str());
-#endif
-        g_wifi_sta_connected = true;
-        return true;
-    } else {
-#if DBG_WIFI_HOTSPOT
-        Serial.println("[WIFI_HOTSPOT] ❌ WiFi连接失败");
-#endif
-        WiFi.disconnect();
         WiFi.mode(WIFI_OFF);
-        g_wifi_sta_connected = false;
         return false;
     }
+
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] 找到 %d 组WiFi配置\n", try_count);
+#endif
+
+    // 逐个尝试连接
+    for (int attempt = 0; attempt < try_count; attempt++) {
+        int idx = try_order[attempt];
+        String ssid = String(g_config.wifi_ssid[idx]).c_str();
+        String password = String(g_config.wifi_pass[idx]).c_str();
+        ssid.trim();
+        password.trim();
+
+#if DBG_WIFI_HOTSPOT
+        Serial.printf("[WIFI_HOTSPOT] [%d/%d] 尝试连接: '%s'\n", 
+                      attempt + 1, try_count, ssid.c_str());
+#endif
+
+        // 开始连接
+        WiFi.begin(ssid.c_str(), password.c_str());
+
+        // 等待连接，最多10秒
+        int timeout = 20; // 20 * 500ms = 10秒
+        while (WiFi.status() != WL_CONNECTED && timeout > 0) {
+            delay(500);
+            timeout--;
+#if DBG_WIFI_HOTSPOT
+            Serial.print(".");
+#endif
+        }
+
+#if DBG_WIFI_HOTSPOT
+        Serial.println();
+#endif
+
+        if (WiFi.status() == WL_CONNECTED) {
+#if DBG_WIFI_HOTSPOT
+            Serial.printf("[WIFI_HOTSPOT] ✅ WiFi连接成功: %s\n", ssid.c_str());
+            Serial.printf("[WIFI_HOTSPOT] IP地址: %s\n", WiFi.localIP().toString().c_str());
+#endif
+            // 更新最近成功的索引
+            if (g_config.wifi_last_success_idx != idx) {
+                g_config.wifi_last_success_idx = idx;
+                config_save(); // 保存配置
+#if DBG_WIFI_HOTSPOT
+                Serial.printf("[WIFI_HOTSPOT] 更新最近成功WiFi索引: %d\n", idx);
+#endif
+            }
+            
+            g_wifi_sta_connected = true;
+            return true;
+        } else {
+#if DBG_WIFI_HOTSPOT
+            Serial.printf("[WIFI_HOTSPOT] ❌ 连接失败: %s\n", ssid.c_str());
+#endif
+            WiFi.disconnect();
+            delay(1000); // 等待1秒后尝试下一个
+        }
+    }
+
+    // 所有WiFi都尝试失败
+#if DBG_WIFI_HOTSPOT
+    Serial.println("[WIFI_HOTSPOT] ❌ 所有WiFi配置都连接失败");
+#endif
+    WiFi.disconnect();
+    WiFi.mode(WIFI_OFF);
+    g_wifi_sta_connected = false;
+    return false;
 }
 
 void WiFiHotspotManager::disconnectWiFi() {

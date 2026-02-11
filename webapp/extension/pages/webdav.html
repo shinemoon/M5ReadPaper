@@ -22,22 +22,66 @@
 
     <div class="tab-panel is-active" data-tab="wifi">
       <div class="row">
-        <div class="col-6 panel webdav-card">
-          <h5 class="bg-light">WiFi 信息</h5>
-          <div class="field">
-            <label for="wifiSsid">SSID</label>
-            <input id="wifiSsid" type="text" placeholder="WiFi 名称" />
+        <div class="col-8 panel webdav-card">
+          <h5 class="bg-light">WiFi 配置（最多3组）</h5>
+          
+          <!-- WiFi 配置组 1 -->
+          <div class="wifi-config-group">
+            <h6 class="wifi-group-title">WiFi 配置 1</h6>
+            <div class="field">
+              <label for="wifiSsid0">SSID</label>
+              <input id="wifiSsid0" type="text" placeholder="WiFi 名称" />
+            </div>
+            <div class="field">
+              <label for="wifiPassword0">密码</label>
+              <div class="flex-row gap-small align-center">
+                <input id="wifiPassword0" type="password" placeholder="WiFi 密码" />
+                <button class="toggle-wifi-password button is-small outline icon-button" type="button" data-target="wifiPassword0" aria-label="显示密码">
+                  <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5c5.5 0 9.6 4.1 11 6.9-.2.4-1.1 2-2.8 3.6C18.5 17.2 15.7 19 12 19s-6.5-1.8-8.2-3.5C2.1 13.9 1.2 12.3 1 11.9 2.4 9.1 6.5 5 12 5zm0 2c-3.7 0-6.9 2.3-8.7 4.9 1.8 2.6 5 4.9 8.7 4.9s6.9-2.3 8.7-4.9C18.9 9.3 15.7 7 12 7zm0 2.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div class="field">
-            <label for="wifiPassword">密码</label>
-            <div class="flex-row gap-small align-center">
-              <input id="wifiPassword" type="password" placeholder="WiFi 密码" />
-              <button id="toggleWifiPassword" class="eye-button button is-small outline icon-button" type="button" aria-label="显示密码">
-                <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 5c5.5 0 9.6 4.1 11 6.9-.2.4-1.1 2-2.8 3.6C18.5 17.2 15.7 19 12 19s-6.5-1.8-8.2-3.5C2.1 13.9 1.2 12.3 1 11.9 2.4 9.1 6.5 5 12 5zm0 2c-3.7 0-6.9 2.3-8.7 4.9 1.8 2.6 5 4.9 8.7 4.9s6.9-2.3 8.7-4.9C18.9 9.3 15.7 7 12 7zm0 2.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5z" />
-                </svg>
-              </button>
+          <!-- WiFi 配置组 2 -->
+          <div class="wifi-config-group">
+            <h6 class="wifi-group-title">WiFi 配置 2</h6>
+            <div class="field">
+              <label for="wifiSsid1">SSID</label>
+              <input id="wifiSsid1" type="text" placeholder="WiFi 名称" />
+            </div>
+            <div class="field">
+              <label for="wifiPassword1">密码</label>
+              <div class="flex-row gap-small align-center">
+                <input id="wifiPassword1" type="password" placeholder="WiFi 密码" />
+                <button class="toggle-wifi-password button is-small outline icon-button" type="button" data-target="wifiPassword1" aria-label="显示密码">
+                  <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5c5.5 0 9.6 4.1 11 6.9-.2.4-1.1 2-2.8 3.6C18.5 17.2 15.7 19 12 19s-6.5-1.8-8.2-3.5C2.1 13.9 1.2 12.3 1 11.9 2.4 9.1 6.5 5 12 5zm0 2c-3.7 0-6.9 2.3-8.7 4.9 1.8 2.6 5 4.9 8.7 4.9s6.9-2.3 8.7-4.9C18.9 9.3 15.7 7 12 7zm0 2.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- WiFi 配置组 3 -->
+          <div class="wifi-config-group">
+            <h6 class="wifi-group-title">WiFi 配置 3</h6>
+            <div class="field">
+              <label for="wifiSsid2">SSID</label>
+              <input id="wifiSsid2" type="text" placeholder="WiFi 名称" />
+            </div>
+            <div class="field">
+              <label for="wifiPassword2">密码</label>
+              <div class="flex-row gap-small align-center">
+                <input id="wifiPassword2" type="password" placeholder="WiFi 密码" />
+                <button class="toggle-wifi-password button is-small outline icon-button" type="button" data-target="wifiPassword2" aria-label="显示密码">
+                  <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5c5.5 0 9.6 4.1 11 6.9-.2.4-1.1 2-2.8 3.6C18.5 17.2 15.7 19 12 19s-6.5-1.8-8.2-3.5C2.1 13.9 1.2 12.3 1 11.9 2.4 9.1 6.5 5 12 5zm0 2c-3.7 0-6.9 2.3-8.7 4.9 1.8 2.6 5 4.9 8.7 4.9s6.9-2.3 8.7-4.9C18.9 9.3 15.7 7 12 7zm0 2.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5z" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -47,12 +91,14 @@
           </div>
         </div>
 
-        <div class="col-6 panel webdav-note">
+        <div class="col-4 panel webdav-note">
           <h5 class="bg-light">说明</h5>
           <ul class="webdav-help">
-            <li>仅保存到设备配置，不会自动连接。</li>
-            <li>SSID 与密码为空时表示不保存。</li>
-            <li>如需立即生效，请手动触发设备连接逻辑。</li>
+            <li>支持配置3组WiFi网络</li>
+            <li>连接时会自动轮询尝试</li>
+            <li>优先尝试最近连接成功的WiFi</li>
+            <li>SSID 为空的配置将被忽略</li>
+            <li>保存后需手动触发连接</li>
           </ul>
         </div>
       </div>
@@ -107,15 +153,64 @@
         <div class="col-6 panel webdav-card">
           <h5 class="bg-light">展示设置</h5>
           <div class="field">
-            <p class="muted">此区域预留用于展示相关设置，后续可按需接入设备配置。</p>
+            <label>屏幕布局预览 (9x16)</label>
+            <div class="display-actions" style="margin-bottom: 10px;">
+              <button id="btnLoadCurrent" class="button is-small outline" type="button">读取当前</button>
+              <button id="btnChangeBg" class="button is-small outline" type="button">修改背景</button>
+              <input id="bgImageInput" type="file" accept="image/png,image/jpeg,image/jpg" style="display:none" />
+            </div>
+            <div id="screenPreviewContainer" class="screen-preview-container">
+              <canvas id="bgCanvas" class="screen-bg-canvas"></canvas>
+              <div id="screenPreview" class="screen-preview"></div>
+            </div>
           </div>
         </div>
 
         <div class="col-6 panel webdav-note">
-          <h5 class="bg-light">说明</h5>
-          <ul class="webdav-help">
-            <li>展示设置将随版本逐步开放。</li>
-          </ul>
+          <h5 class="bg-light">组件配置</h5>
+          <div class="field" style="margin-bottom: 10px;">
+            <button id="btnResetConfig" class="button is-small outline" type="button" style="width: 100%;">复位配置</button>
+          </div>
+          <div class="field">
+            <label for="componentType">组件类型</label>
+            <select id="componentType">
+              <option value="text">预渲染文本</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="componentWidth">宽度 (1-9)</label>
+            <input id="componentWidth" type="number" min="1" max="9" value="3" />
+          </div>
+          <div class="field">
+            <label for="componentHeight">高度 (1-16)</label>
+            <input id="componentHeight" type="number" min="1" max="16" value="2" />
+          </div>
+          <div class="field">
+            <button id="btnAddComponent" class="button primary" type="button">
+              <svg style="width:16px;height:16px;vertical-align:middle;margin-right:4px" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
+              </svg>
+              添加组件
+            </button>
+          </div>
+          
+          <div id="componentList" class="component-list">
+            <h6>已添加组件</h6>
+            <!-- 组件列表将动态生成 -->
+          </div>
+        </div>
+      </div>
+      
+      <div class="row" style="margin-top: 20px;">
+        <div class="col-12">
+          <div class="field webdav-actions">
+            <button id="btnUploadToWebdav" class="button primary" type="button">更新到 WebDAV</button>
+            <button id="btnSaveLocal" class="button outline" type="button">保存本地</button>
+            <label style="margin-left: 10px;">
+              <input type="checkbox" id="chkIncludeBgPic" checked />
+              包含背景图
+            </label>
+          </div>
         </div>
       </div>
     </div>
