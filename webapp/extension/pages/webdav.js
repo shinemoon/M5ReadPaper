@@ -763,13 +763,29 @@
       const cellWidth = canvas.width / SCREEN_COLS;
       const cellHeight = canvas.height / SCREEN_ROWS;
       
-      components.forEach((comp) => {
+      components.forEach((comp, idx) => {
         const x = comp.col * cellWidth;
         const y = comp.row * cellHeight;
         const w = comp.width * cellWidth;
         const h = comp.height * cellHeight;
         
-        // 绘制组件（支持旋转）
+        // 对于普通文本（dynamic_text），绘制半透明高亮+标签，不渲染真实文本
+        if (comp.type === 'dynamic_text') {
+          // 半透明黄色高亮
+          ctx.fillStyle = 'rgba(251, 192, 45, 0.3)';
+          ctx.fillRect(x, y, w, h);
+          
+          // 在左上角显示标签
+          const typeLabel = getComponentTypeLabel(comp.type);
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+          ctx.font = '14px Arial, sans-serif';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'top';
+          ctx.fillText(`组件${idx + 1}-${typeLabel}`, x + 4, y + 4);
+          return;  // 跳过后续的旋转渲染
+        }
+        
+        // 绘制预渲染文本组件（支持旋转）
         const cx = x + w / 2;
         const cy = y + h / 2;
         const angle = (comp.rotation || 0) * Math.PI / 180;
@@ -925,12 +941,13 @@
       width: width,
       height: height,
       text: '示例文本',
-      fontSize: 24,
-      fontFamily: 'Arial',
+      fontSize: type === 'dynamic_text' ? 24 : 24,  // 普通文本默认24
+      fontFamily: type === 'dynamic_text' ? '' : 'Arial',  // 普通文本不支持字体选择
       textColor: 0,  // 0-15 灰度级别，0=黑色，15=白色
-      bgColor: 'transparent',  // 'transparent' 或 0-15 灰度级别
-      rotation: 0, // 旋转角度，单位度，默认 0
-      dynamic: type !== 'text'  // text类型自动为false（预渲染），其他类型为true（设备动态渲染）
+      bgColor: type === 'dynamic_text' ? 15 : 'transparent',  // 普通文本默认白色背景(15)，预渲染文本默认透明
+      align: type === 'dynamic_text' ? 'left' : undefined,  // 普通文本支持对齐（left/center/right）
+      rotation: type === 'dynamic_text' ? 0 : 0,  // 普通文本不支持旋转
+      dynamic: type !== 'text'  // text类型自动为false（预渲染），其他类型（包括dynamic_text）为true（设备动态渲染）
     };
 
     components.push(component);
@@ -953,6 +970,8 @@
     switch ((type || '').toLowerCase()) {
       case 'text':
         return '预渲染文本';
+      case 'dynamic_text':
+        return '普通文本';
       case 'image':
         return '图片';
       case 'video':
@@ -1041,8 +1060,14 @@
       const sizeInput = document.createElement('input');
       sizeInput.type = 'number';
       sizeInput.value = comp.fontSize || 24;
-      sizeInput.min = 12;
-      sizeInput.max = 72;
+      // 普通文本（dynamic_text）限制字体大小24-38，预渲染文本12-72
+      if (comp.type === 'dynamic_text') {
+        sizeInput.min = 24;
+        sizeInput.max = 38;
+      } else {
+        sizeInput.min = 12;
+        sizeInput.max = 72;
+      }
       sizeInput.dataset.componentId = comp.id;
       sizeInput.className = 'component-fontsize-input';
       
@@ -1208,10 +1233,50 @@
       detailsContainer.appendChild(field);
       detailsContainer.appendChild(posField);
       detailsContainer.appendChild(sizeField);
-      detailsContainer.appendChild(fontField);
+      // 普通文本（dynamic_text）不支持字体选择和旋转
+      if (comp.type !== 'dynamic_text') {
+        detailsContainer.appendChild(fontField);
+      }
       detailsContainer.appendChild(textColorField);
-      detailsContainer.appendChild(bgColorField);
-      detailsContainer.appendChild(rotField);
+      // 普通文本（dynamic_text）不显示背景色设置
+      if (comp.type !== 'dynamic_text') {
+        detailsContainer.appendChild(bgColorField);
+      }
+      // 普通文本添加对齐选项
+      if (comp.type === 'dynamic_text') {
+        const alignField = document.createElement('div');
+        alignField.className = 'field';
+        
+        const alignLabel = document.createElement('label');
+        alignLabel.textContent = '对齐方式';
+        
+        const alignSelect = document.createElement('select');
+        alignSelect.dataset.componentId = comp.id;
+        alignSelect.className = 'component-align-input';
+        
+        const alignOptions = [
+          { value: 'left', label: '左对齐' },
+          { value: 'center', label: '居中对齐' },
+          { value: 'right', label: '右对齐' }
+        ];
+        
+        alignOptions.forEach(opt => {
+          const option = document.createElement('option');
+          option.value = opt.value;
+          option.textContent = opt.label;
+          if (opt.value === (comp.align || 'left')) {
+            option.selected = true;
+          }
+          alignSelect.appendChild(option);
+        });
+        
+        alignField.appendChild(alignLabel);
+        alignField.appendChild(alignSelect);
+        detailsContainer.appendChild(alignField);
+      }
+      if (comp.type !== 'dynamic_text') {
+        detailsContainer.appendChild(rotField);
+      }
       
       // 添加折叠/展开功能（只允许一个展开）
       header.addEventListener('click', (e) => {
@@ -1331,6 +1396,14 @@
       comp.bgColor = color === 'transparent' ? 'transparent' : parseInt(color);
       updateBackgroundPreview();
     }
+  }
+  
+  // 更新组件对齐方式
+  function updateComponentAlign(id, value) {
+    const comp = components.find(c => c.id === id);
+    if (!comp) return;
+    comp.align = value;
+    updateBackgroundPreview();
   }
   
   // 复位配置
@@ -1492,6 +1565,8 @@
   function generateRDTConfig() {
     return {
       version: '1.0',
+      // timestamp: ISO 格式的最后修改时间，每次生成 .rdt 时更新
+      timestamp: new Date().toISOString(),
       bgpic: hasBgPic,
       screen: {
         width: SCREEN_COLS,
@@ -1513,7 +1588,8 @@
           fontFamily: comp.fontFamily || 'Arial',
           textColor: comp.textColor !== undefined ? comp.textColor : 0,
           bgColor: comp.bgColor !== undefined ? comp.bgColor : 'transparent',
-          rotation: comp.rotation !== undefined ? comp.rotation : 0
+          rotation: comp.rotation !== undefined ? comp.rotation : 0,
+          align: comp.align || 'left'  // 对齐方式
         },
         dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
       }))
@@ -1579,7 +1655,12 @@
           height: comp.size.height,
           text: comp.config.text || '',
           fontSize: comp.config.fontSize || 24,
-          fontFamily: comp.config.fontFamily || 'Arial'
+          fontFamily: comp.config.fontFamily || 'Arial',
+          textColor: comp.config.textColor !== undefined ? comp.config.textColor : 0,
+          bgColor: comp.config.bgColor !== undefined ? comp.config.bgColor : 'transparent',
+          rotation: comp.config.rotation !== undefined ? comp.config.rotation : 0,
+          align: comp.config.align || 'left',
+          dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
         }));
       }
 
@@ -1891,6 +1972,7 @@
                   textColor: comp.config.textColor !== undefined ? comp.config.textColor : 0,
                   bgColor: comp.config.bgColor !== undefined ? comp.config.bgColor : 'transparent',
                   rotation: comp.config.rotation !== undefined ? comp.config.rotation : 0,
+                  align: comp.config.align || 'left',
                   dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
               }));
               updateScreenPreview();
@@ -2175,6 +2257,13 @@
         const id = parseInt(e.target.dataset.componentId);
         if (id && !isNaN(id)) {
           updateComponentBgColor(id, e.target.value);
+        }
+      }
+      // 处理对齐方式变化
+      if (e.target.tagName === 'SELECT' && e.target.classList.contains('component-align-input')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          updateComponentAlign(id, e.target.value);
         }
       }
       // 处理列/行位置变化

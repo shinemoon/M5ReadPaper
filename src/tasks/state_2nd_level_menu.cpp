@@ -349,8 +349,9 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                         else
                         {
                             g_wifi_hotspot->disconnectWiFiDeferred();
-                            show_main_menu(g_canvas, false, 0, 0, false);
-                            currentState_ = STATE_MAIN_MENU;
+ //                           show_main_menu(g_canvas, false, 0, 0, false);
+//                            currentState_ = STATE_MAIN_MENU;
+                            currentState_ = STATE_WEBDAV;
                         }
                     }
                 }

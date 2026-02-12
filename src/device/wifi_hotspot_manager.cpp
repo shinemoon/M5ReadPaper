@@ -2007,8 +2007,8 @@ bool WiFiHotspotManager::connectToWiFiFromToken() {
         // 开始连接
         WiFi.begin(ssid.c_str(), password.c_str());
 
-        // 等待连接，最多10秒
-        int timeout = 20; // 20 * 500ms = 10秒
+        // 等待连接，最多5秒
+        int timeout = 10; // 10 * 500ms = 5秒
         while (WiFi.status() != WL_CONNECTED && timeout > 0) {
             delay(500);
             timeout--;
@@ -2061,7 +2061,14 @@ void WiFiHotspotManager::disconnectWiFi() {
     Serial.println("[WIFI_HOTSPOT] 断开WiFi连接...");
 #endif
 
-    WiFi.disconnect();
+    // 分阶段安全关闭WiFi，给lwIP/TCP协议栈足够时间清理资源
+    // 1. 先断开WiFi连接（不立即关闭模式）
+    WiFi.disconnect(true, false);  // disconnect(wifioff=true, eraseap=false)
+    
+    // 2. 等待100ms让lwIP处理断开事件和清理活跃连接
+    vTaskDelay(pdMS_TO_TICKS(100));
+    
+    // 3. 再关闭WiFi模式
     WiFi.mode(WIFI_OFF);
     
     extern bool g_wifi_sta_connected;
@@ -2088,7 +2095,8 @@ static void wifi_disconnect_task(void *param) {
 
 void WiFiHotspotManager::disconnectWiFiDeferred(uint32_t delay_ms) {
     uint32_t *payload = new uint32_t(delay_ms);
-    if (xTaskCreatePinnedToCore(wifi_disconnect_task, "WiFiDisc", 2048, payload, 1, nullptr, 1) != pdPASS) {
+    // 增加堆栈到4096字节，优先级提高到2，固定在核心1上执行
+    if (xTaskCreatePinnedToCore(wifi_disconnect_task, "WiFiDisc", 4096, payload, 2, nullptr, 1) != pdPASS) {
         delete payload;
         disconnectWiFi();
     }
