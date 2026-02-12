@@ -22,6 +22,7 @@ extern GlobalConfig g_config;
 // 前向声明
 static bool extract_rdt_timestamp(const String &content, String &out_timestamp);
 static bool fetch_daily_poem(String &out_content, String &out_origin);
+static int render_list_items(const char *content, int16_t x, int16_t y, int16_t area_width, int16_t area_height, uint8_t fontSize, uint8_t textColor, int16_t margin);
 
 // 从 WebDAV 读取 readpaper.rdt 文件内容
 static bool fetch_webdav_rdt_config(String &out_content)
@@ -258,8 +259,8 @@ static bool fetch_webdav_rdt_timestamp(String &out_timestamp)
     esp_http_client_config_t cfg = {};
     cfg.url = target_url.c_str();
     cfg.method = HTTP_METHOD_GET;
-    cfg.timeout_ms = 8000;
-    cfg.buffer_size = 2048;
+    cfg.timeout_ms = 10000;
+    cfg.buffer_size = 4096; // 增加到4KB
     cfg.buffer_size_tx = 512;
     cfg.crt_bundle_attach = esp_crt_bundle_attach;
 
@@ -296,6 +297,7 @@ static bool fetch_webdav_rdt_timestamp(String &out_timestamp)
     {
 #if DBG_TRMNL_SHOW
         Serial.printf("[TRMNL] HTTP 读取头失败: %s\n", esp_err_to_name(err));
+
 #endif
         esp_http_client_close(client);
         esp_http_client_cleanup(client);
@@ -313,11 +315,12 @@ static bool fetch_webdav_rdt_timestamp(String &out_timestamp)
         return false;
     }
 
-    // 读取 RDT 内容（限制最大 2KB）
-    char buffer[2048];
+    // 读取 RDT 内容（限制最大 8KB）
+    char buffer[4096];
     int content_length = esp_http_client_get_content_length(client);
     int read_len = 0;
     String rdt_content = "";
+    rdt_content.reserve(8192); // 预分配避免多次重新分配
 
     while (read_len < content_length || content_length == -1)
     {
@@ -330,9 +333,12 @@ static bool fetch_webdav_rdt_timestamp(String &out_timestamp)
         rdt_content += String(buffer);
         read_len += data_read;
 
-        // 限制最大读取 2KB（RDT 文件通常很小）
-        if (read_len >= 2048)
+        // 限制最大读取 8KB（RDT 文件通常较小）
+        if (read_len >= 8192)
         {
+#if DBG_TRMNL_SHOW
+            Serial.println("[TRMNL] 警告：RDT 文件超过8KB，已截断");
+#endif
             break;
         }
     }
@@ -438,7 +444,7 @@ static bool fetch_daily_poem(String &out_content, String &out_origin)
     // 获取响应头
     int content_length = esp_http_client_fetch_headers(client);
     int status = esp_http_client_get_status_code(client);
-    
+
     if (status != 200)
     {
 #if DBG_TRMNL_SHOW
@@ -452,10 +458,10 @@ static bool fetch_daily_poem(String &out_content, String &out_origin)
     // 读取响应内容
     String response_content;
     response_content.reserve(4096);
-    
+
     char buffer[512];
     int total_read = 0;
-    
+
     // 使用 read_response 读取完整响应体
     while (true)
     {
@@ -517,7 +523,7 @@ static bool fetch_daily_poem(String &out_content, String &out_origin)
 
     const char *content = data["content"];
     JsonObject origin = data["origin"].as<JsonObject>();
-    
+
     if (!content || !origin)
     {
 #if DBG_TRMNL_SHOW
@@ -532,7 +538,7 @@ static bool fetch_daily_poem(String &out_content, String &out_origin)
 
     // 分别返回正文和出处信息
     out_content = String(content);
-    
+
     // 格式化出处：标题·朝代·作者
     out_origin = "";
     if (title && strlen(title) > 0)
@@ -541,12 +547,14 @@ static bool fetch_daily_poem(String &out_content, String &out_origin)
     }
     if (dynasty && strlen(dynasty) > 0)
     {
-        if (out_origin.length() > 0) out_origin += "·";
+        if (out_origin.length() > 0)
+            out_origin += "·";
         out_origin += String(dynasty);
     }
     if (author && strlen(author) > 0)
     {
-        if (out_origin.length() > 0) out_origin += "·";
+        if (out_origin.length() > 0)
+            out_origin += "·";
         out_origin += String(author);
     }
 
@@ -555,6 +563,112 @@ static bool fetch_daily_poem(String &out_content, String &out_origin)
 #endif
 
     return true;
+}
+
+// 渲染列表项（分号分隔的文本，带bullet点）
+// 返回实际渲染的项数
+static int render_list_items(
+    const char *content,      // 分号分隔的文本内容
+    int16_t x,                // 起始x坐标
+    int16_t y,                // 起始y坐标
+    int16_t area_width,       // 可用宽度
+    int16_t area_height,      // 可用高度
+    uint8_t fontSize,         // 字体大小
+    uint8_t textColor,        // 文本颜色（0-15灰度）
+    int16_t margin            // 行间距（像素）
+)
+{
+    if (!content || strlen(content) == 0)
+    {
+        return 0;
+    }
+
+    // 计算行高
+    uint8_t base_font_size = get_font_size_from_file();
+    if (base_font_size == 0)
+        base_font_size = 24;
+    float scale_factor = (fontSize > 0) ? ((float)fontSize / (float)base_font_size) : 1.0f;
+    int16_t line_height = (int16_t)(base_font_size * scale_factor) + margin;
+
+    // 计算最多能显示几行
+    int max_lines = area_height / line_height;
+    if (max_lines <= 0)
+        max_lines = 1;
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] 列表渲染: 行高=%d, margin=%d, 最大行数=%d\n", line_height, margin, max_lines);
+#endif
+
+    // 用分号分割文本内容
+    String textStr = String(content);
+    int item_count = 0;
+    int16_t current_y = y;
+
+    int start_pos = 0;
+    for (int i = 0; i < max_lines; i++)
+    {
+        // 查找下一个分号
+        int semicolon_pos = textStr.indexOf(';', start_pos);
+        String item;
+
+        if (semicolon_pos == -1)
+        {
+            // 没有更多分号，取剩余部分
+            item = textStr.substring(start_pos);
+            if (item.length() == 0)
+                break; // 空内容，结束
+        }
+        else
+        {
+            item = textStr.substring(start_pos, semicolon_pos);
+            start_pos = semicolon_pos + 1; // 跳过分号
+        }
+
+        // 跳过空项
+        item.trim();
+        if (item.length() == 0)
+        {
+            if (semicolon_pos == -1)
+                break; // 最后一项为空，结束
+            continue;  // 跳过空项，继续下一项
+        }
+
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] 列表项%d: '%s' at y=%d\n", i + 1, item.c_str(), current_y);
+#endif
+
+        // 绘制 bullet 点（实心圆 + 空心圆形成圆环）
+        g_canvas->fillCircle(x, current_y, 6, TFT_BLACK);
+        g_canvas->fillCircle(x, current_y, 3, TFT_WHITE);
+
+        // 使用 bin_font_print 单行渲染文本
+        bin_font_print(
+            item.c_str(),       // text
+            fontSize,           // font_size
+            textColor,          // color
+            area_width,         // area_width
+            x + 20,             // x（bullet后留20像素）
+            current_y - fontSize / 2, // y（垂直居中）
+            false,              // horizontal
+            g_canvas,
+            TEXT_ALIGN_LEFT,    // align（左对齐）
+            area_width,          // max_length
+            false //SkipConv
+        );
+
+        current_y += line_height;
+        item_count++;
+
+        // 如果是最后一项，结束
+        if (semicolon_pos == -1)
+            break;
+    }
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] 列表渲染完成，共%d项\n", item_count);
+#endif
+
+    return item_count;
 }
 
 // 下载文件到 SD 卡
@@ -778,10 +892,10 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                 int fontSize = 24;
                 int textColor = 0;
                 const char *alignStr = "left";
-                uint8_t align = 0;  // 默认左对齐
-                int xOffset = 0;  // x偏移量
-                int yOffset = 0;  // y偏移量
-                
+                uint8_t align = 0; // 默认左对齐
+                int xOffset = 0;   // x偏移量
+                int yOffset = 0;   // y偏移量
+
                 if (component.containsKey("config"))
                 {
                     JsonObject config = component["config"].as<JsonObject>();
@@ -791,11 +905,14 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                     alignStr = config["align"] | "left";
                     xOffset = config["xOffset"] | 0;
                     yOffset = config["yOffset"] | 0;
-                    
+
                     // 映射对齐方式字符串到数字
-                    if (strcmp(alignStr, "center") == 0) {
+                    if (strcmp(alignStr, "center") == 0)
+                    {
                         align = 1;
-                    } else if (strcmp(alignStr, "right") == 0) {
+                    }
+                    else if (strcmp(alignStr, "right") == 0)
+                    {
                         align = 2;
                     }
                 }
@@ -806,7 +923,7 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                 const int CELL_HEIGHT = 60;
                 int16_t x = pos_x * CELL_WIDTH + 20 + xOffset;
                 int16_t y = pos_y * CELL_HEIGHT + yOffset;
-                a_w = a_w * CELL_WIDTH-40;
+                a_w = a_w * CELL_WIDTH - 40;
                 a_h = a_h * CELL_HEIGHT;
 
 #if DBG_TRMNL_SHOW
@@ -816,17 +933,17 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
 
                 // 使用 display_print_wrapped 进行自动换行打印
                 display_print_wrapped(
-                    text,                // text
-                    x,                   // x (起点)
-                    y,                   // y (起点)
-                    a_w,                 // area_width (可用宽度)
-                    a_h,                 // area_height (可用高度)
-                    fontSize,            // font_size
-                    textColor,           // color (0-15 灰度)
-                    15,                  // bg_color (15=白色 #ffffff)
-                    align,               // align (0=左，1=中，2=右)
-                    false,               // vertical
-                    false                // skip (不跳过繁简转换)
+                    text,      // text
+                    x,         // x (起点)
+                    y,         // y (起点)
+                    a_w,       // area_width (可用宽度)
+                    a_h,       // area_height (可用高度)
+                    fontSize,  // font_size
+                    textColor, // color (0-15 灰度)
+                    15,        // bg_color (15=白色 #ffffff)
+                    align,     // align (0=左，1=中，2=右)
+                    false,     // vertical
+                    false      // skip (不跳过繁简转换)
                 );
             }
             // 处理今日诗词组件（daily_poem）
@@ -852,9 +969,9 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                 int textColor = 0;
                 const char *alignStr = "left";
                 uint8_t align = 0;
-                int xOffset = 0;  // x偏移量
-                int yOffset = 0;  // y偏移量
-                
+                int xOffset = 0; // x偏移量
+                int yOffset = 0; // y偏移量
+
                 if (component.containsKey("config"))
                 {
                     JsonObject config = component["config"].as<JsonObject>();
@@ -863,11 +980,14 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                     alignStr = config["align"] | "left";
                     xOffset = config["xOffset"] | 0;
                     yOffset = config["yOffset"] | 0;
-                    
+
                     // 映射对齐方式
-                    if (strcmp(alignStr, "center") == 0) {
+                    if (strcmp(alignStr, "center") == 0)
+                    {
                         align = 1;
-                    } else if (strcmp(alignStr, "right") == 0) {
+                    }
+                    else if (strcmp(alignStr, "right") == 0)
+                    {
                         align = 2;
                     }
                 }
@@ -877,7 +997,7 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                 const int CELL_HEIGHT = 60;
                 int16_t x = pos_x * CELL_WIDTH + 20 + xOffset;
                 int16_t y = pos_y * CELL_HEIGHT + yOffset;
-                a_w = a_w * CELL_WIDTH-40;
+                a_w = a_w * CELL_WIDTH - 40;
                 a_h = a_h * CELL_HEIGHT;
 
                 // 获取今日诗词
@@ -893,50 +1013,51 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                     // 先打印正文（使用配置的字号）
                     int used_lines = display_print_wrapped(
                         poem_content.c_str(), // text
-                        x,                   // x (起点)
-                        y,                   // y (起点)
-                        a_w,                 // area_width (可用宽度)
-                        a_h,                 // area_height (可用高度)
-                        fontSize,            // font_size
-                        textColor,           // color (0-15 灰度)
-                        15,                  // bg_color (15=白色 #ffffff)
-                        align,               // align (0=左，1=中，2=右)
-                        false,               // vertical
-                        false                // skip (不跳过繁简转换)
+                        x,                    // x (起点)
+                        y,                    // y (起点)
+                        a_w,                  // area_width (可用宽度)
+                        a_h,                  // area_height (可用高度)
+                        fontSize,             // font_size
+                        textColor,            // color (0-15 灰度)
+                        15,                   // bg_color (15=白色 #ffffff)
+                        align,                // align (0=左，1=中，2=右)
+                        false,                // vertical
+                        false                 // skip (不跳过繁简转换)
                     );
-                    
+
                     // 计算剩余行数和出处字号
                     uint8_t base_font_size = get_font_size_from_file();
-                    if (base_font_size == 0) base_font_size = 24;
+                    if (base_font_size == 0)
+                        base_font_size = 24;
                     float scale_factor = (fontSize > 0) ? ((float)fontSize / (float)base_font_size) : 1.0f;
                     int16_t line_height = (int16_t)((base_font_size + LINE_MARGIN) * scale_factor);
                     int max_lines = a_h / line_height;
                     int remaining_lines = max_lines - used_lines;
-                    
+
                     // 如果还有空余行且有出处信息，打印出处（80%字号，深灰色）
                     if (remaining_lines > 0 && poem_origin.length() > 0)
                     {
                         int16_t origin_y = y + used_lines * line_height;
                         uint8_t origin_font_size = (uint8_t)(fontSize * 0.6f);
-                        uint8_t origin_color = textColor;  // 深灰色 
-                        
+                        uint8_t origin_color = textColor; // 深灰色
+
 #if DBG_TRMNL_SHOW
                         Serial.printf("[TRMNL] 打印出处: y=%d, 字号=%d, 颜色=%d, 剩余行数=%d\n",
                                       origin_y, origin_font_size, origin_color, remaining_lines);
 #endif
-                        
+
                         display_print_wrapped(
-                            poem_origin.c_str(), // text
-                            x,                   // x (起点)
-                            origin_y,            // y (正文后)
-                            a_w,                 // area_width
-                            remaining_lines * line_height,  // area_height (剩余高度)
-                            origin_font_size,    // font_size (80%)
-                            origin_color,        // color (深灰色)
-                            15,                  // bg_color (白色)
-                            align,               // align
-                            false,               // vertical
-                            false                // skip
+                            poem_origin.c_str(),           // text
+                            x,                             // x (起点)
+                            origin_y,                      // y (正文后)
+                            a_w,                           // area_width
+                            remaining_lines * line_height, // area_height (剩余高度)
+                            origin_font_size,              // font_size (80%)
+                            origin_color,                  // color (深灰色)
+                            15,                            // bg_color (白色)
+                            align,                         // align
+                            false,                         // vertical
+                            false                          // skip
                         );
                     }
                 }
@@ -946,6 +1067,59 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                     Serial.println("[TRMNL] 获取今日诗词失败，跳过渲染");
 #endif
                 }
+            }
+            // 处理列表组件（list）
+            else if (strcmp(type, "list") == 0)
+            {
+                // 从嵌套结构读取属性
+                int pos_x = 0;
+                int pos_y = 0;
+                int a_w = 0;
+                int a_h = 0;
+                if (component.containsKey("position"))
+                {
+                    JsonObject position = component["position"].as<JsonObject>();
+                    pos_x = position["x"] | 0;
+                    pos_y = position["y"] | 0;
+                }
+                JsonObject areaSize = component["size"].as<JsonObject>();
+                a_w = areaSize["width"] | 1;
+                a_h = areaSize["height"] | 1;
+
+                // config: {text, fontSize, textColor, xOffset, yOffset, margin}
+                const char *text = "";
+                int fontSize = 24;
+                int textColor = 0;
+                int xOffset = 0;
+                int yOffset = 0;
+                int margin = 10;  // 默认行间距10像素
+
+                if (component.containsKey("config"))
+                {
+                    JsonObject config = component["config"].as<JsonObject>();
+                    text = config["text"] | "";
+                    fontSize = config["fontSize"] | 24;
+                    textColor = config["textColor"] | 0;
+                    xOffset = config["xOffset"] | 0;
+                    yOffset = config["yOffset"] | 0;
+                    margin = config["margin"] | 10;
+                }
+
+                // 计算打印起点（单元格坐标转像素）
+                const int CELL_WIDTH = 60;
+                const int CELL_HEIGHT = 60;
+                int16_t x = pos_x * CELL_WIDTH + 20 + xOffset;
+                int16_t y = pos_y * CELL_HEIGHT + yOffset;
+                a_w = a_w * CELL_WIDTH - 40;
+                a_h = a_h * CELL_HEIGHT;
+
+#if DBG_TRMNL_SHOW
+                Serial.printf("[TRMNL] 渲染列表: 单元格(%d, %d) 像素(%d, %d) 字号%d 颜色%d 宽度%d 高度%d margin%d\n",
+                              pos_x, pos_y, x, y, fontSize, textColor, a_w, a_h, margin);
+#endif
+
+                // 调用列表渲染函数
+                render_list_items(text, x, y, a_w, a_h, fontSize, textColor, margin);
             }
             // TODO: 后续扩展其他动态组件的渲染（clock, barcode等）
         }

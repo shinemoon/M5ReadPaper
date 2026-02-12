@@ -773,11 +773,13 @@
         const w = comp.width * cellWidth;
         const h = comp.height * cellHeight;
         
-        // 对于动态文本（dynamic_text, daily_poem），绘制半透明高亮+标签，不渲染真实文本
-        if (comp.type === 'dynamic_text' || comp.type === 'daily_poem') {
-          // 半透明高亮（今日诗词用蓝色，普通文本用黄色）
+        // 对于动态文本（dynamic_text, daily_poem, list），绘制半透明高亮+标签，不渲染真实文本
+        if (comp.type === 'dynamic_text' || comp.type === 'daily_poem' || comp.type === 'list') {
+          // 半透明高亮（今日诗词用蓝色，列表用绿色，普通文本用黄色）
           if (comp.type === 'daily_poem') {
             ctx.fillStyle = 'rgba(100, 149, 237, 0.3)';  // 蓝色
+          } else if (comp.type === 'list') {
+            ctx.fillStyle = 'rgba(76, 175, 80, 0.3)';  // 绿色
           } else {
             ctx.fillStyle = 'rgba(251, 192, 45, 0.3)';  // 黄色
           }
@@ -974,18 +976,19 @@
       col: minCol,
       width: width,
       height: height,
-      text: (type === 'daily_poem' || type === 'divider') ? '' : '示例文本',  // 今日诗词和分割线不需要文本输入
-      fontSize: (type === 'dynamic_text' || type === 'daily_poem') ? 24 : 24,  // 动态文本默认24
-      fontFamily: (type === 'dynamic_text' || type === 'daily_poem') ? '' : 'Arial',  // 动态文本不支持字体选择
+      text: (type === 'daily_poem' || type === 'divider') ? '' : (type === 'list' ? '项目1;项目2;项目3' : '示例文本'),  // 今日诗词和分割线不需要文本输入，列表默认示例
+      fontSize: (type === 'dynamic_text' || type === 'daily_poem' || type === 'list') ? 24 : 24,  // 动态文本默认24
+      fontFamily: (type === 'dynamic_text' || type === 'daily_poem' || type === 'list') ? '' : 'Arial',  // 动态文本和列表不支持字体选择
       textColor: 0,  // 0-15 灰度级别，0=黑色，15=白色
-      bgColor: (type === 'dynamic_text' || type === 'daily_poem') ? 15 : 'transparent',  // 动态文本默认白色背景(15)
-      align: (type === 'dynamic_text' || type === 'daily_poem') ? 'left' : undefined,  // 动态文本支持对齐
+      bgColor: (type === 'dynamic_text' || type === 'daily_poem') ? 15 : 'transparent',  // 动态文本默认白色背景(15)，列表透明
+      align: (type === 'dynamic_text' || type === 'daily_poem') ? 'left' : undefined,  // 动态文本支持对齐，列表不支持
       rotation: (type === 'dynamic_text' || type === 'daily_poem' || type === 'divider') ? 0 : 0,  // 动态文本和分割线支持旋转
       xOffset: 0,  // x偏移量（像素）
       yOffset: 0,  // y偏移量（像素）
       lineColor: type === 'divider' ? 0 : undefined,  // 分割线颜色（0-15灰度）
       lineStyle: type === 'divider' ? 'solid' : undefined,  // 分割线样式
       lineWidth: type === 'divider' ? 2 : undefined,  // 分割线粗细（像素）
+      margin: type === 'list' ? 10 : undefined,  // 列表行间距（像素）
       dynamic: type !== 'text' && type !== 'divider'  // text和divider默认为false（预渲染），其他类型为true（设备动态渲染）
     };
 
@@ -1013,6 +1016,8 @@
         return '普通文本';
       case 'daily_poem':
         return '今日诗词';
+      case 'list':
+        return '列表';
       case 'divider':
         return '分割线';
       case 'image':
@@ -1422,6 +1427,40 @@
         detailsContainer.appendChild(lineStyleField);
         detailsContainer.appendChild(lineWidthField);
         detailsContainer.appendChild(rotField);
+      }
+      // 列表组件的配置
+      else if (comp.type === 'list') {
+        // 创建行间距字段
+        const marginField = document.createElement('div');
+        marginField.className = 'field';
+        
+        const marginLabel = document.createElement('label');
+        marginLabel.textContent = '行间距（像素）';
+        
+        const marginInput = document.createElement('input');
+        marginInput.type = 'number';
+        marginInput.min = 0;
+        marginInput.max = 50;
+        marginInput.step = 1;
+        marginInput.value = comp.margin !== undefined ? comp.margin : 10;
+        marginInput.dataset.componentId = comp.id;
+        marginInput.className = 'component-margin-input';
+        marginInput.addEventListener('input', (e) => {
+          const id = parseInt(e.target.dataset.componentId);
+          updateComponentMargin(id, e.target.value);
+        });
+        
+        marginField.appendChild(marginLabel);
+        marginField.appendChild(marginInput);
+        
+        detailsContainer.appendChild(field);  // 文本输入（分号分隔）
+        detailsContainer.appendChild(posField);
+        detailsContainer.appendChild(widthHeightField);
+        detailsContainer.appendChild(offsetField);
+        detailsContainer.appendChild(sizeField);  // 字体大小
+        detailsContainer.appendChild(textColorField);  // 文本颜色
+        detailsContainer.appendChild(marginField);  // 行间距
+        // 列表不支持字体选择、旋转、背景色、对齐
       } else {
         // 文本类组件（今日诗词组件不显示文本输入框）
         if (comp.type !== 'daily_poem') {
@@ -1637,6 +1676,15 @@
     const comp = components.find(c => c.id === id);
     if (comp) {
       comp.lineWidth = Math.max(1, Math.min(20, parseInt(width) || 2));
+      updateBackgroundPreview();
+    }
+  }
+  
+  // 更新列表行间距
+  function updateComponentMargin(id, margin) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      comp.margin = Math.max(0, Math.min(50, parseInt(margin) || 10));
       updateBackgroundPreview();
     }
   }
@@ -1873,7 +1921,8 @@
           yOffset: comp.yOffset || 0,  // y偏移量
           lineColor: comp.lineColor !== undefined ? comp.lineColor : 0,  // 分割线颜色
           lineStyle: comp.lineStyle || 'solid',  // 分割线样式
-          lineWidth: comp.lineWidth || 2  // 分割线粗细
+          lineWidth: comp.lineWidth || 2,  // 分割线粗细
+          margin: comp.margin !== undefined ? comp.margin : (comp.type === 'list' ? 10 : undefined)  // 列表行间距
         },
         dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
       }))
@@ -1934,6 +1983,7 @@
         lineColor: comp.config.lineColor !== undefined ? comp.config.lineColor : 0,
         lineStyle: comp.config.lineStyle || 'solid',
         lineWidth: comp.config.lineWidth || 2,
+        margin: comp.config.margin !== undefined ? comp.config.margin : (comp.type === 'list' ? 10 : undefined),
         dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
       }));
     }
