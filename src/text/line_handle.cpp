@@ -153,6 +153,7 @@ int16_t calculate_text_width(const std::string &text, size_t start_pos, size_t e
 size_t find_break_position(const std::string &text, size_t start_pos, int16_t max_width, bool vertical, float scale_factor)
 {
     size_t best_break = start_pos;
+    int16_t best_break_width = 0;  // 新增：记录 best_break 位置时的实际显示宽度（不含空格本身）
     size_t current_pos = start_pos;
     const uint8_t *utf8 = (const uint8_t *)text.c_str() + start_pos;
     const uint8_t *end = (const uint8_t *)text.c_str() + text.length();
@@ -162,6 +163,7 @@ size_t find_break_position(const std::string &text, size_t start_pos, int16_t ma
     uint32_t last_included_unicode = 0;
     size_t last_included_offset = start_pos;
     bool opening_push_done = false; // only apply this once per line
+
 
     while (utf8 < end)
     {
@@ -207,16 +209,7 @@ size_t find_break_position(const std::string &text, size_t start_pos, int16_t ma
         if (current_width + char_dimension + char_spacing > max_width)
         {
             // 行宽度即将用完，当前字符放不下了
-            // 先检查：如果上一已包含字符是配对标点的前半（开头），则优先把该字符推到下一行
-            if (!opening_push_done && last_included_unicode != 0 && is_opening_pair_punctuation(last_included_unicode))
-            {
-                // 确保不会生成空行
-                if (last_included_offset > start_pos)
-                {
-                    opening_push_done = true;
-                    return last_included_offset;
-                }
-            }
+            
             // 在断行前，检查当前字符（即将成为下一行行首的字符）是否为禁止行首标点
             if (unicode != 0 && unicode != '\n' && is_forbidden_line_start_punctuation(unicode))
             {
@@ -242,31 +235,61 @@ size_t find_break_position(const std::string &text, size_t start_pos, int16_t ma
 
             if (best_break > start_pos)
             {
-                size_t piece_len = best_break - start_pos;
-                if (piece_len <= 16)
+                // 关键修复：只有在 best_break 距离当前位置不太远时才使用
+                // 如果best_break位置到当前位置的距离超过max_width的40%，说明中间有大量可放下的内容
+                // 此时应该就近断行而不是回退到遥远的空格位置
+                size_t distance = (size_t)(prev_utf8 - (const uint8_t *)text.c_str()) - best_break;
+                int16_t distance_width = current_width - best_break_width;
+                
+                if (distance_width <= max_width * 0.4f)
                 {
-                    bool all_whitespace = true;
-                    const uint8_t *check_start = (const uint8_t *)text.c_str() + start_pos;
-                    const uint8_t *check_end = (const uint8_t *)text.c_str() + best_break;
-                    const uint8_t *check_ptr = check_start;
-
-                    while (check_ptr < check_end && all_whitespace)
+                    // 距离合理，使用best_break（空格断点）
+                    size_t piece_len = best_break - start_pos;
+                    if (piece_len <= 16)
                     {
-                        uint32_t check_unicode = utf8_decode(check_ptr, check_end);
-                        if (check_unicode != ' ' && check_unicode != '\t')
+                        bool all_whitespace = true;
+                        const uint8_t *check_start = (const uint8_t *)text.c_str() + start_pos;
+                        const uint8_t *check_end = (const uint8_t *)text.c_str() + best_break;
+                        const uint8_t *check_ptr = check_start;
+
+                        while (check_ptr < check_end && all_whitespace)
                         {
-                            all_whitespace = false;
+                            uint32_t check_unicode = utf8_decode(check_ptr, check_end);
+                            if (check_unicode != ' ' && check_unicode != '\t')
+                            {
+                                all_whitespace = false;
+                            }
+                        }
+
+                        if (all_whitespace)
+                        {
+                            size_t return_pos = prev_utf8 - (const uint8_t *)text.c_str();
+                            return return_pos;
                         }
                     }
-
-                    if (all_whitespace)
-                    {
-                        return prev_utf8 - (const uint8_t *)text.c_str();
-                    }
+                    return best_break;
                 }
-                return best_break;
+                else
+                {
+                    // 距离太远，说明best_break后还能放很多内容，应该就近断行
+                    return prev_utf8 - (const uint8_t *)text.c_str();
+                }
             }
-            return prev_utf8 - (const uint8_t *)text.c_str();
+            
+            // 检查开头配对标点：只有在没有找到更好的断点（best_break）时才考虑这个选项
+            // 这样可以优先使用空格等自然断点，避免破坏英文单词
+            if (!opening_push_done && last_included_unicode != 0 && is_opening_pair_punctuation(last_included_unicode))
+            {
+                // 确保不会生成空行
+                if (last_included_offset > start_pos)
+                {
+                    opening_push_done = true;
+                    return last_included_offset;
+                }
+            }
+            
+            size_t fallback_pos = prev_utf8 - (const uint8_t *)text.c_str();
+            return fallback_pos;
         }
 
         current_width += char_dimension + char_spacing;
@@ -277,12 +300,13 @@ size_t find_break_position(const std::string &text, size_t start_pos, int16_t ma
         last_included_unicode = unicode;
         last_included_offset = (size_t)(prev_utf8 - (const uint8_t *)text.c_str());
 
+        // 遇到空格、制表符或连字符时记录为潜在断行点
+        // 关键修复：记录不含空格本身宽度的累计值，因为渲染时行尾空格不显示
         if (unicode == ' ' || unicode == '\t' || unicode == '-')
         {
-            if (current_pos > start_pos + 8)
-            {
-                best_break = current_pos;
-            }
+            best_break = current_pos;
+            // 保存去除当前空格字符宽度后的实际显示宽度
+            best_break_width = current_width - char_dimension - char_spacing;
         }
     }
 

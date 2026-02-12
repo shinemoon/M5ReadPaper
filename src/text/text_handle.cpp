@@ -673,6 +673,12 @@ static size_t process_raw_line(const std::string &raw_line, size_t raw_bytes_rea
 #if DBG_TEXT_HANDLE
         Serial.printf("[PROCESS_RAW] find_break_position返回: break_pos=%zu (前进了%zu字符)\n",
                       break_pos, break_pos - pos_local);
+        // 打印断行片段的前20个字符
+        if (break_pos > pos_local)
+        {
+            std::string break_piece = converted_for_split.substr(pos_local, std::min((size_t)60, break_pos - pos_local));
+            Serial.printf("[PROCESS_RAW] 断行片段[%zu->%zu]: '%s'\n", pos_local, break_pos, break_piece.c_str());
+        }
 #endif
         if (break_pos == pos_local)
             break;
@@ -684,6 +690,10 @@ static size_t process_raw_line(const std::string &raw_line, size_t raw_bytes_rea
             Serial.printf("%02X ", (uint8_t)piece[i]);
         }
         Serial.println();
+        // 打印实际文本内容（限制60字节避免溢出）
+        std::string piece_preview = piece.substr(0, std::min((size_t)60, piece.length()));
+        Serial.printf("[PROCESS_RAW] 第%d行内容: '%s'%s\n", lines_added_out, piece_preview.c_str(), 
+                      piece.length() > 60 ? "..." : "");
 #endif
         page_out += piece;
         page_out += '\n';
