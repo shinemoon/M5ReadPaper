@@ -156,8 +156,10 @@
             <label>屏幕布局预览 (9x16)</label>
             <div class="display-actions" style="margin-bottom: 10px;">
               <button id="btnLoadCurrent" class="button is-small outline" type="button">读取当前</button>
+              <button id="btnLoadLocal" class="button is-small outline" type="button">本地导入</button>
               <button id="btnChangeBg" class="button is-small outline" type="button">修改背景</button>
               <input id="bgImageInput" type="file" accept="image/png,image/jpeg,image/jpg" style="display:none" />
+              <input id="rdtFileInput" type="file" accept=".rdt" style="display:none" />
             </div>
             <div id="screenPreviewContainer" class="screen-preview-container">
               <canvas id="bgCanvas" class="screen-bg-canvas"></canvas>
@@ -176,6 +178,7 @@
             <select id="componentType">
               <option value="text">预渲染文本</option>
               <option value="dynamic_text">普通文本</option>
+              <option value="daily_poem">今日诗词</option>
             </select>
           </div>
           <div class="field">

@@ -68,12 +68,12 @@ void display_print(const char *text, float text_size, uint16_t text_color, uint8
     // print but not flush
 }
 
-void display_print_wrapped(const char* text, int16_t x, int16_t y, int16_t area_width,
-                          int16_t area_height, uint8_t font_size, uint8_t color, 
-                          int16_t bg_color, uint8_t align, bool vertical, bool skip)
+int display_print_wrapped(const char* text, int16_t x, int16_t y, int16_t area_width,
+                         int16_t area_height, uint8_t font_size, uint8_t color, 
+                         int16_t bg_color, uint8_t align, bool vertical, bool skip)
 {
     if (!text || text[0] == '\0') {
-        return;
+        return 0;
     }
 
 #if DBG_UI_DISPLAY
@@ -180,18 +180,21 @@ void display_print_wrapped(const char* text, int16_t x, int16_t y, int16_t area_
         wrapped_text,
         font_size,           // font_size
         color,               // color (0-15 灰度)
-        area_width,  // area_width
+        vertical ? PAPER_S3_HEIGHT : area_width,  // area_width
         x,                   // margin_left (起点x)
         y,                   // margin_top (起点y)
         false,               // fast_mode
         g_canvas,            // canvas
         text_align,          // text_align (使用传入的对齐方式)
-        area_width,                   // max_length (不限制)
+        0,                   // max_length (不限制，因为已经通过\n换行)
         skip,                // skipConv (跳过繁简转换)
         false,               // drawBottom
         vertical,            // vertical
         false                // dark
     );
+    
+    // 返回已使用的行数
+    return lines_added;
 }
 
 void initDisplay()

@@ -763,16 +763,24 @@
       const cellWidth = canvas.width / SCREEN_COLS;
       const cellHeight = canvas.height / SCREEN_ROWS;
       
+      // 计算偏移量的缩放比例（设备实际是540x960，预览画布可能不同）
+      const offsetScaleX = canvas.width / 540;
+      const offsetScaleY = canvas.height / 960;
+      
       components.forEach((comp, idx) => {
-        const x = comp.col * cellWidth;
-        const y = comp.row * cellHeight;
+        const x = comp.col * cellWidth + (comp.xOffset || 0) * offsetScaleX;
+        const y = comp.row * cellHeight + (comp.yOffset || 0) * offsetScaleY;
         const w = comp.width * cellWidth;
         const h = comp.height * cellHeight;
         
-        // 对于普通文本（dynamic_text），绘制半透明高亮+标签，不渲染真实文本
-        if (comp.type === 'dynamic_text') {
-          // 半透明黄色高亮
-          ctx.fillStyle = 'rgba(251, 192, 45, 0.3)';
+        // 对于动态文本（dynamic_text, daily_poem），绘制半透明高亮+标签，不渲染真实文本
+        if (comp.type === 'dynamic_text' || comp.type === 'daily_poem') {
+          // 半透明高亮（今日诗词用蓝色，普通文本用黄色）
+          if (comp.type === 'daily_poem') {
+            ctx.fillStyle = 'rgba(100, 149, 237, 0.3)';  // 蓝色
+          } else {
+            ctx.fillStyle = 'rgba(251, 192, 45, 0.3)';  // 黄色
+          }
           ctx.fillRect(x, y, w, h);
           
           // 在左上角显示标签
@@ -940,14 +948,16 @@
       col: minCol,
       width: width,
       height: height,
-      text: '示例文本',
-      fontSize: type === 'dynamic_text' ? 24 : 24,  // 普通文本默认24
-      fontFamily: type === 'dynamic_text' ? '' : 'Arial',  // 普通文本不支持字体选择
+      text: type === 'daily_poem' ? '' : '示例文本',  // 今日诗词不需要文本输入
+      fontSize: (type === 'dynamic_text' || type === 'daily_poem') ? 24 : 24,  // 动态文本默认24
+      fontFamily: (type === 'dynamic_text' || type === 'daily_poem') ? '' : 'Arial',  // 动态文本不支持字体选择
       textColor: 0,  // 0-15 灰度级别，0=黑色，15=白色
-      bgColor: type === 'dynamic_text' ? 15 : 'transparent',  // 普通文本默认白色背景(15)，预渲染文本默认透明
-      align: type === 'dynamic_text' ? 'left' : undefined,  // 普通文本支持对齐（left/center/right）
-      rotation: type === 'dynamic_text' ? 0 : 0,  // 普通文本不支持旋转
-      dynamic: type !== 'text'  // text类型自动为false（预渲染），其他类型（包括dynamic_text）为true（设备动态渲染）
+      bgColor: (type === 'dynamic_text' || type === 'daily_poem') ? 15 : 'transparent',  // 动态文本默认白色背景(15)
+      align: (type === 'dynamic_text' || type === 'daily_poem') ? 'left' : undefined,  // 动态文本支持对齐
+      rotation: (type === 'dynamic_text' || type === 'daily_poem') ? 0 : 0,  // 动态文本不支持旋转
+      xOffset: 0,  // x偏移量（像素）
+      yOffset: 0,  // y偏移量（像素）
+      dynamic: type !== 'text'  // text类型自动为false（预渲染），其他类型为true（设备动态渲染）
     };
 
     components.push(component);
@@ -972,6 +982,8 @@
         return '预渲染文本';
       case 'dynamic_text':
         return '普通文本';
+      case 'daily_poem':
+        return '今日诗词';
       case 'image':
         return '图片';
       case 'video':
@@ -1035,6 +1047,7 @@
       header.appendChild(info);
       header.appendChild(deleteBtn);
       
+      // 文本内容输入（今日诗词不需要文本输入）
       const field = document.createElement('div');
       field.className = 'field';
       
@@ -1060,8 +1073,8 @@
       const sizeInput = document.createElement('input');
       sizeInput.type = 'number';
       sizeInput.value = comp.fontSize || 24;
-      // 普通文本（dynamic_text）限制字体大小24-38，预渲染文本12-72
-      if (comp.type === 'dynamic_text') {
+      // 动态文本（dynamic_text, daily_poem）限制字体大小24-38，预渲染文本12-72
+      if (comp.type === 'dynamic_text' || comp.type === 'daily_poem') {
         sizeInput.min = 24;
         sizeInput.max = 38;
       } else {
@@ -1110,6 +1123,68 @@
       posField.appendChild(colSelect);
       posField.appendChild(rowLabel);
       posField.appendChild(rowSelect);
+      
+      // 宽度/高度修改
+      const widthHeightField = document.createElement('div');
+      widthHeightField.className = 'field';
+      
+      const widthLabel = document.createElement('label');
+      widthLabel.textContent = '宽度 (1-' + SCREEN_COLS + ')';
+      
+      const widthInput = document.createElement('input');
+      widthInput.type = 'number';
+      widthInput.min = 1;
+      widthInput.max = SCREEN_COLS;
+      widthInput.value = comp.width || 3;
+      widthInput.dataset.componentId = comp.id;
+      widthInput.className = 'component-width-input';
+      
+      const heightLabel = document.createElement('label');
+      heightLabel.textContent = '高度 (1-' + SCREEN_ROWS + ')';
+      
+      const heightInput = document.createElement('input');
+      heightInput.type = 'number';
+      heightInput.min = 1;
+      heightInput.max = SCREEN_ROWS;
+      heightInput.value = comp.height || 2;
+      heightInput.dataset.componentId = comp.id;
+      heightInput.className = 'component-height-input';
+      
+      widthHeightField.appendChild(widthLabel);
+      widthHeightField.appendChild(widthInput);
+      widthHeightField.appendChild(heightLabel);
+      widthHeightField.appendChild(heightInput);
+      
+      // 偏移量微调
+      const offsetField = document.createElement('div');
+      offsetField.className = 'field';
+      
+      const xOffsetLabel = document.createElement('label');
+      xOffsetLabel.textContent = 'X偏移 (像素)';
+      
+      const xOffsetInput = document.createElement('input');
+      xOffsetInput.type = 'number';
+      xOffsetInput.min = -100;
+      xOffsetInput.max = 100;
+      xOffsetInput.value = comp.xOffset || 0;
+      xOffsetInput.dataset.componentId = comp.id;
+      xOffsetInput.className = 'component-xoffset-input';
+      
+      const yOffsetLabel = document.createElement('label');
+      yOffsetLabel.textContent = 'Y偏移 (像素)';
+      
+      const yOffsetInput = document.createElement('input');
+      yOffsetInput.type = 'number';
+      yOffsetInput.min = -100;
+      yOffsetInput.max = 100;
+      yOffsetInput.value = comp.yOffset || 0;
+      yOffsetInput.dataset.componentId = comp.id;
+      yOffsetInput.className = 'component-yoffset-input';
+      
+      offsetField.appendChild(xOffsetLabel);
+      offsetField.appendChild(xOffsetInput);
+      offsetField.appendChild(yOffsetLabel);
+      offsetField.appendChild(yOffsetInput);
       
       // 字体选择
       const fontField = document.createElement('div');
@@ -1230,51 +1305,25 @@
       detailsContainer.style.display = (typeof expandedComponentId !== 'undefined' && expandedComponentId === comp.id) ? 'block' : 'none';
       detailsContainer.style.marginTop = '10px';
       
-      detailsContainer.appendChild(field);
+      // 今日诗词组件不显示文本输入框
+      if (comp.type !== 'daily_poem') {
+        detailsContainer.appendChild(field);
+      }
       detailsContainer.appendChild(posField);
+      detailsContainer.appendChild(widthHeightField);
+      detailsContainer.appendChild(offsetField);
       detailsContainer.appendChild(sizeField);
-      // 普通文本（dynamic_text）不支持字体选择和旋转
-      if (comp.type !== 'dynamic_text') {
+      // 动态文本（dynamic_text, daily_poem）不支持字体选择和旋转
+      if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem') {
         detailsContainer.appendChild(fontField);
       }
       detailsContainer.appendChild(textColorField);
-      // 普通文本（dynamic_text）不显示背景色设置
-      if (comp.type !== 'dynamic_text') {
+      // 动态文本不显示背景色设置
+      if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem') {
         detailsContainer.appendChild(bgColorField);
       }
-      // 普通文本添加对齐选项
-      if (comp.type === 'dynamic_text') {
-        const alignField = document.createElement('div');
-        alignField.className = 'field';
-        
-        const alignLabel = document.createElement('label');
-        alignLabel.textContent = '对齐方式';
-        
-        const alignSelect = document.createElement('select');
-        alignSelect.dataset.componentId = comp.id;
-        alignSelect.className = 'component-align-input';
-        
-        const alignOptions = [
-          { value: 'left', label: '左对齐' },
-          { value: 'center', label: '居中对齐' },
-          { value: 'right', label: '右对齐' }
-        ];
-        
-        alignOptions.forEach(opt => {
-          const option = document.createElement('option');
-          option.value = opt.value;
-          option.textContent = opt.label;
-          if (opt.value === (comp.align || 'left')) {
-            option.selected = true;
-          }
-          alignSelect.appendChild(option);
-        });
-        
-        alignField.appendChild(alignLabel);
-        alignField.appendChild(alignSelect);
-        detailsContainer.appendChild(alignField);
-      }
-      if (comp.type !== 'dynamic_text') {
+      // 动态文本和今日诗词默认左对齐，不显示对齐选项
+      if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem') {
         detailsContainer.appendChild(rotField);
       }
       
@@ -1406,6 +1455,46 @@
     updateBackgroundPreview();
   }
   
+  // 更新组件宽度
+  function updateComponentWidth(id, width) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      comp.width = Math.max(1, Math.min(SCREEN_COLS, parseInt(width) || 3));
+      updateScreenPreview();
+      updateComponentList();
+      updateBackgroundPreview();
+    }
+  }
+  
+  // 更新组件高度
+  function updateComponentHeight(id, height) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      comp.height = Math.max(1, Math.min(SCREEN_ROWS, parseInt(height) || 2));
+      updateScreenPreview();
+      updateComponentList();
+      updateBackgroundPreview();
+    }
+  }
+  
+  // 更新组件X偏移
+  function updateComponentXOffset(id, xOffset) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      comp.xOffset = Math.max(-100, Math.min(100, parseInt(xOffset) || 0));
+      updateBackgroundPreview();
+    }
+  }
+  
+  // 更新组件Y偏移
+  function updateComponentYOffset(id, yOffset) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      comp.yOffset = Math.max(-100, Math.min(100, parseInt(yOffset) || 0));
+      updateBackgroundPreview();
+    }
+  }
+  
   // 复位配置
   function resetConfig() {
     if (components.length === 0 && !backgroundImage) {
@@ -1478,8 +1567,8 @@
               return;
             }
             
-            const x = comp.col * cellWidth;
-            const y = comp.row * cellHeight;
+            const x = comp.col * cellWidth + (comp.xOffset || 0);
+            const y = comp.row * cellHeight + (comp.yOffset || 0);
             const w = comp.width * cellWidth;
             const h = comp.height * cellHeight;
 
@@ -1589,13 +1678,79 @@
           textColor: comp.textColor !== undefined ? comp.textColor : 0,
           bgColor: comp.bgColor !== undefined ? comp.bgColor : 'transparent',
           rotation: comp.rotation !== undefined ? comp.rotation : 0,
-          align: comp.align || 'left'  // 对齐方式
+          align: comp.align || 'left',  // 对齐方式
+          xOffset: comp.xOffset || 0,  // x偏移量
+          yOffset: comp.yOffset || 0   // y偏移量
         },
         dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
       }))
     };
   }
 
+  // 从本地文件导入配置
+  async function loadFromLocalFile() {
+    const rdtFileInput = document.getElementById('rdtFileInput');
+    if (!rdtFileInput) return;
+    
+    rdtFileInput.onchange = async function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      try {
+        setStatus('读取本地配置文件...', 'info', 'display');
+        
+        const content = await file.text();
+        const config = JSON.parse(content);
+        
+        // 解析配置
+        loadDisplayConfig(config);
+        
+        setStatus('本地配置导入成功', 'success', 'display');
+        
+      } catch (err) {
+        console.error('本地导入失败:', err);
+        setStatus('本地导入失败: ' + err.message, 'error', 'display');
+      }
+      
+      // 重置 input，允许重复选择同一文件
+      e.target.value = '';
+    };
+    
+    rdtFileInput.click();
+  }
+  
+  // 从配置对象加载显示配置（提取为公共函数，供WebDAV和本地导入共用）
+  function loadDisplayConfig(config) {
+    if (config.components && Array.isArray(config.components)) {
+      components = config.components.map((comp, idx) => ({
+        id: Date.now() + idx,
+        type: comp.type || 'text',
+        row: comp.position.y,
+        col: comp.position.x,
+        width: comp.size.width,
+        height: comp.size.height,
+        text: comp.config.text || '',
+        fontSize: comp.config.fontSize || 24,
+        fontFamily: comp.config.fontFamily || 'Arial',
+        textColor: comp.config.textColor !== undefined ? comp.config.textColor : 0,
+        bgColor: comp.config.bgColor !== undefined ? comp.config.bgColor : 'transparent',
+        rotation: comp.config.rotation !== undefined ? comp.config.rotation : 0,
+        align: comp.config.align || 'left',
+        xOffset: comp.config.xOffset || 0,
+        yOffset: comp.config.yOffset || 0,
+        dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
+      }));
+    }
+    
+    // 处理 bgpic（本地导入时不加载背景图片，需要用户手动设置）
+    hasBgPic = !!config.bgpic;
+    backgroundImage = null;
+    
+    updateScreenPreview();
+    updateComponentList();
+    updateBackgroundPreview();
+  }
+  
   // 从 WebDAV 读取当前配置
   async function loadFromWebDAV() {
     try {
@@ -1644,27 +1799,10 @@
       const content = await response.text();
       const config = JSON.parse(content);
 
-      // 解析配置
-      if (config.components && Array.isArray(config.components)) {
-        components = config.components.map((comp, idx) => ({
-          id: Date.now() + idx,
-          type: comp.type || 'text',
-          row: comp.position.y,
-          col: comp.position.x,
-          width: comp.size.width,
-          height: comp.size.height,
-          text: comp.config.text || '',
-          fontSize: comp.config.fontSize || 24,
-          fontFamily: comp.config.fontFamily || 'Arial',
-          textColor: comp.config.textColor !== undefined ? comp.config.textColor : 0,
-          bgColor: comp.config.bgColor !== undefined ? comp.config.bgColor : 'transparent',
-          rotation: comp.config.rotation !== undefined ? comp.config.rotation : 0,
-          align: comp.config.align || 'left',
-          dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
-        }));
-      }
-
-      // 处理 bgpic
+      // 解析配置（使用公共函数）
+      loadDisplayConfig(config);
+      
+      // WebDAV独有：如果有背景图则尝试下载
       hasBgPic = !!config.bgpic;
       
       if (hasBgPic) {
@@ -1695,12 +1833,11 @@
         }
       } else {
         backgroundImage = null;
-        updateBackgroundPreview();
       }
 
-      updateScreenPreview();
-      updateComponentList();
-      
+      // 刷新预览
+      updateBackgroundPreview();
+
       // 更新复选框状态
       const chkIncludeBgPic = document.getElementById('chkIncludeBgPic');
       if (chkIncludeBgPic) {
@@ -2190,6 +2327,10 @@
   if (btnLoadCurrent) {
     btnLoadCurrent.addEventListener('click', loadFromWebDAV);
   }
+  const btnLoadLocal = document.getElementById('btnLoadLocal');
+  if (btnLoadLocal) {
+    btnLoadLocal.addEventListener('click', loadFromLocalFile);
+  }
   if (btnChangeBg) {
     btnChangeBg.addEventListener('click', changeBgImage);
   }
@@ -2277,6 +2418,32 @@
         const id = parseInt(e.target.dataset.componentId);
         if (id && !isNaN(id)) {
           updateComponentRow(id, e.target.value);
+        }
+      }
+      // 处理宽度/高度变化
+      if (e.target.tagName === 'INPUT' && e.target.type === 'number' && e.target.classList.contains('component-width-input')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          updateComponentWidth(id, e.target.value);
+        }
+      }
+      if (e.target.tagName === 'INPUT' && e.target.type === 'number' && e.target.classList.contains('component-height-input')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          updateComponentHeight(id, e.target.value);
+        }
+      }
+      // 处理x偏移/y偏移变化
+      if (e.target.tagName === 'INPUT' && e.target.type === 'number' && e.target.classList.contains('component-xoffset-input')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          updateComponentXOffset(id, e.target.value);
+        }
+      }
+      if (e.target.tagName === 'INPUT' && e.target.type === 'number' && e.target.classList.contains('component-yoffset-input')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          updateComponentYOffset(id, e.target.value);
         }
       }
     });

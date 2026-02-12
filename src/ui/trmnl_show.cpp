@@ -21,6 +21,7 @@ extern GlobalConfig g_config;
 
 // 前向声明
 static bool extract_rdt_timestamp(const String &content, String &out_timestamp);
+static bool fetch_daily_poem(String &out_content, String &out_origin);
 
 // 从 WebDAV 读取 readpaper.rdt 文件内容
 static bool fetch_webdav_rdt_config(String &out_content)
@@ -385,6 +386,177 @@ static bool extract_rdt_timestamp(const String &content, String &out_timestamp)
     return false;
 }
 
+// 从今日诗词 API 获取诗词内容
+// 从今日诗词 API 获取诗词内容
+static bool fetch_daily_poem(String &out_content, String &out_origin)
+{
+    // 检查 WiFi 连接
+    if (!g_wifi_sta_connected)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] WiFi 未连接，无法获取今日诗词");
+#endif
+        return false;
+    }
+
+    const char *api_url = "https://v2.jinrishici.com/one.json";
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] 请求今日诗词 API: %s\n", api_url);
+#endif
+
+    // 配置 HTTP 客户端
+    esp_http_client_config_t cfg = {};
+    cfg.url = api_url;
+    cfg.method = HTTP_METHOD_GET;
+    cfg.timeout_ms = 10000;
+    cfg.buffer_size = 4096;
+    cfg.buffer_size_tx = 1024;
+    cfg.crt_bundle_attach = esp_crt_bundle_attach;
+    cfg.disable_auto_redirect = false;
+
+    esp_http_client_handle_t client = esp_http_client_init(&cfg);
+    if (!client)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] 创建 HTTP 客户端失败");
+#endif
+        return false;
+    }
+
+    // 打开连接
+    esp_err_t err = esp_http_client_open(client, 0);
+    if (err != ESP_OK)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] HTTP 打开连接失败: %s\n", esp_err_to_name(err));
+#endif
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    // 获取响应头
+    int content_length = esp_http_client_fetch_headers(client);
+    int status = esp_http_client_get_status_code(client);
+    
+    if (status != 200)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] API 返回错误状态码: %d\n", status);
+#endif
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    // 读取响应内容
+    String response_content;
+    response_content.reserve(4096);
+    
+    char buffer[512];
+    int total_read = 0;
+    
+    // 使用 read_response 读取完整响应体
+    while (true)
+    {
+        int read_len = esp_http_client_read_response(client, buffer, sizeof(buffer) - 1);
+        if (read_len <= 0)
+            break;
+        buffer[read_len] = '\0';
+        response_content += buffer;
+        total_read += read_len;
+    }
+
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);
+
+    // 检查是否读取到内容
+    if (total_read == 0 || response_content.length() == 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] API 返回空内容");
+#endif
+        return false;
+    }
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] API 响应长度: %d\n", response_content.length());
+#endif
+
+    // 解析 JSON
+    DynamicJsonDocument doc(8192);
+    DeserializationError error = deserializeJson(doc, response_content);
+
+    if (error)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] JSON 解析失败: %s\n", error.c_str());
+#endif
+        return false;
+    }
+
+    // 检查 status 字段
+    const char *status_str = doc["status"];
+    if (!status_str || strcmp(status_str, "success") != 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] API 返回错误状态: %s\n", status_str ? status_str : "(null)");
+#endif
+        return false;
+    }
+
+    // 提取诗词信息
+    JsonObject data = doc["data"].as<JsonObject>();
+    if (!data)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] 未找到 data 字段");
+#endif
+        return false;
+    }
+
+    const char *content = data["content"];
+    JsonObject origin = data["origin"].as<JsonObject>();
+    
+    if (!content || !origin)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] 未找到诗词内容或出处信息");
+#endif
+        return false;
+    }
+
+    const char *title = origin["title"];
+    const char *dynasty = origin["dynasty"];
+    const char *author = origin["author"];
+
+    // 分别返回正文和出处信息
+    out_content = String(content);
+    
+    // 格式化出处：标题·朝代·作者
+    out_origin = "";
+    if (title && strlen(title) > 0)
+    {
+        out_origin += String(title);
+    }
+    if (dynasty && strlen(dynasty) > 0)
+    {
+        if (out_origin.length() > 0) out_origin += "·";
+        out_origin += String(dynasty);
+    }
+    if (author && strlen(author) > 0)
+    {
+        if (out_origin.length() > 0) out_origin += "·";
+        out_origin += String(author);
+    }
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] 今日诗词: %s / %s\n", out_content.c_str(), out_origin.c_str());
+#endif
+
+    return true;
+}
+
 // 下载文件到 SD 卡
 static bool download_file_to_sdcard(const String &url, const String &local_path, const String &auth_header)
 {
@@ -601,12 +773,14 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                 a_w = areaSize["width"] | 1;
                 a_h = areaSize["height"] | 1;
 
-                // config: {text, fontSize, textColor, align, ...}
+                // config: {text, fontSize, textColor, align, xOffset, yOffset, ...}
                 const char *text = "文本";
                 int fontSize = 24;
                 int textColor = 0;
                 const char *alignStr = "left";
                 uint8_t align = 0;  // 默认左对齐
+                int xOffset = 0;  // x偏移量
+                int yOffset = 0;  // y偏移量
                 
                 if (component.containsKey("config"))
                 {
@@ -615,6 +789,8 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                     fontSize = config["fontSize"] | 24;
                     textColor = config["textColor"] | 0; // 0-15 灰度
                     alignStr = config["align"] | "left";
+                    xOffset = config["xOffset"] | 0;
+                    yOffset = config["yOffset"] | 0;
                     
                     // 映射对齐方式字符串到数字
                     if (strcmp(alignStr, "center") == 0) {
@@ -628,9 +804,9 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                 // 540/9=60, 960/16=60，每个cell是60x60像素
                 const int CELL_WIDTH = 60;
                 const int CELL_HEIGHT = 60;
-                int16_t x = pos_x * CELL_WIDTH;
-                int16_t y = pos_y * CELL_HEIGHT;
-                a_w = a_w * CELL_WIDTH;
+                int16_t x = pos_x * CELL_WIDTH + 20 + xOffset;
+                int16_t y = pos_y * CELL_HEIGHT + yOffset;
+                a_w = a_w * CELL_WIDTH-40;
                 a_h = a_h * CELL_HEIGHT;
 
 #if DBG_TRMNL_SHOW
@@ -652,6 +828,124 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                     false,               // vertical
                     false                // skip (不跳过繁简转换)
                 );
+            }
+            // 处理今日诗词组件（daily_poem）
+            else if (strcmp(type, "daily_poem") == 0)
+            {
+                // 从嵌套结构读取属性
+                int pos_x = 0;
+                int pos_y = 0;
+                int a_w = 0;
+                int a_h = 0;
+                if (component.containsKey("position"))
+                {
+                    JsonObject position = component["position"].as<JsonObject>();
+                    pos_x = position["x"] | 0;
+                    pos_y = position["y"] | 0;
+                }
+                JsonObject areaSize = component["size"].as<JsonObject>();
+                a_w = areaSize["width"] | 1;
+                a_h = areaSize["height"] | 1;
+
+                // config: {fontSize, textColor, align, xOffset, yOffset, ...}
+                int fontSize = 24;
+                int textColor = 0;
+                const char *alignStr = "left";
+                uint8_t align = 0;
+                int xOffset = 0;  // x偏移量
+                int yOffset = 0;  // y偏移量
+                
+                if (component.containsKey("config"))
+                {
+                    JsonObject config = component["config"].as<JsonObject>();
+                    fontSize = config["fontSize"] | 24;
+                    textColor = config["textColor"] | 0;
+                    alignStr = config["align"] | "left";
+                    xOffset = config["xOffset"] | 0;
+                    yOffset = config["yOffset"] | 0;
+                    
+                    // 映射对齐方式
+                    if (strcmp(alignStr, "center") == 0) {
+                        align = 1;
+                    } else if (strcmp(alignStr, "right") == 0) {
+                        align = 2;
+                    }
+                }
+
+                // 计算打印起点（单元格坐标转像素）
+                const int CELL_WIDTH = 60;
+                const int CELL_HEIGHT = 60;
+                int16_t x = pos_x * CELL_WIDTH + 20 + xOffset;
+                int16_t y = pos_y * CELL_HEIGHT + yOffset;
+                a_w = a_w * CELL_WIDTH-40;
+                a_h = a_h * CELL_HEIGHT;
+
+                // 获取今日诗词
+                String poem_content;
+                String poem_origin;
+                if (fetch_daily_poem(poem_content, poem_origin))
+                {
+#if DBG_TRMNL_SHOW
+                    Serial.printf("[TRMNL] 渲染今日诗词: 单元格(%d, %d) 像素(%d, %d) 字号%d 颜色%d 宽度%d 高度%d 对齐%s\n",
+                                  pos_x, pos_y, x, y, fontSize, textColor, a_w, a_h, alignStr);
+#endif
+
+                    // 先打印正文（使用配置的字号）
+                    int used_lines = display_print_wrapped(
+                        poem_content.c_str(), // text
+                        x,                   // x (起点)
+                        y,                   // y (起点)
+                        a_w,                 // area_width (可用宽度)
+                        a_h,                 // area_height (可用高度)
+                        fontSize,            // font_size
+                        textColor,           // color (0-15 灰度)
+                        15,                  // bg_color (15=白色 #ffffff)
+                        align,               // align (0=左，1=中，2=右)
+                        false,               // vertical
+                        false                // skip (不跳过繁简转换)
+                    );
+                    
+                    // 计算剩余行数和出处字号
+                    uint8_t base_font_size = get_font_size_from_file();
+                    if (base_font_size == 0) base_font_size = 24;
+                    float scale_factor = (fontSize > 0) ? ((float)fontSize / (float)base_font_size) : 1.0f;
+                    int16_t line_height = (int16_t)((base_font_size + LINE_MARGIN) * scale_factor);
+                    int max_lines = a_h / line_height;
+                    int remaining_lines = max_lines - used_lines;
+                    
+                    // 如果还有空余行且有出处信息，打印出处（80%字号，深灰色）
+                    if (remaining_lines > 0 && poem_origin.length() > 0)
+                    {
+                        int16_t origin_y = y + used_lines * line_height;
+                        uint8_t origin_font_size = (uint8_t)(fontSize * 0.6f);
+                        uint8_t origin_color = textColor;  // 深灰色 
+                        
+#if DBG_TRMNL_SHOW
+                        Serial.printf("[TRMNL] 打印出处: y=%d, 字号=%d, 颜色=%d, 剩余行数=%d\n",
+                                      origin_y, origin_font_size, origin_color, remaining_lines);
+#endif
+                        
+                        display_print_wrapped(
+                            poem_origin.c_str(), // text
+                            x,                   // x (起点)
+                            origin_y,            // y (正文后)
+                            a_w,                 // area_width
+                            remaining_lines * line_height,  // area_height (剩余高度)
+                            origin_font_size,    // font_size (80%)
+                            origin_color,        // color (深灰色)
+                            15,                  // bg_color (白色)
+                            align,               // align
+                            false,               // vertical
+                            false                // skip
+                        );
+                    }
+                }
+                else
+                {
+#if DBG_TRMNL_SHOW
+                    Serial.println("[TRMNL] 获取今日诗词失败，跳过渲染");
+#endif
+                }
             }
             // TODO: 后续扩展其他动态组件的渲染（clock, barcode等）
         }

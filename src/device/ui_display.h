@@ -23,10 +23,11 @@ void display_print(const char* text, float text_size = SYSFONTSIZE, uint16_t col
  * @param align 对齐方式（0=左对齐，1=居中，2=右对齐）
  * @param vertical 是否垂直排版
  * @param skip 是否跳过繁简转换
+ * @return 返回已使用的行数
  */
-void display_print_wrapped(const char* text, int16_t x, int16_t y, int16_t area_width,
-                          int16_t area_height = 0, uint8_t font_size = 24, uint8_t color = 0, 
-                          int16_t bg_color = -1, uint8_t align = 0, bool vertical = false, bool skip = false);
+int display_print_wrapped(const char* text, int16_t x, int16_t y, int16_t area_width,
+                         int16_t area_height = 0, uint8_t font_size = 24, uint8_t color = 0, 
+                         int16_t bg_color = -1, uint8_t align = 0, bool vertical = false, bool skip = false);
 
 //Debug, just one warpper for display
 void initDisplay();
