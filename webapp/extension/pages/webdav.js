@@ -1963,7 +1963,7 @@
   
   // 从配置对象加载显示配置（提取为公共函数，供WebDAV和本地导入共用）
   function loadDisplayConfig(config) {
-    if (config.components && Array.isArray(config.components)) {
+    if (config && config.components && Array.isArray(config.components)) {
       components = config.components.map((comp, idx) => ({
         id: Date.now() + idx,
         type: comp.type || 'text',
@@ -1995,6 +1995,36 @@
     updateScreenPreview();
     updateComponentList();
     updateBackgroundPreview();
+  }
+
+  // 从浏览器本地存储异步加载显示配置（页面初始化时调用）
+  async function loadDisplayConfigFromLocalStorage() {
+    try {
+      if (chrome && chrome.storage && chrome.storage.local) {
+        return new Promise((resolve) => {
+          chrome.storage.local.get(['display_config', 'background_image', 'has_bg_pic'], (res) => {
+            if (res && res.display_config) {
+              loadDisplayConfig(res.display_config);
+              if (res.background_image) {
+                backgroundImage = res.background_image;
+              }
+              if (res.has_bg_pic !== undefined) {
+                hasBgPic = res.has_bg_pic;
+              }
+              // 更新复选框状态
+              const chkIncludeBgPic = document.getElementById('chkIncludeBgPic');
+              if (chkIncludeBgPic) {
+                chkIncludeBgPic.checked = hasBgPic;
+              }
+              console.log('已从本地存储加载展示配置');
+            }
+            resolve();
+          });
+        });
+      }
+    } catch (e) {
+      console.warn('从本地存储加载配置失败:', e);
+    }
   }
   
   // 从 WebDAV 读取当前配置
@@ -2201,7 +2231,20 @@
     const content = JSON.stringify(config, null, 2);
     
     try {
-      setStatus('上传中...', 'info', 'display');
+      showUploadProgress('准备上传到云端', '正在生成配置和图片...', 0);
+      
+      // 在上传之前先保存配置到本地存储，避免刷新后丢失
+      try {
+        if (chrome && chrome.storage && chrome.storage.local) {
+          chrome.storage.local.set({ 
+            display_config: config,
+            background_image: backgroundImage,
+            has_bg_pic: hasBgPic
+          });
+        }
+      } catch (e) {
+        // ignore
+      }
       
       // 获取 WebDAV 配置
       const url = urlEl ? urlEl.value.trim() : '';
@@ -2209,7 +2252,7 @@
       const password = passEl ? passEl.value : '';
       
       if (!url) {
-        setStatus('请先配置 WebDAV', 'error', 'display');
+        showUploadError('请先配置 WebDAV');
         return;
       }
 
@@ -2228,6 +2271,8 @@
       headers['Content-Type'] = 'application/json';
 
       // 上传配置文件
+      showUploadProgress('上传配置文件', '正在上传 readpaper.rdt...', 15);
+      
       const response = await fetch(rdtUrl, {
         method: 'PUT',
         headers: headers,
@@ -2241,7 +2286,7 @@
       }
 
       // 生成并上传渲染图片
-      setStatus('生成并上传渲染图片...', 'info', 'display');
+      showUploadProgress('生成渲染图片', '正在生成 PNG...', 30);
       const pngBlob = await generateRenderImage();
       const pngUrl = base + 'readpaper/readpaper.png';
       
@@ -2254,6 +2299,8 @@
         }
       }
       pngHeaders['Content-Type'] = 'image/png';
+
+      showUploadProgress('上传渲染图片', `正在上传 PNG (${Math.round(pngBlob.size / 1024)} KB)...`, 50);
 
       const pngResponse = await fetch(pngUrl, {
         method: 'PUT',
@@ -2272,6 +2319,8 @@
       // 如果有背景图且用户选中了包含背景图选项，则上传背景图
       const chkIncludeBgPic = document.getElementById('chkIncludeBgPic');
       if (hasBgPic && backgroundImage && chkIncludeBgPic && chkIncludeBgPic.checked) {
+        showUploadProgress('上传背景图', '正在上传 readpaper_0.png...', 70);
+        
         const bgUrl = base + 'readpaper/readpaper_0.png';
         
         // 将 base64 转换为 blob
@@ -2311,7 +2360,7 @@
         uploadedFiles.push('背景图');
       }
       
-      setStatus(`已上传 ${uploadedFiles.join('、')} 到 WebDAV`, 'success', 'display');
+      showUploadProgress('完成上传', '正在完成...', 98);
       
       // 保存到本地存储
       try {
@@ -2326,11 +2375,13 @@
         // ignore
       }
       
+      showUploadSuccess(`已上传 ${uploadedFiles.join('、')} 到 WebDAV`);
+      
       // 更新"读取当前"按钮状态
       updateLoadCurrentButtonState();
     } catch (e) {
       console.error('上传失败:', e);
-      setStatus(`上传失败: ${e.message}`, 'error', 'display');
+      showUploadError(`上传失败: ${e.message}`.substring(0, 80));
     }
   }
 
@@ -2557,6 +2608,212 @@
     }
   }
 
+  // 将 Blob 转为 base64 字符串（不含 data:* 前缀）
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = function() {
+        const dataUrl = reader.result;
+        // data:image/png;base64,xxxxx
+        const idx = dataUrl.indexOf(',');
+        if (idx >= 0) resolve(dataUrl.substring(idx + 1));
+        else resolve(dataUrl);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // 显示上传进度横幅
+  function showUploadProgress(title, detail, percent) {
+    const banner = document.getElementById('uploadProgressBanner');
+    const titleEl = document.getElementById('uploadProgressTitle');
+    const detailEl = document.getElementById('uploadProgressDetail');
+    const barFill = document.getElementById('uploadProgressBarFill');
+    
+    if (!banner) return;
+    
+    banner.style.display = 'block';
+    banner.className = 'upload-progress-banner';
+    
+    if (titleEl) titleEl.textContent = title;
+    if (detailEl) detailEl.textContent = detail;
+    if (barFill) barFill.style.width = percent + '%';
+  }
+
+  // 隐藏上传进度横幅
+  function hideUploadProgress() {
+    const banner = document.getElementById('uploadProgressBanner');
+    if (banner) {
+      setTimeout(() => {
+        banner.style.display = 'none';
+      }, 3000);
+    }
+  }
+
+  // 显示上传成功
+  function showUploadSuccess(message) {
+    const banner = document.getElementById('uploadProgressBanner');
+    const titleEl = document.getElementById('uploadProgressTitle');
+    const detailEl = document.getElementById('uploadProgressDetail');
+    const barFill = document.getElementById('uploadProgressBarFill');
+    
+    if (!banner) return;
+    
+    banner.className = 'upload-progress-banner success';
+    if (titleEl) titleEl.textContent = '✓ 上传成功';
+    if (detailEl) detailEl.textContent = message;
+    if (barFill) barFill.style.width = '100%';
+    
+    hideUploadProgress();
+  }
+
+  // 显示上传失败
+  function showUploadError(message) {
+    const banner = document.getElementById('uploadProgressBanner');
+    const titleEl = document.getElementById('uploadProgressTitle');
+    const detailEl = document.getElementById('uploadProgressDetail');
+    
+    if (!banner) return;
+    
+    banner.className = 'upload-progress-banner error';
+    if (titleEl) titleEl.textContent = '✗ 上传失败';
+    if (detailEl) detailEl.textContent = message;
+    
+    hideUploadProgress();
+  }
+
+  // 将当前生成的 .rdt 和 PNG 推送到设备的 /rdt 目录（分块上传）
+  async function pushToDevice() {
+    const btn = document.getElementById('btnPushToDevice');
+    if (btn) btn.disabled = true;
+    try {
+      showUploadProgress('准备上传', '正在生成配置和图片...', 0);
+
+      const config = generateRDTConfig();
+      const rdtText = JSON.stringify(config, null, 2);
+
+      // 在上传之前先保存配置到本地存储，避免刷新后丢失
+      try {
+        if (chrome && chrome.storage && chrome.storage.local) {
+          chrome.storage.local.set({ 
+            display_config: config,
+            background_image: backgroundImage,
+            has_bg_pic: hasBgPic
+          });
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      const pngBlob = await generateRenderImage();
+      const pngBase64 = await blobToBase64(pngBlob);
+
+      const deviceUrl = 'http://192.168.4.1';
+      const CHUNK_SIZE = 8192; // 每块 8KB
+
+      // 上传 RDT（分块）
+      showUploadProgress('上传配置文件', '初始化 RDT 上传...', 5);
+      
+      await fetch(`${deviceUrl}/api/update_display_start`, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'rdt' })
+      });
+
+      const rdtTotalChunks = Math.ceil(rdtText.length / CHUNK_SIZE);
+      for (let offset = 0, chunkIndex = 0; offset < rdtText.length; offset += CHUNK_SIZE, chunkIndex++) {
+        const chunk = rdtText.substring(offset, offset + CHUNK_SIZE);
+        const resp = await fetch(`${deviceUrl}/api/update_display_chunk`, {
+          method: 'POST',
+          mode: 'cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'rdt', data: chunk })
+        });
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(`RDT chunk upload failed: ${resp.status} ${text}`);
+        }
+        const percent = 5 + Math.floor((chunkIndex + 1) / rdtTotalChunks * 15);
+        showUploadProgress('上传配置文件', `RDT: ${chunkIndex + 1}/${rdtTotalChunks} 块`, percent);
+      }
+
+      await fetch(`${deviceUrl}/api/update_display_commit`, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'rdt' })
+      });
+
+      // 上传 PNG（分块）
+      showUploadProgress('上传显示图片', '初始化 PNG 上传...', 20);
+      
+      await fetch(`${deviceUrl}/api/update_display_start`, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'png' })
+      });
+
+      const totalChunks = Math.ceil(pngBase64.length / CHUNK_SIZE);
+      for (let offset = 0, chunkIndex = 0; offset < pngBase64.length; offset += CHUNK_SIZE, chunkIndex++) {
+        const chunk = pngBase64.substring(offset, offset + CHUNK_SIZE);
+        const resp = await fetch(`${deviceUrl}/api/update_display_chunk`, {
+          method: 'POST',
+          mode: 'cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'png', data: chunk })
+        });
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(`PNG chunk ${chunkIndex + 1}/${totalChunks} upload failed: ${resp.status} ${text}`);
+        }
+        // 进度从 20% 到 95%
+        const percent = 20 + Math.floor((chunkIndex + 1) / totalChunks * 75);
+        showUploadProgress('上传显示图片', `PNG: ${chunkIndex + 1}/${totalChunks} 块 (${Math.round(pngBase64.length / 1024)} KB)`, percent);
+      }
+
+      showUploadProgress('完成上传', '正在保存文件...', 98);
+      
+      const commitResp = await fetch(`${deviceUrl}/api/update_display_commit`, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'png' })
+      });
+
+      if (!commitResp.ok) {
+        const text = await commitResp.text();
+        throw new Error(`PNG commit failed: ${commitResp.status} ${text}`);
+      }
+
+      const j = await commitResp.json();
+      if (j && j.ok) {
+        showUploadSuccess('已更新 /rdt/readpaper.rdt 和 /rdt/readpaper.png');
+      } else {
+        throw new Error(j && j.message ? j.message : '未知错误');
+      }
+    } catch (e) {
+      console.error('pushToDevice error', e);
+      showUploadError((e && e.message ? e.message : String(e)).substring(0, 80));
+    } finally {
+      // 重新根据在线状态决定是否启用
+      updatePushButtonState();
+    }
+  }
+
+  // 根据 heartbeat（device-info 元素是否可见）更新按钮状态
+  function updatePushButtonState() {
+    const btn = document.getElementById('btnPushToDevice');
+    if (!btn) return;
+    const devEl = document.getElementById('device-info');
+    const online = devEl && devEl.classList && devEl.classList.contains('show');
+    btn.disabled = !online;
+    if (!online) btn.title = '设备未检测到（请连接到设备热点）';
+    else btn.title = '将 readpaper.rdt 与 readpaper.png 上传到设备并保存到 /rdt';
+  }
+
   // 绑定展示配置事件
   const btnAddComponent = document.getElementById('btnAddComponent');
   const btnUploadToWebdav = document.getElementById('btnUploadToWebdav');
@@ -2571,6 +2828,10 @@
   }
   if (btnUploadToWebdav) {
     btnUploadToWebdav.addEventListener('click', uploadToWebDAV);
+  }
+  const btnPushToDevice = document.getElementById('btnPushToDevice');
+  if (btnPushToDevice) {
+    btnPushToDevice.addEventListener('click', pushToDevice);
   }
   if (btnSaveLocal) {
     btnSaveLocal.addEventListener('click', saveToLocal);
@@ -2591,6 +2852,10 @@
   if (btnResetConfig) {
     btnResetConfig.addEventListener('click', resetConfig);
   }
+
+  // 初始化 push 按钮状态并周期检查 device-info（heartbeat）
+  updatePushButtonState();
+  setInterval(updatePushButtonState, 3000);
 
   // 使用事件委托处理组件列表中的删除和文本更新
   const componentList = document.getElementById('componentList');
@@ -2748,7 +3013,7 @@
       activateTab('wifi');
       await loadSystemFonts(); // 先加载字体
       // 先尽快加载本地草稿并初始化预览，避免被 WebDAV 探测阻塞
-      await loadDisplayConfig();
+      await loadDisplayConfigFromLocalStorage();
       initScreenPreview();
 
       // 后台异步加载设备配置与 WebDAV 探测，不阻塞 UI
@@ -2762,7 +3027,7 @@
       activateTab('wifi');
       await loadSystemFonts(); // 先加载字体
       // 先尽快加载本地草稿并初始化预览，避免被 WebDAV 探测阻塞
-      await loadDisplayConfig();
+      await loadDisplayConfigFromLocalStorage();
       initScreenPreview();
 
       // 后台异步加载设备配置与 WebDAV 探测，不阻塞 UI

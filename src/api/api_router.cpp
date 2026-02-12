@@ -182,4 +182,42 @@ void ApiRouter::registerRoutes(WebServer& server, WiFiHotspotManager& mgr) {
         add_cors_headers(server);
         server.send(204);
     });
+
+    // 更新设备显示配置（接收 JSON { rdt: string, png_base64: string }）
+    server.on("/api/update_display", HTTP_POST, [&](){
+        add_cors_headers(server);
+        mgr.handleUpdateDisplay();
+    });
+    server.on("/api/update_display", HTTP_OPTIONS, [&](){
+        add_cors_headers(server);
+        server.send(204);
+    });
+
+    // 分块上传 API
+    server.on("/api/update_display_start", HTTP_POST, [&](){
+        add_cors_headers(server);
+        mgr.handleUpdateDisplayStart();
+    });
+    server.on("/api/update_display_start", HTTP_OPTIONS, [&](){
+        add_cors_headers(server);
+        server.send(204);
+    });
+
+    server.on("/api/update_display_chunk", HTTP_POST, [&](){
+        add_cors_headers(server);
+        mgr.handleUpdateDisplayChunk();
+    });
+    server.on("/api/update_display_chunk", HTTP_OPTIONS, [&](){
+        add_cors_headers(server);
+        server.send(204);
+    });
+
+    server.on("/api/update_display_commit", HTTP_POST, [&](){
+        add_cors_headers(server);
+        mgr.handleUpdateDisplayCommit();
+    });
+    server.on("/api/update_display_commit", HTTP_OPTIONS, [&](){
+        add_cors_headers(server);
+        server.send(204);
+    });
 }

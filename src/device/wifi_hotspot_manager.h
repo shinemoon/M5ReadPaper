@@ -130,6 +130,10 @@ private:
     void handleWebdavConfigUpdate();
     void handleWifiConfigGet();
     void handleWifiConfigUpdate();
+    void handleUpdateDisplay();
+    void handleUpdateDisplayStart();
+    void handleUpdateDisplayChunk();
+    void handleUpdateDisplayCommit();
 
     // 辅助函数
     String formatFileSize(size_t bytes);

@@ -7,12 +7,92 @@
   <link rel="stylesheet" href="../vendors/chota.css">
   <link rel="stylesheet" href="css/main.css">
   <link rel="icon" href="../assets/favicon.png">
+  <style>
+    .upload-progress-banner {
+      margin-top: 15px;
+      padding: 15px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 8px;
+      color: white;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      animation: slideDown 0.3s ease-out;
+    }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .progress-content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .progress-icon {
+      flex-shrink: 0;
+    }
+    .spinner {
+      width: 24px;
+      height: 24px;
+      animation: rotate 1s linear infinite;
+    }
+    @keyframes rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .spinner circle {
+      animation: dash 1.5s ease-in-out infinite;
+    }
+    @keyframes dash {
+      0% { stroke-dashoffset: 63; }
+      50% { stroke-dashoffset: 15.75; }
+      100% { stroke-dashoffset: 63; }
+    }
+    .progress-text {
+      flex: 1;
+      min-width: 0;
+    }
+    .progress-title {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+    .progress-detail {
+      font-size: 12px;
+      opacity: 0.9;
+    }
+    .progress-bar-container {
+      width: 120px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 3px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: white;
+      border-radius: 3px;
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+    .upload-progress-banner.success {
+      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+      animation: pulse 0.5s ease-out;
+    }
+    .upload-progress-banner.error {
+      background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+    }
+  </style>
 </head>
 <body id="webdav-page">
   <div data-include="partials/header.html"></div>
 
   <main class="container">
     <h4 class="bg-light">配置中心</h4>
+      <div id="device-info" class="muted"></div>
 
     <div class="config-tabs">
       <button class="tab-btn is-active" type="button" data-tab="wifi">WIFI 配置</button>
@@ -149,13 +229,43 @@
     </div>
 
     <div class="tab-panel hidden" data-tab="display">
+      <div class="row" style="margin-top: 20px;">
+        <div class="col-12">
+          <div class="field webdav-actions">
+            <button id="btnUploadToWebdav" class="button primary" type="button">更新云</button>
+            <button id="btnPushToDevice" class="button primary" type="button" disabled>更新设备</button>
+            <button id="btnSaveLocal" class="button outline" type="button">保存本地</button>
+            <label style="margin-left: 10px; display:none;">
+              <input type="checkbox" id="chkIncludeBgPic" checked />
+              包含背景图
+            </label>
+          </div>
+          <!-- 上传进度横幅 -->
+          <div id="uploadProgressBanner" class="upload-progress-banner" style="display:none;">
+            <div class="progress-content">
+              <div class="progress-icon">
+                <svg class="spinner" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="63" stroke-dashoffset="0" />
+                </svg>
+              </div>
+              <div class="progress-text">
+                <div id="uploadProgressTitle" class="progress-title">上传中...</div>
+                <div id="uploadProgressDetail" class="progress-detail"></div>
+              </div>
+              <div id="uploadProgressBar" class="progress-bar-container">
+                <div id="uploadProgressBarFill" class="progress-bar-fill"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="row">
         <div class="col-6 panel webdav-card">
           <h5 class="bg-light">展示设置</h5>
           <div class="field">
             <label>屏幕布局预览 (9x16)</label>
             <div class="display-actions" style="margin-bottom: 10px;">
-              <button id="btnLoadCurrent" class="button is-small outline" type="button">读取当前</button>
+              <button id="btnLoadCurrent" class="button is-small outline" type="button">读取云端</button>
               <button id="btnLoadLocal" class="button is-small outline" type="button">本地导入</button>
               <button id="btnChangeBg" class="button is-small outline" type="button">修改背景</button>
               <input id="bgImageInput" type="file" accept="image/png,image/jpeg,image/jpg" style="display:none" />
@@ -207,18 +317,7 @@
         </div>
       </div>
       
-      <div class="row" style="margin-top: 20px;">
-        <div class="col-12">
-          <div class="field webdav-actions">
-            <button id="btnUploadToWebdav" class="button primary" type="button">更新到 WebDAV</button>
-            <button id="btnSaveLocal" class="button outline" type="button">保存本地</button>
-            <label style="margin-left: 10px;">
-              <input type="checkbox" id="chkIncludeBgPic" checked />
-              包含背景图
-            </label>
-          </div>
-        </div>
-      </div>
+      <!-- webdav-actions 行已移至展示设置上方 -->
     </div>
   </main>
 

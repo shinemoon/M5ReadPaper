@@ -2327,3 +2327,433 @@ bool WiFiHotspotManager::ensureWebdavReadpaperDir() {
     }
     return false;
 }
+
+// 将前端发送的 rdt 和 png_base64 保存到 SD 卡的 /rdt 目录
+void WiFiHotspotManager::handleUpdateDisplay() {
+    // CORS headers
+    webServer->sendHeader("Access-Control-Allow-Origin", "*");
+    webServer->sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, DELETE");
+    webServer->sendHeader("Access-Control-Allow-Headers", "Content-Type, X-Requested-With");
+
+    String body = webServer->arg("plain");
+    if (body.length() == 0) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Empty body\"}");
+        return;
+    }
+
+    // 手工从 body 中提取大字段，避免为完整 JSON 分配大量堆内存（导致 NoMemory）
+    auto extractJsonString = [](const String &src, const char* key, String &out)->bool{
+        String pattern = String("\"") + String(key) + String("\"");
+        int idx = src.indexOf(pattern);
+        if (idx < 0) return false;
+        int col = src.indexOf(':', idx + pattern.length());
+        if (col < 0) return false;
+        int i = col + 1;
+        // skip spaces
+        while (i < src.length() && (src[i] == ' ' || src[i] == '\n' || src[i] == '\r' || src[i] == '\t')) i++;
+        // expect starting quote
+        if (i >= src.length() || src[i] != '"') return false;
+        i++; // move past opening quote
+        String acc;
+        bool escape = false;
+        for (; i < src.length(); i++) {
+            char c = src[i];
+            if (escape) {
+                // handle common escapes
+                if (c == '"') acc += '"';
+                else if (c == '\\') acc += '\\';
+                else if (c == '/') acc += '/';
+                else if (c == 'b') acc += '\b';
+                else if (c == 'f') acc += '\f';
+                else if (c == 'n') acc += '\n';
+                else if (c == 'r') acc += '\r';
+                else if (c == 't') acc += '\t';
+                else {
+                    // unknown escape, copy as-is
+                    acc += c;
+                }
+                escape = false;
+            } else {
+                if (c == '\\') {
+                    escape = true;
+                } else if (c == '"') {
+                    out = acc;
+                    return true;
+                } else {
+                    acc += c;
+                }
+            }
+        }
+        return false;
+    };
+
+    String rdtStr;
+    String png_b64_str;
+
+    if (!extractJsonString(body, "png_base64", png_b64_str)) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Missing png_base64\"}");
+        return;
+    }
+
+    if (!extractJsonString(body, "rdt", rdtStr)) {
+        // rdt 可以为空或缺失视为错误
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Missing rdt\"}");
+        return;
+    }
+
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] Extracted rdt len=%d, png_b64 len=%d\n", rdtStr.length(), png_b64_str.length());
+    if (png_b64_str.length() > 0) {
+        Serial.printf("[WIFI_HOTSPOT] png_b64 first 60 chars: %.60s\n", png_b64_str.c_str());
+    }
+#endif
+
+    // 清理 base64 字符串：移除所有空白和非 base64 字符
+    String cleaned_b64;
+    cleaned_b64.reserve(png_b64_str.length());
+    for (int i = 0; i < png_b64_str.length(); i++) {
+        char c = png_b64_str[i];
+        if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+            (c >= '0' && c <= '9') || c == '+' || c == '/' || c == '=') {
+            cleaned_b64 += c;
+        }
+        // 忽略其他字符（空白、换行等）
+    }
+    png_b64_str = cleaned_b64;
+
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] Cleaned png_b64 len=%d\n", png_b64_str.length());
+#endif
+
+    // 确保 /rdt 目录存在
+    if (!SDW::SD.exists("/rdt")) {
+        SDW::SD.mkdir("/rdt");
+    }
+
+    // RDT 将在处理完 PNG 后以原子方式保存（见函数后部）
+    const char* rdt_path = "/rdt/readpaper.rdt";
+    const char* rdt_tmp = "/rdt/readpaper.rdt.tmp";
+    if (SDW::SD.exists(rdt_tmp)) SDW::SD.remove(rdt_tmp);
+
+    // 解码 PNG base64 并写入文件
+    const char* png_path = "/rdt/readpaper.png";
+    const char* png_tmp = "/rdt/readpaper.png.tmp";
+    if (SDW::SD.exists(png_tmp)) SDW::SD.remove(png_tmp);
+
+    size_t b64len = (size_t)png_b64_str.length();
+    // 防护：拒绝过大的上传（例如超过 1.5MB base64，约 1.1MB 二进制）
+    const size_t MAX_B64 = 1500 * 1024; // 1.5MB
+    if (b64len == 0 || b64len > MAX_B64) {
+        webServer->send(413, "application/json", "{\"ok\":false,\"message\":\"png_base64 too large\"}");
+        return;
+    }
+    size_t out_len = (b64len * 3) / 4 + 16;
+    uint8_t* outbuf = (uint8_t*)malloc(out_len);
+    if (!outbuf) {
+        webServer->send(500, "application/json", "{\"ok\":false,\"message\":\"Out of memory\"}");
+        return;
+    }
+    size_t dec_len = 0;
+    int decode_ret = mbedtls_base64_decode(outbuf, out_len, &dec_len, (const unsigned char*)png_b64_str.c_str(), b64len);
+    if (decode_ret != 0) {
+        free(outbuf);
+#if DBG_WIFI_HOTSPOT
+        Serial.printf("[WIFI_HOTSPOT] Base64 decode failed: ret=%d, b64len=%d, out_len=%d\n", decode_ret, b64len, out_len);
+#endif
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Base64 decode failed\"}");
+        return;
+    }
+
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] Base64 decoded %d bytes -> %d bytes\n", b64len, dec_len);
+#endif
+
+    File pf = SDW::SD.open(png_tmp, "w");
+    if (!pf) {
+        free(outbuf);
+        webServer->send(500, "application/json", "{\"ok\":false,\"message\":\"Failed to open png tmp\"}");
+        return;
+    }
+    pf.write(outbuf, dec_len);
+    pf.close();
+    free(outbuf);
+
+    if (SDW::SD.exists(png_path)) SDW::SD.remove(png_path);
+    SDW::SD.rename(png_tmp, png_path);
+
+    // 保存 rdt
+    if (SDW::SD.exists(rdt_tmp)) SDW::SD.remove(rdt_tmp);
+    File rf2 = SDW::SD.open(rdt_tmp, "w");
+    if (!rf2) {
+        webServer->send(500, "application/json", "{\"ok\":false,\"message\":\"Failed to open rdt tmp\"}");
+        return;
+    }
+    rf2.print(rdtStr);
+    rf2.close();
+    if (SDW::SD.exists(rdt_path)) SDW::SD.remove(rdt_path);
+    SDW::SD.rename(rdt_tmp, rdt_path);
+
+    webServer->send(200, "application/json", "{\"ok\":true,\"message\":\"Saved\"}");
+}
+
+// 分块上传：开始会话，清空临时文件
+void WiFiHotspotManager::handleUpdateDisplayStart() {
+    webServer->sendHeader("Access-Control-Allow-Origin", "*");
+    webServer->sendHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    webServer->sendHeader("Access-Control-Allow-Headers", "Content-Type");
+
+    String body = webServer->arg("plain");
+    if (body.length() == 0) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Empty body\"}");
+        return;
+    }
+
+    // 手工解析 type 字段
+    int idx = body.indexOf("\"type\"");
+    if (idx < 0) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Missing type\"}");
+        return;
+    }
+    int col = body.indexOf(':', idx);
+    if (col < 0) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Invalid json\"}");
+        return;
+    }
+    int i = col + 1;
+    while (i < body.length() && (body[i] == ' ' || body[i] == '\t' || body[i] == '\n' || body[i] == '\r')) i++;
+    if (i >= body.length() || body[i] != '"') {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Invalid type format\"}");
+        return;
+    }
+    i++;
+    String type;
+    while (i < body.length() && body[i] != '"') {
+        type += body[i];
+        i++;
+    }
+
+    if (!SDW::SD.exists("/rdt")) SDW::SD.mkdir("/rdt");
+
+    const char* upload_path = nullptr;
+    if (type == "rdt") {
+        upload_path = "/rdt/readpaper.rdt.upload";
+    } else if (type == "png") {
+        upload_path = "/rdt/readpaper.png.upload";
+    } else {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Invalid type\"}");
+        return;
+    }
+
+    // 清空或创建上传临时文件
+    if (SDW::SD.exists(upload_path)) SDW::SD.remove(upload_path);
+    File uf = SDW::SD.open(upload_path, "w");
+    if (!uf) {
+        webServer->send(500, "application/json", "{\"ok\":false,\"message\":\"Failed to create upload file\"}");
+        return;
+    }
+    uf.close();
+
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] Upload started for type=%s, path=%s\n", type.c_str(), upload_path);
+#endif
+
+    webServer->send(200, "application/json", "{\"ok\":true}");
+}
+
+// 分块上传：接收一块数据
+void WiFiHotspotManager::handleUpdateDisplayChunk() {
+    webServer->sendHeader("Access-Control-Allow-Origin", "*");
+    webServer->sendHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    webServer->sendHeader("Access-Control-Allow-Headers", "Content-Type");
+
+    String body = webServer->arg("plain");
+    if (body.length() == 0) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Empty body\"}");
+        return;
+    }
+
+    // 手工解析 type 和 data 字段（复用 extractJsonString lambda）
+    auto extractJsonString = [](const String &src, const char* key, String &out)->bool{
+        String pattern = String("\"") + String(key) + String("\"");
+        int idx = src.indexOf(pattern);
+        if (idx < 0) return false;
+        int col = src.indexOf(':', idx + pattern.length());
+        if (col < 0) return false;
+        int i = col + 1;
+        while (i < src.length() && (src[i] == ' ' || src[i] == '\n' || src[i] == '\r' || src[i] == '\t')) i++;
+        if (i >= src.length() || src[i] != '"') return false;
+        i++;
+        String acc;
+        bool escape = false;
+        for (; i < src.length(); i++) {
+            char c = src[i];
+            if (escape) {
+                if (c == '"') acc += '"';
+                else if (c == '\\') acc += '\\';
+                else if (c == '/') acc += '/';
+                else if (c == 'b') acc += '\b';
+                else if (c == 'f') acc += '\f';
+                else if (c == 'n') acc += '\n';
+                else if (c == 'r') acc += '\r';
+                else if (c == 't') acc += '\t';
+                else acc += c;
+                escape = false;
+            } else {
+                if (c == '\\') escape = true;
+                else if (c == '"') { out = acc; return true; }
+                else acc += c;
+            }
+        }
+        return false;
+    };
+
+    String type, data;
+    if (!extractJsonString(body, "type", type)) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Missing type\"}");
+        return;
+    }
+    if (!extractJsonString(body, "data", data)) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Missing data\"}");
+        return;
+    }
+
+    const char* upload_path = nullptr;
+    if (type == "rdt") {
+        upload_path = "/rdt/readpaper.rdt.upload";
+    } else if (type == "png") {
+        upload_path = "/rdt/readpaper.png.upload";
+    } else {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Invalid type\"}");
+        return;
+    }
+
+    // 检查大小限制（单块最大 16KB）
+    if (data.length() > 16384) {
+        webServer->send(413, "application/json", "{\"ok\":false,\"message\":\"Chunk too large\"}");
+        return;
+    }
+
+    File uf = SDW::SD.open(upload_path, "a");
+    if (!uf) {
+        webServer->send(500, "application/json", "{\"ok\":false,\"message\":\"Failed to open upload file\"}");
+        return;
+    }
+
+    if (type == "rdt") {
+        // RDT 直接追加文本
+        uf.print(data);
+        uf.close();
+    } else if (type == "png") {
+        // PNG 需要先 base64 解码再追加
+        // 清理 base64 字符串
+        String cleaned;
+        cleaned.reserve(data.length());
+        for (int j = 0; j < data.length(); j++) {
+            char c = data[j];
+            if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                (c >= '0' && c <= '9') || c == '+' || c == '/' || c == '=') {
+                cleaned += c;
+            }
+        }
+
+        size_t b64len = cleaned.length();
+        size_t out_len = (b64len * 3) / 4 + 16;
+        uint8_t* outbuf = (uint8_t*)malloc(out_len);
+        if (!outbuf) {
+            uf.close();
+            webServer->send(500, "application/json", "{\"ok\":false,\"message\":\"Out of memory\"}");
+            return;
+        }
+
+        size_t dec_len = 0;
+        int ret = mbedtls_base64_decode(outbuf, out_len, &dec_len, (const unsigned char*)cleaned.c_str(), b64len);
+        if (ret != 0) {
+            free(outbuf);
+            uf.close();
+#if DBG_WIFI_HOTSPOT
+            Serial.printf("[WIFI_HOTSPOT] Chunk base64 decode failed: ret=%d\n", ret);
+#endif
+            webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Base64 decode failed\"}");
+            return;
+        }
+
+        uf.write(outbuf, dec_len);
+        uf.close();
+        free(outbuf);
+    }
+
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] Chunk appended: type=%s, data_len=%d\n", type.c_str(), data.length());
+#endif
+
+    webServer->send(200, "application/json", "{\"ok\":true}");
+}
+
+// 分块上传：完成上传，重命名临时文件
+void WiFiHotspotManager::handleUpdateDisplayCommit() {
+    webServer->sendHeader("Access-Control-Allow-Origin", "*");
+    webServer->sendHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    webServer->sendHeader("Access-Control-Allow-Headers", "Content-Type");
+
+    String body = webServer->arg("plain");
+    if (body.length() == 0) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Empty body\"}");
+        return;
+    }
+
+    // 手工解析 type 字段
+    int idx = body.indexOf("\"type\"");
+    if (idx < 0) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Missing type\"}");
+        return;
+    }
+    int col = body.indexOf(':', idx);
+    if (col < 0) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Invalid json\"}");
+        return;
+    }
+    int i = col + 1;
+    while (i < body.length() && (body[i] == ' ' || body[i] == '\t' || body[i] == '\n' || body[i] == '\r')) i++;
+    if (i >= body.length() || body[i] != '"') {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Invalid type format\"}");
+        return;
+    }
+    i++;
+    String type;
+    while (i < body.length() && body[i] != '"') {
+        type += body[i];
+        i++;
+    }
+
+    const char* upload_path = nullptr;
+    const char* final_path = nullptr;
+    if (type == "rdt") {
+        upload_path = "/rdt/readpaper.rdt.upload";
+        final_path = "/rdt/readpaper.rdt";
+    } else if (type == "png") {
+        upload_path = "/rdt/readpaper.png.upload";
+        final_path = "/rdt/readpaper.png";
+    } else {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Invalid type\"}");
+        return;
+    }
+
+    // 检查上传文件是否存在
+    if (!SDW::SD.exists(upload_path)) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Upload file not found\"}");
+        return;
+    }
+
+    // 替换最终文件
+    if (SDW::SD.exists(final_path)) SDW::SD.remove(final_path);
+    if (!SDW::SD.rename(upload_path, final_path)) {
+        webServer->send(500, "application/json", "{\"ok\":false,\"message\":\"Rename failed\"}");
+        return;
+    }
+
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] Upload committed: type=%s -> %s\n", type.c_str(), final_path);
+#endif
+
+    webServer->send(200, "application/json", "{\"ok\":true,\"message\":\"Saved\"}");
+}
