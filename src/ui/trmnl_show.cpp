@@ -1003,69 +1003,70 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                 // 获取今日诗词
                 String poem_content;
                 String poem_origin;
-                if (fetch_daily_poem(poem_content, poem_origin))
+                if (!fetch_daily_poem(poem_content, poem_origin))
                 {
+                    // 获取失败，使用默认诗词
 #if DBG_TRMNL_SHOW
-                    Serial.printf("[TRMNL] 渲染今日诗词: 单元格(%d, %d) 像素(%d, %d) 字号%d 颜色%d 宽度%d 高度%d 对齐%s\n",
-                                  pos_x, pos_y, x, y, fontSize, textColor, a_w, a_h, alignStr);
+                    Serial.println("[TRMNL] 获取今日诗词失败，使用默认诗词");
 #endif
-
-                    // 先打印正文（使用配置的字号）
-                    int used_lines = display_print_wrapped(
-                        poem_content.c_str(), // text
-                        x,                    // x (起点)
-                        y,                    // y (起点)
-                        a_w,                  // area_width (可用宽度)
-                        a_h,                  // area_height (可用高度)
-                        fontSize,             // font_size
-                        textColor,            // color (0-15 灰度)
-                        15,                   // bg_color (15=白色 #ffffff)
-                        align,                // align (0=左，1=中，2=右)
-                        false,                // vertical
-                        false                 // skip (不跳过繁简转换)
-                    );
-
-                    // 计算剩余行数和出处字号
-                    uint8_t base_font_size = get_font_size_from_file();
-                    if (base_font_size == 0)
-                        base_font_size = 24;
-                    float scale_factor = (fontSize > 0) ? ((float)fontSize / (float)base_font_size) : 1.0f;
-                    int16_t line_height = (int16_t)((base_font_size + LINE_MARGIN) * scale_factor);
-                    int max_lines = a_h / line_height;
-                    int remaining_lines = max_lines - used_lines;
-
-                    // 如果还有空余行且有出处信息，打印出处（80%字号，深灰色）
-                    if (remaining_lines > 0 && poem_origin.length() > 0)
-                    {
-                        int16_t origin_y = y + used_lines * line_height;
-                        uint8_t origin_font_size = (uint8_t)(fontSize * 0.6f);
-                        uint8_t origin_color = textColor; // 深灰色
-
-#if DBG_TRMNL_SHOW
-                        Serial.printf("[TRMNL] 打印出处: y=%d, 字号=%d, 颜色=%d, 剩余行数=%d\n",
-                                      origin_y, origin_font_size, origin_color, remaining_lines);
-#endif
-
-                        display_print_wrapped(
-                            poem_origin.c_str(),           // text
-                            x,                             // x (起点)
-                            origin_y,                      // y (正文后)
-                            a_w,                           // area_width
-                            remaining_lines * line_height, // area_height (剩余高度)
-                            origin_font_size,              // font_size (80%)
-                            origin_color,                  // color (深灰色)
-                            15,                            // bg_color (白色)
-                            align,                         // align
-                            false,                         // vertical
-                            false                          // skip
-                        );
-                    }
+                    poem_content = "扣舷独啸，不知今夕何夕。";
+                    poem_origin = "过洞庭·宋·张孝祥";
                 }
-                else
-                {
+
 #if DBG_TRMNL_SHOW
-                    Serial.println("[TRMNL] 获取今日诗词失败，跳过渲染");
+                Serial.printf("[TRMNL] 渲染今日诗词: 单元格(%d, %d) 像素(%d, %d) 字号%d 颜色%d 宽度%d 高度%d 对齐%s\n",
+                              pos_x, pos_y, x, y, fontSize, textColor, a_w, a_h, alignStr);
 #endif
+
+                // 先打印正文（使用配置的字号）
+                int used_lines = display_print_wrapped(
+                    poem_content.c_str(), // text
+                    x,                    // x (起点)
+                    y,                    // y (起点)
+                    a_w,                  // area_width (可用宽度)
+                    a_h,                  // area_height (可用高度)
+                    fontSize,             // font_size
+                    textColor,            // color (0-15 灰度)
+                    15,                   // bg_color (15=白色 #ffffff)
+                    align,                // align (0=左，1=中，2=右)
+                    false,                // vertical
+                    false                 // skip (不跳过繁简转换)
+                );
+
+                // 计算剩余行数和出处字号
+                uint8_t base_font_size = get_font_size_from_file();
+                if (base_font_size == 0)
+                    base_font_size = 24;
+                float scale_factor = (fontSize > 0) ? ((float)fontSize / (float)base_font_size) : 1.0f;
+                int16_t line_height = (int16_t)((base_font_size + LINE_MARGIN) * scale_factor);
+                int max_lines = a_h / line_height;
+                int remaining_lines = max_lines - used_lines;
+
+                // 如果还有空余行且有出处信息，打印出处（80%字号，深灰色）
+                if (remaining_lines > 0 && poem_origin.length() > 0)
+                {
+                    int16_t origin_y = y + used_lines * line_height;
+                    uint8_t origin_font_size = (uint8_t)(fontSize * 0.8f);
+                    uint8_t origin_color = textColor; // 深灰色
+
+#if DBG_TRMNL_SHOW
+                    Serial.printf("[TRMNL] 打印出处: y=%d, 字号=%d, 颜色=%d, 剩余行数=%d\n",
+                                  origin_y, origin_font_size, origin_color, remaining_lines);
+#endif
+
+                    display_print_wrapped(
+                        poem_origin.c_str(),           // text
+                        x,                             // x (起点)
+                        origin_y,                      // y (正文后)
+                        a_w,                           // area_width
+                        remaining_lines * line_height, // area_height (剩余高度)
+                        origin_font_size,              // font_size (80%)
+                        origin_color,                  // color (深灰色)
+                        15,                            // bg_color (白色)
+                        align,                         // align
+                        false,                         // vertical
+                        false                          // skip
+                    );
                 }
             }
             // 处理列表组件（list）
