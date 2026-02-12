@@ -793,7 +793,7 @@
           return;  // 跳过后续的旋转渲染
         }
         
-        // 绘制预渲染文本组件（支持旋转）
+        // 绘制分割线或预渲染文本组件（支持旋转）
         const cx = x + w / 2;
         const cy = y + h / 2;
         const angle = (comp.rotation || 0) * Math.PI / 180;
@@ -801,10 +801,45 @@
         ctx.translate(cx, cy);
         ctx.rotate(angle);
 
-        // 黄色占位高亮已隐藏（允许组件重叠）
-
-        // 内容背景色
-        if (comp.text && comp.type === 'text') {
+        // 分割线预览
+        if (comp.type === 'divider') {
+          const lineGray = (comp.lineColor || 0) * 17;
+          ctx.strokeStyle = `rgb(${lineGray}, ${lineGray}, ${lineGray})`;
+          ctx.lineWidth = 2 * (canvas.width / 540);  // 按比例缩放线宽
+          
+          // 设置线条样式
+          const lineStyle = comp.lineStyle || 'solid';
+          const dashScale = canvas.width / 540;
+          if (lineStyle === 'dashed') {
+            ctx.setLineDash([10 * dashScale, 5 * dashScale]);
+          } else if (lineStyle === 'dotted') {
+            ctx.setLineDash([2 * dashScale, 3 * dashScale]);
+          } else if (lineStyle === 'double') {
+            ctx.setLineDash([]);
+            const offset = 2 * dashScale;
+            // 绘制双线
+            ctx.beginPath();
+            ctx.moveTo(-w/2, -offset);
+            ctx.lineTo(w/2, -offset);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(-w/2, offset);
+            ctx.lineTo(w/2, offset);
+            ctx.stroke();
+          } else {
+            ctx.setLineDash([]);
+          }
+          
+          // 绘制单线（非double样式）
+          if (lineStyle !== 'double') {
+            ctx.beginPath();
+            ctx.moveTo(-w/2, 0);
+            ctx.lineTo(w/2, 0);
+            ctx.stroke();
+          }
+        }
+        // 预渲染文本内容背景色
+        else if (comp.text && comp.type === 'text') {
           if (comp.bgColor !== 'transparent' && comp.bgColor !== undefined) {
             const bgGray = (comp.bgColor || 0) * 17;
             ctx.fillStyle = `rgb(${bgGray}, ${bgGray}, ${bgGray})`;
@@ -902,17 +937,8 @@
     });
 
     // 标记被组件占用的单元格
-    components.forEach((comp, idx) => {
-      for (let r = comp.row; r < comp.row + comp.height && r < SCREEN_ROWS; r++) {
-        for (let c = comp.col; c < comp.col + comp.width && c < SCREEN_COLS; c++) {
-          const cell = document.querySelector(`.screen-cell[data-row="${r}"][data-col="${c}"]`);
-          if (cell) {
-            cell.classList.add('occupied');
-            cell.title = `组件 ${idx + 1}: ${comp.type}`;
-          }
-        }
-      }
-    });
+      // 所有组件均为非排他，不再将任何单元格标记为 occupied
+      // 如果将来需要显示占用信息，可在此处添加视觉提示（目前保留为空）。
   }
 
   // 添加组件
@@ -948,16 +974,19 @@
       col: minCol,
       width: width,
       height: height,
-      text: type === 'daily_poem' ? '' : '示例文本',  // 今日诗词不需要文本输入
+      text: (type === 'daily_poem' || type === 'divider') ? '' : '示例文本',  // 今日诗词和分割线不需要文本输入
       fontSize: (type === 'dynamic_text' || type === 'daily_poem') ? 24 : 24,  // 动态文本默认24
       fontFamily: (type === 'dynamic_text' || type === 'daily_poem') ? '' : 'Arial',  // 动态文本不支持字体选择
       textColor: 0,  // 0-15 灰度级别，0=黑色，15=白色
       bgColor: (type === 'dynamic_text' || type === 'daily_poem') ? 15 : 'transparent',  // 动态文本默认白色背景(15)
       align: (type === 'dynamic_text' || type === 'daily_poem') ? 'left' : undefined,  // 动态文本支持对齐
-      rotation: (type === 'dynamic_text' || type === 'daily_poem') ? 0 : 0,  // 动态文本不支持旋转
+      rotation: (type === 'dynamic_text' || type === 'daily_poem' || type === 'divider') ? 0 : 0,  // 动态文本和分割线支持旋转
       xOffset: 0,  // x偏移量（像素）
       yOffset: 0,  // y偏移量（像素）
-      dynamic: type !== 'text'  // text类型自动为false（预渲染），其他类型为true（设备动态渲染）
+      lineColor: type === 'divider' ? 0 : undefined,  // 分割线颜色（0-15灰度）
+      lineStyle: type === 'divider' ? 'solid' : undefined,  // 分割线样式
+      lineWidth: type === 'divider' ? 2 : undefined,  // 分割线粗细（像素）
+      dynamic: type !== 'text' && type !== 'divider'  // text和divider默认为false（预渲染），其他类型为true（设备动态渲染）
     };
 
     components.push(component);
@@ -984,6 +1013,8 @@
         return '普通文本';
       case 'daily_poem':
         return '今日诗词';
+      case 'divider':
+        return '分割线';
       case 'image':
         return '图片';
       case 'video':
@@ -1298,6 +1329,83 @@
       rotField.appendChild(rotLabel);
       rotField.appendChild(rotInput);
       
+      // 分割线特有配置：线条颜色（0-15灰度）
+      const lineColorField = document.createElement('div');
+      lineColorField.className = 'field';
+      
+      const lineColorLabel = document.createElement('label');
+      lineColorLabel.textContent = '线条颜色（16级灰度）';
+      
+      const lineColorSelect = document.createElement('select');
+      lineColorSelect.dataset.componentId = comp.id;
+      lineColorSelect.className = 'component-linecolor-input';
+      
+      for (let i = 0; i <= 15; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        const grayValue = i * 17;
+        const grayHex = grayValue.toString(16).padStart(2, '0');
+        option.textContent = `级别 ${i} (#${grayHex}${grayHex}${grayHex})`;
+        option.style.backgroundColor = `rgb(${grayValue}, ${grayValue}, ${grayValue})`;
+        option.style.color = i < 8 ? '#ffffff' : '#000000';
+        if (i === (comp.lineColor || 0)) {
+          option.selected = true;
+        }
+        lineColorSelect.appendChild(option);
+      }
+      
+      lineColorField.appendChild(lineColorLabel);
+      lineColorField.appendChild(lineColorSelect);
+      
+      // 分割线样式
+      const lineStyleField = document.createElement('div');
+      lineStyleField.className = 'field';
+      
+      const lineStyleLabel = document.createElement('label');
+      lineStyleLabel.textContent = '线条样式';
+      
+      const lineStyleSelect = document.createElement('select');
+      lineStyleSelect.dataset.componentId = comp.id;
+      lineStyleSelect.className = 'component-linestyle-input';
+      
+      const lineStyles = [
+        { value: 'solid', label: '实线' },
+        { value: 'dashed', label: '虚线' },
+        { value: 'dotted', label: '点线' },
+        { value: 'double', label: '双线' }
+      ];
+      
+      lineStyles.forEach(style => {
+        const option = document.createElement('option');
+        option.value = style.value;
+        option.textContent = style.label;
+        if (style.value === (comp.lineStyle || 'solid')) {
+          option.selected = true;
+        }
+        lineStyleSelect.appendChild(option);
+      });
+      
+      lineStyleField.appendChild(lineStyleLabel);
+      lineStyleField.appendChild(lineStyleSelect);
+      
+      // 分割线粗细
+      const lineWidthField = document.createElement('div');
+      lineWidthField.className = 'field';
+      
+      const lineWidthLabel = document.createElement('label');
+      lineWidthLabel.textContent = '线条粗细（像素）';
+      
+      const lineWidthInput = document.createElement('input');
+      lineWidthInput.type = 'number';
+      lineWidthInput.min = 1;
+      lineWidthInput.max = 20;
+      lineWidthInput.value = comp.lineWidth || 2;
+      lineWidthInput.dataset.componentId = comp.id;
+      lineWidthInput.className = 'component-linewidth-input';
+      
+      lineWidthField.appendChild(lineWidthLabel);
+      lineWidthField.appendChild(lineWidthInput);
+      
       // 创建详情容器（默认折叠）
       const detailsContainer = document.createElement('div');
       detailsContainer.className = 'component-details';
@@ -1305,26 +1413,37 @@
       detailsContainer.style.display = (typeof expandedComponentId !== 'undefined' && expandedComponentId === comp.id) ? 'block' : 'none';
       detailsContainer.style.marginTop = '10px';
       
-      // 今日诗词组件不显示文本输入框
-      if (comp.type !== 'daily_poem') {
-        detailsContainer.appendChild(field);
-      }
-      detailsContainer.appendChild(posField);
-      detailsContainer.appendChild(widthHeightField);
-      detailsContainer.appendChild(offsetField);
-      detailsContainer.appendChild(sizeField);
-      // 动态文本（dynamic_text, daily_poem）不支持字体选择和旋转
-      if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem') {
-        detailsContainer.appendChild(fontField);
-      }
-      detailsContainer.appendChild(textColorField);
-      // 动态文本不显示背景色设置
-      if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem') {
-        detailsContainer.appendChild(bgColorField);
-      }
-      // 动态文本和今日诗词默认左对齐，不显示对齐选项
-      if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem') {
+      // 分割线组件的配置
+      if (comp.type === 'divider') {
+        detailsContainer.appendChild(posField);
+        detailsContainer.appendChild(widthHeightField);
+        detailsContainer.appendChild(offsetField);
+        detailsContainer.appendChild(lineColorField);
+        detailsContainer.appendChild(lineStyleField);
+        detailsContainer.appendChild(lineWidthField);
         detailsContainer.appendChild(rotField);
+      } else {
+        // 文本类组件（今日诗词组件不显示文本输入框）
+        if (comp.type !== 'daily_poem') {
+          detailsContainer.appendChild(field);
+        }
+        detailsContainer.appendChild(posField);
+        detailsContainer.appendChild(widthHeightField);
+        detailsContainer.appendChild(offsetField);
+        detailsContainer.appendChild(sizeField);
+        // 动态文本（dynamic_text, daily_poem）不支持字体选择和旋转
+        if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem') {
+          detailsContainer.appendChild(fontField);
+        }
+        detailsContainer.appendChild(textColorField);
+        // 动态文本不显示背景色设置
+        if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem') {
+          detailsContainer.appendChild(bgColorField);
+        }
+        // 动态文本和今日诗词默认左对齐，不显示对齐选项
+        if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem') {
+          detailsContainer.appendChild(rotField);
+        }
       }
       
       // 添加折叠/展开功能（只允许一个展开）
@@ -1495,6 +1614,33 @@
     }
   }
   
+  // 更新分割线颜色
+  function updateComponentLineColor(id, color) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      comp.lineColor = parseInt(color) || 0;
+      updateBackgroundPreview();
+    }
+  }
+  
+  // 更新分割线样式
+  function updateComponentLineStyle(id, style) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      comp.lineStyle = style || 'solid';
+      updateBackgroundPreview();
+    }
+  }
+  
+  // 更新分割线粗细
+  function updateComponentLineWidth(id, width) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      comp.lineWidth = Math.max(1, Math.min(20, parseInt(width) || 2));
+      updateBackgroundPreview();
+    }
+  }
+  
   // 复位配置
   function resetConfig() {
     if (components.length === 0 && !backgroundImage) {
@@ -1572,8 +1718,52 @@
             const w = comp.width * cellWidth;
             const h = comp.height * cellHeight;
 
+            // 绘制分割线
+            if (comp.type === 'divider') {
+              const cx = x + w / 2;
+              const cy = y + h / 2;
+              const angle = (comp.rotation || 0) * Math.PI / 180;
+              ctx.save();
+              ctx.translate(cx, cy);
+              ctx.rotate(angle);
+              
+              const lineGray = (comp.lineColor || 0) * 17;
+              ctx.strokeStyle = `rgb(${lineGray}, ${lineGray}, ${lineGray})`;
+              ctx.lineWidth = comp.lineWidth || 2;
+              
+              // 设置线条样式
+              const lineStyle = comp.lineStyle || 'solid';
+              if (lineStyle === 'dashed') {
+                ctx.setLineDash([10, 5]);
+              } else if (lineStyle === 'dotted') {
+                ctx.setLineDash([2, 3]);
+              } else if (lineStyle === 'double') {
+                ctx.setLineDash([]);
+                // 绘制双线
+                ctx.beginPath();
+                ctx.moveTo(-w/2, -2);
+                ctx.lineTo(w/2, -2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(-w/2, 2);
+                ctx.lineTo(w/2, 2);
+                ctx.stroke();
+              } else {
+                ctx.setLineDash([]);
+              }
+              
+              // 绘制单线（非double样式）
+              if (lineStyle !== 'double') {
+                ctx.beginPath();
+                ctx.moveTo(-w/2, 0);
+                ctx.lineTo(w/2, 0);
+                ctx.stroke();
+              }
+              
+              ctx.restore();
+            }
             // 绘制文本（支持旋转）
-            if (comp.text && comp.type === 'text') {
+            else if (comp.text && comp.type === 'text') {
               const cx = x + w / 2;
               const cy = y + h / 2;
               const angle = (comp.rotation || 0) * Math.PI / 180;
@@ -1680,7 +1870,10 @@
           rotation: comp.rotation !== undefined ? comp.rotation : 0,
           align: comp.align || 'left',  // 对齐方式
           xOffset: comp.xOffset || 0,  // x偏移量
-          yOffset: comp.yOffset || 0   // y偏移量
+          yOffset: comp.yOffset || 0,  // y偏移量
+          lineColor: comp.lineColor !== undefined ? comp.lineColor : 0,  // 分割线颜色
+          lineStyle: comp.lineStyle || 'solid',  // 分割线样式
+          lineWidth: comp.lineWidth || 2  // 分割线粗细
         },
         dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
       }))
@@ -1738,6 +1931,9 @@
         align: comp.config.align || 'left',
         xOffset: comp.config.xOffset || 0,
         yOffset: comp.config.yOffset || 0,
+        lineColor: comp.config.lineColor !== undefined ? comp.config.lineColor : 0,
+        lineStyle: comp.config.lineStyle || 'solid',
+        lineWidth: comp.config.lineWidth || 2,
         dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
       }));
     }
@@ -2110,6 +2306,11 @@
                   bgColor: comp.config.bgColor !== undefined ? comp.config.bgColor : 'transparent',
                   rotation: comp.config.rotation !== undefined ? comp.config.rotation : 0,
                   align: comp.config.align || 'left',
+                  xOffset: comp.config.xOffset || 0,
+                  yOffset: comp.config.yOffset || 0,
+                  lineColor: comp.config.lineColor !== undefined ? comp.config.lineColor : 0,
+                  lineStyle: comp.config.lineStyle || 'solid',
+                  lineWidth: comp.config.lineWidth || 2,
                   dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
               }));
               updateScreenPreview();
@@ -2444,6 +2645,27 @@
         const id = parseInt(e.target.dataset.componentId);
         if (id && !isNaN(id)) {
           updateComponentYOffset(id, e.target.value);
+        }
+      }
+      // 处理分割线颜色变化
+      if (e.target.tagName === 'SELECT' && e.target.classList.contains('component-linecolor-input')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          updateComponentLineColor(id, e.target.value);
+        }
+      }
+      // 处理分割线样式变化
+      if (e.target.tagName === 'SELECT' && e.target.classList.contains('component-linestyle-input')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          updateComponentLineStyle(id, e.target.value);
+        }
+      }
+      // 处理分割线粗细变化
+      if (e.target.tagName === 'INPUT' && e.target.type === 'number' && e.target.classList.contains('component-linewidth-input')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          updateComponentLineWidth(id, e.target.value);
         }
       }
     });
