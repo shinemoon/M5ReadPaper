@@ -2267,6 +2267,13 @@
         return;
       }
 
+      // 确保 /readpaper 目录存在
+      const dirReady = await ensureReadpaperDir(url, username, password);
+      if (!dirReady) {
+        setStatus('无法访问 WebDAV /readpaper 目录', 'error', 'display');
+        return;
+      }
+
       let base = url;
       if (!base.endsWith('/')) base += '/';
       const rdtUrl = base + 'readpaper/readpaper.rdt';
@@ -2478,6 +2485,14 @@
       
       if (!url) {
         showUploadError('请先配置 WebDAV');
+        return;
+      }
+
+      // 确保 /readpaper 目录存在
+      showUploadProgress('检查云端目录', '正在检查/创建 /readpaper 目录...', 5);
+      const dirReady = await ensureReadpaperDir(url, username, password);
+      if (!dirReady) {
+        showUploadError('无法访问或创建 WebDAV /readpaper 目录');
         return;
       }
 
@@ -2939,6 +2954,12 @@
 
       const pngBlob = await generateRenderImage();
       const pngBase64 = await blobToBase64(pngBlob);
+
+      console.log('[pushToDevice] PNG info:', {
+        blobSize: pngBlob.size,
+        base64Length: pngBase64.length,
+        estimatedDecodedSize: Math.floor(pngBase64.length * 3 / 4)
+      });
 
       const deviceUrl = 'http://192.168.4.1';
       const CHUNK_SIZE = 8192; // 每块 8KB

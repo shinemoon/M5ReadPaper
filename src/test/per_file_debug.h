@@ -16,7 +16,7 @@
 #define DBG_STATE_MACHINE_TASK 0
 #define DBG_UI_DISPLAY 0
 #define DBG_BIN_FONT_PRINT 0
-#define DBG_TRMNL_SHOW 1
+#define DBG_TRMNL_SHOW 0
 
 
 // Override the debug
@@ -29,7 +29,7 @@
 #define DBG_DEVICE_INTERRUPT_TASK 0
 #define DBG_MAIN 0
 #define DBG_SETUP 0
-#define DBG_WIFI_HOTSPOT 0
+#define DBG_WIFI_HOTSPOT 1
 #define DBG_FILE_MANAGER 0
 #define DBG_POWERMGT 0
 #define  DBG_CHUNKED_FONT_CACHE 0

@@ -338,19 +338,13 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                             }
                             else
                             {
-                                // Treat as WiFi connection failure: close WiFi to save power
-                                g_wifi_hotspot->disconnectWiFiDeferred();
-                                // show_main_menu(g_canvas, false, 0, 0, false);
-                                // currentState_ = STATE_MAIN_MENU;
-                                //  关闭WIFI，但是依然进入TRMNL状态
+                                //g_wifi_hotspot->disconnectWiFiDeferred();
                                 currentState_ = STATE_WEBDAV;
                             }
                         }
                         else
                         {
-                            g_wifi_hotspot->disconnectWiFiDeferred();
- //                           show_main_menu(g_canvas, false, 0, 0, false);
-//                            currentState_ = STATE_MAIN_MENU;
+                            //g_wifi_hotspot->disconnectWiFiDeferred();
                             currentState_ = STATE_WEBDAV;
                         }
                     }

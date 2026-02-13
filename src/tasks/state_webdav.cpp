@@ -123,17 +123,12 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
             webdavShown = true;
             // 显示 TRMNL 界面（尝试从 WebDAV 读取配置，失败则显示默认）
             trmnl_display(g_canvas);
-            //show_default_trmnl(g_canvas);
+            // show_default_trmnl(g_canvas);
             bin_font_flush_canvas(false, false, true, RECT);
             if (!sleepIssued)
             {
                 sleepIssued = true;
-                if (g_wifi_hotspot)
-                {
-                    // 延迟2秒断开，给lwIP足够时间清理TCP/DHCP资源
-                    g_wifi_hotspot->disconnectWiFiDeferred(2000);
-                }
-                // Ensure display push queue and panel refresh are done before sleep
+               // Ensure display push queue and panel refresh are done before sleep
                 //              waitDisplayPushIdle(2000);
                 // Sleep 10 seconds then wake
                 //                esp_sleep_enable_timer_wakeup(10ULL * 1000000ULL);

@@ -2704,7 +2704,22 @@ void WiFiHotspotManager::handleUpdateDisplayChunk() {
             return;
         }
 
-        uf.write(outbuf, dec_len);
+#if DBG_WIFI_HOTSPOT
+        Serial.printf("[WIFI_HOTSPOT] PNG chunk: b64_len=%d, decoded_len=%d\n", b64len, dec_len);
+#endif
+
+        size_t written = uf.write(outbuf, dec_len);
+        if (written != dec_len) {
+#if DBG_WIFI_HOTSPOT
+            Serial.printf("[WIFI_HOTSPOT] Write incomplete! Expected=%d, Written=%d\n", dec_len, written);
+#endif
+            free(outbuf);
+            uf.close();
+            webServer->send(500, "application/json", "{\"ok\":false,\"message\":\"Write failed\"}");
+            return;
+        }
+        
+        uf.flush();  // 显式刷新缓冲区到 SD 卡
         uf.close();
         free(outbuf);
     }
@@ -2779,7 +2794,15 @@ void WiFiHotspotManager::handleUpdateDisplayCommit() {
     }
 
 #if DBG_WIFI_HOTSPOT
-    Serial.printf("[WIFI_HOTSPOT] Upload committed: type=%s -> %s\n", type.c_str(), final_path);
+    // 检查最终文件大小
+    File check_file = SDW::SD.open(final_path, "r");
+    if (check_file) {
+        size_t file_size = check_file.size();
+        check_file.close();
+        Serial.printf("[WIFI_HOTSPOT] Upload committed: type=%s -> %s (size=%d bytes)\n", type.c_str(), final_path, file_size);
+    } else {
+        Serial.printf("[WIFI_HOTSPOT] Upload committed: type=%s -> %s (unable to check size)\n", type.c_str(), final_path);
+    }
 #endif
 
     webServer->send(200, "application/json", "{\"ok\":true,\"message\":\"Saved\"}");

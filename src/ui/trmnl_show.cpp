@@ -32,20 +32,20 @@ static bool fetch_weather(const String &citycode, const String &apiKey, String &
 // 从 WebDAV 读取 readpaper.rdt 文件内容
 static bool fetch_webdav_rdt_config(String &out_content)
 {
+    // 检查 WebDAV 配置（优先检查配置，避免无意义的WiFi检查）
+    if (strlen(g_config.webdav_url) == 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] WebDAV 未配置，跳过配置读取");
+#endif
+        return false;
+    }
+
     // 检查 WiFi 连接
     if (!g_wifi_sta_connected)
     {
 #if DBG_TRMNL_SHOW
         Serial.println("[TRMNL] WiFi 未连接，无法读取 WebDAV 配置");
-#endif
-        return false;
-    }
-
-    // 检查 WebDAV 配置
-    if (strlen(g_config.webdav_url) == 0)
-    {
-#if DBG_TRMNL_SHOW
-        Serial.println("[TRMNL] WebDAV 未配置");
 #endif
         return false;
     }
@@ -230,20 +230,20 @@ static bool read_sdcard_rdt(String &out_content)
 // 从 WebDAV 获取 RDT 文件的时间戳（通过读取 RDT 内容并解析 timestamp 字段）
 static bool fetch_webdav_rdt_timestamp(String &out_timestamp)
 {
+    // 检查 WebDAV 配置（优先检查配置，避免无意义的WiFi检查）
+    if (strlen(g_config.webdav_url) == 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] WebDAV 未配置，跳过时间戳检查");
+#endif
+        return false;
+    }
+
     // 检查 WiFi 连接
     if (!g_wifi_sta_connected)
     {
 #if DBG_TRMNL_SHOW
         Serial.println("[TRMNL] WiFi 未连接，无法读取 WebDAV 时间戳");
-#endif
-        return false;
-    }
-
-    // 检查 WebDAV 配置
-    if (strlen(g_config.webdav_url) == 0)
-    {
-#if DBG_TRMNL_SHOW
-        Serial.println("[TRMNL] WebDAV 未配置");
 #endif
         return false;
     }
@@ -1704,11 +1704,24 @@ bool trmnl_display(M5Canvas *canvas)
     }
 #endif
 
-    // 步骤2: 如果本地 RDT 存在，检查是否需要从 WebDAV 更新
+    // 步骤2: 检查是否需要从 WebDAV 更新（只有配置了WebDAV时才检查）
     bool need_update_from_webdav = false;
-    if (has_local_rdt)
+    bool has_webdav_config = (strlen(g_config.webdav_url) > 0);
+    
+#if DBG_TRMNL_SHOW
+    if (has_webdav_config)
     {
-        // 检查 WebDAV 的时间戳
+        Serial.println("[TRMNL] 检测到 WebDAV 配置，将检查是否需要更新");
+    }
+    else
+    {
+        Serial.println("[TRMNL] 未配置 WebDAV，跳过云端更新检查");
+    }
+#endif
+
+    if (has_local_rdt && has_webdav_config)
+    {
+        // 本地有RDT且配置了WebDAV，检查是否需要更新
         String webdav_timestamp;
         if (fetch_webdav_rdt_timestamp(webdav_timestamp))
         {
@@ -1735,12 +1748,19 @@ bool trmnl_display(M5Canvas *canvas)
 #endif
         }
     }
-    else
+    else if (!has_local_rdt && has_webdav_config)
     {
-        // 本地没有 RDT，需要从 WebDAV 下载
+        // 本地没有 RDT 但配置了 WebDAV，尝试从 WebDAV 下载
         need_update_from_webdav = true;
 #if DBG_TRMNL_SHOW
         Serial.println("[TRMNL] 本地无 RDT，将尝试从 WebDAV 下载");
+#endif
+    }
+    else if (!has_local_rdt && !has_webdav_config)
+    {
+        // 本地没有 RDT 且未配置 WebDAV，无法获取配置
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] 本地无 RDT 且未配置 WebDAV，将显示默认界面");
 #endif
     }
 
@@ -1826,30 +1846,42 @@ bool trmnl_display(M5Canvas *canvas)
         }
     }
 
-    // 步骤3.5: 在解析和显示本地RDT之前，确保WiFi连接可用（为联网组件提供支持）
+    // 步骤3.5: 在渲染RDT之前，确保WiFi已连接（为动态联网组件提供网络支持）
+    // 无论是否配置了WebDAV，WiFi都应保持到RDT渲染完成
+#if DBG_TRMNL_SHOW
+    Serial.println("[TRMNL] ===== 准备渲染RDT，检查WiFi连接状态 =====");
+#endif
+    
     if (!g_wifi_sta_connected && g_wifi_hotspot)
     {
 #if DBG_TRMNL_SHOW
-        Serial.println("[TRMNL] WiFi未连接，尝试重新连接以支持联网组件...");
+        Serial.println("[TRMNL] WiFi当前未连接，尝试连接WiFi以支持动态组件（天气、RSS等）...");
 #endif
         g_wifi_hotspot->connectToWiFiFromToken();
+        
         // 不论连接成功或失败，都继续后续处理
 #if DBG_TRMNL_SHOW
         if (g_wifi_sta_connected)
         {
-            Serial.println("[TRMNL] WiFi重新连接成功");
+            Serial.println("[TRMNL] ✓ WiFi连接成功，动态组件可正常工作");
         }
         else
         {
-            Serial.println("[TRMNL] WiFi重新连接失败，继续使用本地RDT（联网组件可能无法工作）");
+            Serial.println("[TRMNL] ✗ WiFi连接失败，动态组件可能无法工作");
         }
 #endif
     }
 #if DBG_TRMNL_SHOW
     else if (g_wifi_sta_connected)
     {
-        Serial.println("[TRMNL] WiFi已连接，联网组件可正常工作");
+        Serial.println("[TRMNL] ✓ WiFi已连接，动态组件可正常工作");
     }
+    else
+    {
+        Serial.println("[TRMNL] ⚠ 没有WiFi管理器，动态组件可能无法工作");
+    }
+    
+    Serial.println("[TRMNL] ===== 开始渲染RDT配置 =====");
 #endif
 
     // 步骤4: 解析并显示 SD 卡的 RDT 配置
