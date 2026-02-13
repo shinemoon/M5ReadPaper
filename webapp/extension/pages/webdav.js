@@ -1052,7 +1052,12 @@
       return;
     }
 
-    // 按组件ID从大到小排序，新建立的组件（ID更大）会排在最前面
+    // 计算每个组件的添加序号（按 id 升序），以保持 UI 编号按添加顺序显示
+    const byIdAsc = [...components].sort((a, b) => a.id - b.id);
+    const idToIndex = new Map();
+    byIdAsc.forEach((c, i) => idToIndex.set(c.id, i + 1));
+
+    // 按组件ID从大到小排序，用于展示（最新的在前）
     const sortedComponents = [...components].sort((a, b) => b.id - a.id);
 
     sortedComponents.forEach((comp, idx) => {
@@ -1074,7 +1079,9 @@
       
       const title = document.createElement('strong');
       const typeLabel = getComponentTypeLabel(comp.type);
-      title.textContent = `组件 ${idx + 1} - ${typeLabel}`;
+      // 使用添加序号（按创建时间升序分配），使组件标题反映添加顺序
+      const addIndex = idToIndex.get(comp.id) || (idx + 1);
+      title.textContent = `组件 ${addIndex} - ${typeLabel}`;
       
       const info = document.createElement('span');
       info.className = 'muted';
