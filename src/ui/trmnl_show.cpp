@@ -598,16 +598,17 @@ static int render_list_items(
         max_lines = 1;
 
 #if DBG_TRMNL_SHOW
-    Serial.printf("[TRMNL] 列表渲染: 行高=%d, margin=%d, 最大行数=%d\n", line_height, margin, max_lines);
+    Serial.printf("[TRMNL] 列表渲染: area_height=%d, fontSize=%d, base=%d, scale=%.2f, 行高=%d, margin=%d, 最大行数=%d\n", 
+                  area_height, fontSize, base_font_size, scale_factor, line_height, margin, max_lines);
 #endif
 
     // 用分号分割文本内容
     String textStr = String(content);
     int item_count = 0;
     int16_t current_y = y;
-
     int start_pos = 0;
-    for (int i = 0; i < max_lines; i++)
+    
+    while (item_count < max_lines)
     {
         // 查找下一个分号
         int semicolon_pos = textStr.indexOf(';', start_pos);
@@ -632,11 +633,11 @@ static int render_list_items(
         {
             if (semicolon_pos == -1)
                 break; // 最后一项为空，结束
-            continue;  // 跳过空项，继续下一项
+            continue;  // 跳过空项，继续下一项（不计入item_count）
         }
 
 #if DBG_TRMNL_SHOW
-        Serial.printf("[TRMNL] 列表项%d: '%s' at y=%d\n", i + 1, item.c_str(), current_y);
+        Serial.printf("[TRMNL] 列表项%d: '%s' at y=%d (剩余行数=%d)\n", item_count + 1, item.c_str(), current_y, max_lines - item_count);
 #endif
 
         // 绘制 bullet 点（实心圆 + 空心圆形成圆环）
@@ -673,97 +674,59 @@ static int render_list_items(
     return item_count;
 }
 
-// 解析RSS XML内容，提取所有item的title（用分号分隔）
-static bool parse_rss_titles(const String &xml_content, String &out_titles)
+// 辅助函数：在累积缓冲区中查找并提取一个完整的item title
+// 返回值：找到返回item结束位置，未找到返回-1
+static int extract_next_rss_item(String &buffer, bool is_atom, String &out_title)
 {
-    out_titles = "";
+    out_title = "";
     
-    if (xml_content.length() == 0)
+    // 查找下一个item/entry起始标签
+    int item_start = buffer.indexOf(is_atom ? "<entry>" : "<item>");
+    int item_start_with_attr = buffer.indexOf(is_atom ? "<entry " : "<item ");
+    
+    if (item_start == -1 || (item_start_with_attr != -1 && item_start_with_attr < item_start))
     {
-        return false;
+        item_start = item_start_with_attr;
     }
-
-#if DBG_TRMNL_SHOW
-    Serial.printf("[TRMNL] 解析RSS内容，长度: %d\n", xml_content.length());
-#endif
-
-    // 简单的XML解析：查找所有<title>...</title>标签
-    // RSS结构: <rss><channel><title>Feed Title</title><item><title>Item1</title>...
-    // 我们跳过第一个title（channel title），只提取item中的title
     
-    int search_pos = 0;
-    bool skip_first_title = true; // 跳过channel的title
-    int title_count = 0;
+    if (item_start == -1)
+        return -1; // 未找到item起始标签
+
+    // 查找对应的结束标签
+    const char *item_end_tag = is_atom ? "</entry>" : "</item>";
+    int item_end_tag_len = is_atom ? 8 : 7;
+    int item_end = buffer.indexOf(item_end_tag, item_start);
     
-    while (true)
+    if (item_end == -1)
+        return -1; // item未完整（可能跨缓冲区边界），需要继续读取
+
+    // 在item范围内查找<title>
+    int title_start = buffer.indexOf("<title>", item_start);
+    if (title_start != -1 && title_start < item_end)
     {
-        // 查找<title>标签
-        int title_start = xml_content.indexOf("<title>", search_pos);
-        if (title_start == -1)
-        {
-            // 尝试查找带CDATA的情况
-            title_start = xml_content.indexOf("<title><![CDATA[", search_pos);
-            if (title_start == -1)
-                break;
-        }
+        title_start += 7; // 跳过"<title>"
+        int title_end = buffer.indexOf("</title>", title_start);
         
-        // 查找</title>结束标签
-        int title_end = xml_content.indexOf("</title>", title_start);
-        if (title_end == -1)
-            break;
-        
-        // 提取title内容
-        int content_start = xml_content.indexOf(">", title_start) + 1;
-        String title = xml_content.substring(content_start, title_end);
-        
-        // 去除CDATA标记
-        if (title.startsWith("<![CDATA["))
+        if (title_end != -1 && title_end < item_end)
         {
-            title = title.substring(9); // 去除"<![CDATA["
-        }
-        if (title.endsWith("]]>"))
-        {
-            title = title.substring(0, title.length() - 3); // 去除"]]>"
-        }
-        
-        title.trim();
-        
-        // 跳过第一个title（通常是feed的标题）
-        if (skip_first_title)
-        {
-            skip_first_title = false;
-#if DBG_TRMNL_SHOW
-            Serial.printf("[TRMNL] 跳过channel title: %s\n", title.c_str());
-#endif
-        }
-        else if (title.length() > 0)
-        {
-            // 添加到输出字符串
-            if (out_titles.length() > 0)
-            {
-                out_titles += ";";
-            }
-            out_titles += title;
-            title_count++;
+            String title = buffer.substring(title_start, title_end);
             
-#if DBG_TRMNL_SHOW
-            Serial.printf("[TRMNL] RSS item %d: %s\n", title_count, title.c_str());
-#endif
+            // 处理CDATA
+            if (title.startsWith("<![CDATA["))
+            {
+                title = title.substring(9);
+                int cdata_end = title.indexOf("]]>");
+                if (cdata_end >= 0)
+                    title = title.substring(0, cdata_end);
+            }
+            
+            title.trim();
+            out_title = title;
         }
-        
-        // 移动搜索位置
-        search_pos = title_end + 8; // 跳过</title>
-        
-        // 限制最多提取20个条目，避免内存问题
-        if (title_count >= 20)
-            break;
     }
 
-#if DBG_TRMNL_SHOW
-    Serial.printf("[TRMNL] RSS解析完成，共提取%d个标题\n", title_count);
-#endif
-
-    return title_count > 0;
+    // 返回item结束位置（用于从buffer中删除已处理部分）
+    return item_end + item_end_tag_len;
 }
 
 // 获取RSS feed并返回title列表（分号分隔）
@@ -853,15 +816,20 @@ static bool fetch_rss_feed(const String &url, String &out_titles)
     Serial.printf("[TRMNL] RSS内容长度: %d\n", content_length);
 #endif
 
-    // 读取RSS内容
-    String rss_content = "";
-    char buffer[1024];
+    // 流式读取并解析RSS - 最多提取10个item
+    const int MAX_ITEMS = 10;
+    const int READ_BUFFER_SIZE = 2048;
+    char read_buffer[READ_BUFFER_SIZE];
+    String parse_buffer = ""; // 累积未完成解析的内容
     int total_read = 0;
-    const int MAX_RSS_SIZE = 32768; // 限制最大32KB，避免内存溢出
-
-    while (total_read < MAX_RSS_SIZE)
+    int item_count = 0;
+    bool is_atom = false;
+    bool format_detected = false;
+    
+    while (item_count < MAX_ITEMS)
     {
-        int data_read = esp_http_client_read(client, buffer, sizeof(buffer) - 1);
+        // 读取一块数据
+        int data_read = esp_http_client_read(client, read_buffer, READ_BUFFER_SIZE - 1);
         if (data_read < 0)
         {
 #if DBG_TRMNL_SHOW
@@ -871,32 +839,112 @@ static bool fetch_rss_feed(const String &url, String &out_titles)
         }
         else if (data_read == 0)
         {
-            // 读取完成
+            // 文件读取完毕
             break;
         }
-        else
+        
+        read_buffer[data_read] = '\0';
+        parse_buffer += String(read_buffer);
+        total_read += data_read;
+        
+        // 检测RSS格式（只在第一次检测）
+        if (!format_detected && parse_buffer.length() > 100)
         {
-            buffer[data_read] = '\0';
-            rss_content += String(buffer);
-            total_read += data_read;
-            
-            // 如果content_length已知且已读完，提前退出
-            if (content_length > 0 && total_read >= content_length)
-                break;
+            is_atom = (parse_buffer.indexOf("<feed") >= 0 || parse_buffer.indexOf("<feed ") >= 0);
+            format_detected = true;
+#if DBG_TRMNL_SHOW
+            Serial.printf("[TRMNL] 检测到RSS格式: %s\n", is_atom ? "Atom" : "RSS");
+#endif
         }
+        
+        // 尝试从parse_buffer中提取完整的item
+        while (item_count < MAX_ITEMS)
+        {
+            String title = "";
+            int item_end_pos = extract_next_rss_item(parse_buffer, is_atom, title);
+            
+            if (item_end_pos == -1)
+            {
+                // 未找到完整item，需要继续读取
+                // 为避免内存溢出且不丢失item标签，智能截断buffer
+                if (parse_buffer.length() > 16384) // 16KB
+                {
+                    // 查找最后一个item起始标签的位置
+                    int last_item_start = parse_buffer.lastIndexOf(is_atom ? "<entry>" : "<item>");
+                    int last_item_start_attr = parse_buffer.lastIndexOf(is_atom ? "<entry " : "<item ");
+                    
+                    // 取两者中较晚出现的
+                    if (last_item_start < last_item_start_attr)
+                        last_item_start = last_item_start_attr;
+                    
+                    if (last_item_start > 0)
+                    {
+                        // 从最后一个item标签开始保留
+                        parse_buffer = parse_buffer.substring(last_item_start);
+#if DBG_TRMNL_SHOW
+                        Serial.printf("[TRMNL] Buffer过大，从最后item标签截断，保留%d字节\n", parse_buffer.length());
+#endif
+                    }
+                    else
+                    {
+                        // 找不到item标签，可能整个buffer都是垃圾数据，清空
+                        parse_buffer = "";
+#if DBG_TRMNL_SHOW
+                        Serial.println("[TRMNL] Buffer中无item标签，清空");
+#endif
+                    }
+                }
+                break;
+            }
+            
+            // 成功提取一个title
+            if (title.length() > 0)
+            {
+                if (item_count > 0)
+                    out_titles += ";";
+                out_titles += title;
+                item_count++;
+                
+#if DBG_TRMNL_SHOW
+                Serial.printf("[TRMNL] RSS item %d: %s\n", item_count, title.c_str());
+#endif
+            }
+#if DBG_TRMNL_SHOW
+            else
+            {
+                Serial.printf("[TRMNL] 跳过空title的item (pos: %d)\n", item_end_pos);
+            }
+#endif
+            
+            // 从buffer中删除已处理的部分
+            parse_buffer = parse_buffer.substring(item_end_pos);
+#if DBG_TRMNL_SHOW
+            Serial.printf("[TRMNL] Buffer剩余: %d字节\n", parse_buffer.length());
+#endif
+            
+            // 如果已达到目标数量，提前退出
+            if (item_count >= MAX_ITEMS)
+            {
+#if DBG_TRMNL_SHOW
+                Serial.printf("[TRMNL] 已提取%d个item，停止读取 (共读取%d字节)\n", item_count, total_read);
+#endif
+                break;
+            }
+        }
+        
+        // 如果已找到足够的item，停止读取
+        if (item_count >= MAX_ITEMS)
+            break;
     }
 
     esp_http_client_close(client);
     esp_http_client_cleanup(client);
 
 #if DBG_TRMNL_SHOW
-    Serial.printf("[TRMNL] RSS内容读取完成，共%d字节\n", total_read);
+    Serial.printf("[TRMNL] RSS流式解析完成: 共读取%d字节, 提取%d个标题\n", total_read, item_count);
 #endif
-
-    // 解析RSS XML，提取title列表
-    bool success = parse_rss_titles(rss_content, out_titles);
     
-    return success;
+    return item_count > 0;
 }
 
 // 下载文件到 SD 卡

@@ -994,7 +994,8 @@
       dynamic: type !== 'text' && type !== 'divider'  // text和divider默认为false（预渲染），其他类型为true（设备动态渲染）
     };
 
-    components.push(component);
+    // 将新组件添加到数组开头，确保最新组件排在最前面
+    components.unshift(component);
     
     // 清除选中状态
     if (selectedCell) {
@@ -1051,7 +1052,10 @@
       return;
     }
 
-    components.forEach((comp, idx) => {
+    // 按组件ID从大到小排序，新建立的组件（ID更大）会排在最前面
+    const sortedComponents = [...components].sort((a, b) => b.id - a.id);
+
+    sortedComponents.forEach((comp, idx) => {
       const item = document.createElement('div');
       item.className = 'component-item';
       item.dataset.componentId = comp.id;
