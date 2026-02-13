@@ -23,6 +23,8 @@ extern GlobalConfig g_config;
 static bool extract_rdt_timestamp(const String &content, String &out_timestamp);
 static bool fetch_daily_poem(String &out_content, String &out_origin);
 static int render_list_items(const char *content, int16_t x, int16_t y, int16_t area_width, int16_t area_height, uint8_t fontSize, uint8_t textColor, int16_t margin);
+static bool fetch_rss_feed(const String &url, String &out_titles);
+static bool parse_rss_titles(const String &xml_content, String &out_titles);
 
 // 从 WebDAV 读取 readpaper.rdt 文件内容
 static bool fetch_webdav_rdt_config(String &out_content)
@@ -671,6 +673,232 @@ static int render_list_items(
     return item_count;
 }
 
+// 解析RSS XML内容，提取所有item的title（用分号分隔）
+static bool parse_rss_titles(const String &xml_content, String &out_titles)
+{
+    out_titles = "";
+    
+    if (xml_content.length() == 0)
+    {
+        return false;
+    }
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] 解析RSS内容，长度: %d\n", xml_content.length());
+#endif
+
+    // 简单的XML解析：查找所有<title>...</title>标签
+    // RSS结构: <rss><channel><title>Feed Title</title><item><title>Item1</title>...
+    // 我们跳过第一个title（channel title），只提取item中的title
+    
+    int search_pos = 0;
+    bool skip_first_title = true; // 跳过channel的title
+    int title_count = 0;
+    
+    while (true)
+    {
+        // 查找<title>标签
+        int title_start = xml_content.indexOf("<title>", search_pos);
+        if (title_start == -1)
+        {
+            // 尝试查找带CDATA的情况
+            title_start = xml_content.indexOf("<title><![CDATA[", search_pos);
+            if (title_start == -1)
+                break;
+        }
+        
+        // 查找</title>结束标签
+        int title_end = xml_content.indexOf("</title>", title_start);
+        if (title_end == -1)
+            break;
+        
+        // 提取title内容
+        int content_start = xml_content.indexOf(">", title_start) + 1;
+        String title = xml_content.substring(content_start, title_end);
+        
+        // 去除CDATA标记
+        if (title.startsWith("<![CDATA["))
+        {
+            title = title.substring(9); // 去除"<![CDATA["
+        }
+        if (title.endsWith("]]>"))
+        {
+            title = title.substring(0, title.length() - 3); // 去除"]]>"
+        }
+        
+        title.trim();
+        
+        // 跳过第一个title（通常是feed的标题）
+        if (skip_first_title)
+        {
+            skip_first_title = false;
+#if DBG_TRMNL_SHOW
+            Serial.printf("[TRMNL] 跳过channel title: %s\n", title.c_str());
+#endif
+        }
+        else if (title.length() > 0)
+        {
+            // 添加到输出字符串
+            if (out_titles.length() > 0)
+            {
+                out_titles += ";";
+            }
+            out_titles += title;
+            title_count++;
+            
+#if DBG_TRMNL_SHOW
+            Serial.printf("[TRMNL] RSS item %d: %s\n", title_count, title.c_str());
+#endif
+        }
+        
+        // 移动搜索位置
+        search_pos = title_end + 8; // 跳过</title>
+        
+        // 限制最多提取20个条目，避免内存问题
+        if (title_count >= 20)
+            break;
+    }
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] RSS解析完成，共提取%d个标题\n", title_count);
+#endif
+
+    return title_count > 0;
+}
+
+// 获取RSS feed并返回title列表（分号分隔）
+static bool fetch_rss_feed(const String &url, String &out_titles)
+{
+    out_titles = "";
+    
+    // 检查WiFi连接
+    if (!g_wifi_sta_connected)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] WiFi未连接，无法获取RSS");
+#endif
+        return false;
+    }
+
+    if (url.length() == 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] RSS URL为空");
+#endif
+        return false;
+    }
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] 获取RSS feed: %s\n", url.c_str());
+#endif
+
+    // 配置HTTP客户端
+    esp_http_client_config_t cfg = {};
+    cfg.url = url.c_str();
+    cfg.method = HTTP_METHOD_GET;
+    cfg.timeout_ms = 15000; // RSS可能较大，增加超时时间
+    cfg.buffer_size = 8192;  // 增加缓冲区
+    cfg.buffer_size_tx = 1024;
+    cfg.crt_bundle_attach = esp_crt_bundle_attach; // 支持HTTPS
+
+    esp_http_client_handle_t client = esp_http_client_init(&cfg);
+    if (!client)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] HTTP客户端初始化失败");
+#endif
+        return false;
+    }
+
+    esp_http_client_set_header(client, "User-Agent", "ReadPaper-RSS/1.0");
+
+    esp_err_t err = esp_http_client_open(client, 0);
+    if (err != ESP_OK)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] HTTP打开失败: %s\n", esp_err_to_name(err));
+#endif
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    err = esp_http_client_fetch_headers(client);
+    if (err < 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] HTTP读取头失败: %s\n", esp_err_to_name(err));
+#endif
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    int status_code = esp_http_client_get_status_code(client);
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] HTTP状态码: %d\n", status_code);
+#endif
+
+    if (status_code != 200)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] HTTP请求失败，状态码: %d\n", status_code);
+#endif
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    int content_length = esp_http_client_get_content_length(client);
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] RSS内容长度: %d\n", content_length);
+#endif
+
+    // 读取RSS内容
+    String rss_content = "";
+    char buffer[1024];
+    int total_read = 0;
+    const int MAX_RSS_SIZE = 32768; // 限制最大32KB，避免内存溢出
+
+    while (total_read < MAX_RSS_SIZE)
+    {
+        int data_read = esp_http_client_read(client, buffer, sizeof(buffer) - 1);
+        if (data_read < 0)
+        {
+#if DBG_TRMNL_SHOW
+            Serial.println("[TRMNL] 读取RSS内容失败");
+#endif
+            break;
+        }
+        else if (data_read == 0)
+        {
+            // 读取完成
+            break;
+        }
+        else
+        {
+            buffer[data_read] = '\0';
+            rss_content += String(buffer);
+            total_read += data_read;
+            
+            // 如果content_length已知且已读完，提前退出
+            if (content_length > 0 && total_read >= content_length)
+                break;
+        }
+    }
+
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] RSS内容读取完成，共%d字节\n", total_read);
+#endif
+
+    // 解析RSS XML，提取title列表
+    bool success = parse_rss_titles(rss_content, out_titles);
+    
+    return success;
+}
+
 // 下载文件到 SD 卡
 static bool download_file_to_sdcard(const String &url, const String &local_path, const String &auth_header)
 {
@@ -1121,6 +1349,90 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
 
                 // 调用列表渲染函数
                 render_list_items(text, x, y, a_w, a_h, fontSize, textColor, margin);
+            }
+            // 处理RSS组件（rss）
+            else if (strcmp(type, "rss") == 0)
+            {
+                // 从嵌套结构读取属性
+                int pos_x = 0;
+                int pos_y = 0;
+                int a_w = 0;
+                int a_h = 0;
+                if (component.containsKey("position"))
+                {
+                    JsonObject position = component["position"].as<JsonObject>();
+                    pos_x = position["x"] | 0;
+                    pos_y = position["y"] | 0;
+                }
+                JsonObject areaSize = component["size"].as<JsonObject>();
+                a_w = areaSize["width"] | 1;
+                a_h = areaSize["height"] | 1;
+
+                // config: {url, fontSize, textColor, xOffset, yOffset, margin}
+                const char *url = "";
+                int fontSize = 24;
+                int textColor = 0;
+                int xOffset = 0;
+                int yOffset = 0;
+                int margin = 10;  // 默认行间距10像素
+
+                if (component.containsKey("config"))
+                {
+                    JsonObject config = component["config"].as<JsonObject>();
+                    url = config["url"] | "";
+                    fontSize = config["fontSize"] | 24;
+                    textColor = config["textColor"] | 0;
+                    xOffset = config["xOffset"] | 0;
+                    yOffset = config["yOffset"] | 0;
+                    margin = config["margin"] | 10;
+                }
+
+                // 计算打印起点（单元格坐标转像素）
+                const int CELL_WIDTH = 60;
+                const int CELL_HEIGHT = 60;
+                int16_t x = pos_x * CELL_WIDTH + 20 + xOffset;
+                int16_t y = pos_y * CELL_HEIGHT + yOffset;
+                a_w = a_w * CELL_WIDTH - 40;
+                a_h = a_h * CELL_HEIGHT;
+
+#if DBG_TRMNL_SHOW
+                Serial.printf("[TRMNL] 渲染RSS: 单元格(%d, %d) 像素(%d, %d) 字号%d 颜色%d 宽度%d 高度%d margin%d\n",
+                              pos_x, pos_y, x, y, fontSize, textColor, a_w, a_h, margin);
+                Serial.printf("[TRMNL] RSS URL: %s\n", url);
+#endif
+
+                // 获取RSS feed内容
+                String rss_titles = "";
+                bool success = fetch_rss_feed(String(url), rss_titles);
+                
+                if (success && rss_titles.length() > 0)
+                {
+#if DBG_TRMNL_SHOW
+                    Serial.printf("[TRMNL] RSS获取成功，标题列表: %s\n", rss_titles.c_str());
+#endif
+                    // 使用list渲染函数显示RSS标题列表
+                    render_list_items(rss_titles.c_str(), x, y, a_w, a_h, fontSize, textColor, margin);
+                }
+                else
+                {
+#if DBG_TRMNL_SHOW
+                    Serial.println("[TRMNL] RSS获取失败或内容为空");
+#endif
+                    // 显示错误提示
+                    bin_font_print(
+                        "RSS加载失败",
+                        fontSize,
+                        textColor,
+                        a_w,
+                        x,
+                        y,
+                        false,
+                        g_canvas,
+                        TEXT_ALIGN_LEFT,
+                        a_w,
+                        false
+                    );
+                }
             }
             // TODO: 后续扩展其他动态组件的渲染（clock, barcode等）
         }
