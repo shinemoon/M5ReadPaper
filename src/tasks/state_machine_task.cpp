@@ -7,6 +7,8 @@
 #include "text/book_handle.h"
 #include "ui/ui_lock_screen.h"
 #include "task_priorities.h"
+#include "globals.h"
+#include "device/wifi_hotspot_manager.h"
 
 // 定义全局变量
 bool enterDebug = false;
@@ -60,13 +62,30 @@ bool StateMachineTask::initialize()
     if (enterDebug)
     {
         currentState_ = STATE_DEBUG;
-        show_debug(nullptr,true);
+        show_debug(nullptr, true);
     }
     else
     {
-        currentState_ = STATE_IDLE;
-        // currentState_ = STATE_READING;
-        show_lockscreen(PAPER_S3_WIDTH, PAPER_S3_HEIGHT, 30, "双击屏幕解锁");
+        if (int(g_wake_cause) == 0)
+        {
+            currentState_ = STATE_IDLE;
+            // currentState_ = STATE_READING;
+            show_lockscreen(PAPER_S3_WIDTH, PAPER_S3_HEIGHT, 30, "双击屏幕解锁");
+        }
+        else
+        {
+            // 初始化WiFi热点管理器（如果尚未初始化）
+            wifi_hotspot_init();
+            // 启动WiFi热点
+            if (g_wifi_hotspot)
+            {
+                bool connected = g_wifi_hotspot->connectToWiFiFromToken();
+
+                if (connected)
+                    bool webdav_ready = g_wifi_hotspot->ensureWebdavReadpaperDir();
+            }
+            currentState_ = STATE_WEBDAV;
+        }
     }
     lastActivityTime_ = millis();
 

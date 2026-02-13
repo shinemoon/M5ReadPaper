@@ -8,6 +8,7 @@
 #include "text/line_handle.h"
 #include <SD.h>
 #include <cstring>
+#include "globals.h"
 
 extern GlobalConfig g_config;
 extern M5Canvas *g_canvas;
@@ -68,11 +69,12 @@ void display_print(const char *text, float text_size, uint16_t text_color, uint8
     // print but not flush
 }
 
-int display_print_wrapped(const char* text, int16_t x, int16_t y, int16_t area_width,
-                         int16_t area_height, uint8_t font_size, uint8_t color, 
-                         int16_t bg_color, uint8_t align, bool vertical, bool skip)
+int display_print_wrapped(const char *text, int16_t x, int16_t y, int16_t area_width,
+                          int16_t area_height, uint8_t font_size, uint8_t color,
+                          int16_t bg_color, uint8_t align, bool vertical, bool skip)
 {
-    if (!text || text[0] == '\0') {
+    if (!text || text[0] == '\0')
+    {
         return 0;
     }
 
@@ -83,116 +85,131 @@ int display_print_wrapped(const char* text, int16_t x, int16_t y, int16_t area_w
 
     std::string input_text(text);
     std::string wrapped_text;
-    
+
     // 获取字体的行高
     uint8_t base_font_size = get_font_size_from_file();
-    if (base_font_size == 0) {
+    if (base_font_size == 0)
+    {
         base_font_size = 24; // 使用默认值
     }
-    
-    float scale_factor = (font_size > 0 && base_font_size > 0) ? 
-                         ((float)font_size / (float)base_font_size) : 1.0f;
+
+    float scale_factor = (font_size > 0 && base_font_size > 0) ? ((float)font_size / (float)base_font_size) : 1.0f;
     int16_t line_height = (int16_t)((base_font_size + LINE_MARGIN) * scale_factor);
-    
+
     // 计算最大行数
     int16_t available_height;
-    if (area_height > 0) {
+    if (area_height > 0)
+    {
         // 使用指定的高度限制
         available_height = area_height;
-    } else {
+    }
+    else
+    {
         // 0 表示不限制高度，使用屏幕剩余高度
         available_height = vertical ? area_width : (PAPER_S3_HEIGHT - y);
     }
     int max_lines = available_height / line_height;
-    if (max_lines <= 0) {
+    if (max_lines <= 0)
+    {
         max_lines = 1;
     }
-    
+
 #if DBG_UI_DISPLAY
     Serial.printf("[DISPLAY_WRAPPED] line_height=%d, max_lines=%d, scale_factor=%.2f\n",
                   line_height, max_lines, scale_factor);
 #endif
-    
+
     // 逐行处理文本，自动换行
     size_t pos = 0;
     int lines_added = 0;
-    
-    while (pos < input_text.length() && lines_added < max_lines) {
+
+    while (pos < input_text.length() && lines_added < max_lines)
+    {
         // 跳过行首空白（仅垂直模式）
-        if (vertical) {
-            while (pos < input_text.length()) {
+        if (vertical)
+        {
+            while (pos < input_text.length())
+            {
                 char c = input_text[pos];
-                if (c != ' ' && c != '\t' && c != '\r') {
+                if (c != ' ' && c != '\t' && c != '\r')
+                {
                     break;
                 }
                 pos++;
             }
         }
-        
-        if (pos >= input_text.length()) {
+
+        if (pos >= input_text.length())
+        {
             break;
         }
-        
+
         // 查找换行位置
         size_t break_pos = find_break_position_scaled(input_text, pos, area_width, vertical, font_size);
-        
-        if (break_pos == pos) {
+
+        if (break_pos == pos)
+        {
             // 无法前进，避免无限循环
             break;
         }
-        
+
         // 提取这一行的文本
         std::string line = input_text.substr(pos, break_pos - pos);
         wrapped_text += line;
         wrapped_text += '\n';
-        
+
         pos = break_pos;
         lines_added++;
-        
+
         // 跳过显式的换行符
-        if (pos < input_text.length() && input_text[pos] == '\n') {
+        if (pos < input_text.length() && input_text[pos] == '\n')
+        {
             pos++;
         }
-        
+
 #if DBG_UI_DISPLAY
-        if (lines_added <= 3) {
+        if (lines_added <= 3)
+        {
             Serial.printf("[DISPLAY_WRAPPED] 第%d行: 长度=%zu, break_pos=%zu\n",
                           lines_added, line.length(), break_pos);
         }
 #endif
     }
-    
+
 #if DBG_UI_DISPLAY
     Serial.printf("[DISPLAY_WRAPPED] 换行完成: 原始长度=%zu, 处理后长度=%zu, 行数=%d\n",
                   input_text.length(), wrapped_text.length(), lines_added);
 #endif
-    
+
     // 映射对齐方式：0=左对齐，1=居中，2=右对齐
     TextAlign text_align = TEXT_ALIGN_LEFT;
-    if (align == 1) {
+    if (align == 1)
+    {
         text_align = TEXT_ALIGN_CENTER;
-    } else if (align == 2) {
+    }
+    else if (align == 2)
+    {
         text_align = TEXT_ALIGN_RIGHT;
     }
-    
+
     // 调用 bin_font_print 打印换行后的文本
     bin_font_print(
         wrapped_text,
-        font_size,           // font_size
-        color,               // color (0-15 灰度)
-        vertical ? PAPER_S3_HEIGHT : area_width,  // area_width
-        x,                   // margin_left (起点x)
-        y,                   // margin_top (起点y)
-        false,               // fast_mode
-        g_canvas,            // canvas
-        text_align,          // text_align (使用传入的对齐方式)
-        0,                   // max_length (不限制，因为已经通过\n换行)
-        skip,                // skipConv (跳过繁简转换)
-        false,               // drawBottom
-        vertical,            // vertical
-        false                // dark
+        font_size,                               // font_size
+        color,                                   // color (0-15 灰度)
+        vertical ? PAPER_S3_HEIGHT : area_width, // area_width
+        x,                                       // margin_left (起点x)
+        y,                                       // margin_top (起点y)
+        false,                                   // fast_mode
+        g_canvas,                                // canvas
+        text_align,                              // text_align (使用传入的对齐方式)
+        0,                                       // max_length (不限制，因为已经通过\n换行)
+        skip,                                    // skipConv (跳过繁简转换)
+        false,                                   // drawBottom
+        vertical,                                // vertical
+        false                                    // dark
     );
-    
+
     // 返回已使用的行数
     return lines_added;
 }
@@ -203,10 +220,13 @@ void initDisplay()
     unsigned long displayStartTime = millis();
 #endif
 
-    // 优化：在任何显示操作之前，立即设置EPD为最快速模式
-    // 这可以减少复位后的初始闪烁
-    M5.Display.setEpdMode(epd_mode_t::epd_fastest); // 使用最快速模式
-    M5.Display.setColorDepth(TEXT_COLORDEPTH);
+    if (int(g_wake_cause) == 0)
+    {
+        // 优化：在任何显示操作之前，立即设置EPD为最快速模式
+        // 这可以减少复位后的初始闪烁
+        M5.Display.setEpdMode(epd_mode_t::epd_fastest); // 使用最快速模式
+        M5.Display.setColorDepth(TEXT_COLORDEPTH);
+    }
 #if DBG_UI_DISPLAY
     Serial.printf("[DISPLAY] EPD最快速模式设置: %lu ms\n", millis() - displayStartTime);
 #endif
@@ -309,7 +329,8 @@ void fontLoad()
     // 关键修复：字体加载后，清空 canvas 并重置光标，确保初始状态正确
     // 这是为了修复上电初始化时，show_start_screen() 在字体加载前就调用了
     // bin_font_clear_canvas() 导致的状态不一致问题
-    bin_font_clear_canvas(g_config.dark);
+    if (int(g_wake_cause) == 0)
+        bin_font_clear_canvas(g_config.dark);
 #if DBG_UI_DISPLAY
     Serial.println("[DISPLAY] 字体加载后重置 Canvas 状态");
 #endif

@@ -34,6 +34,9 @@ float font_size = SYSFONTSIZE;
 // timing globals
 unsigned long idleTime = 0; // 最后一次非idle时间
 
+// Wakeup cause from last boot/sleep (initialized in setup())
+esp_sleep_wakeup_cause_t g_wake_cause = ESP_SLEEP_WAKEUP_UNDEFINED;
+
 // 全局Canvas
 M5Canvas *g_canvas = nullptr;
 

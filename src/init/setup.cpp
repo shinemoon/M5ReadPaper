@@ -47,8 +47,9 @@ void setup()
     Serial.println("========================================");
     Serial.println("[SETUP] ===== 系统重启 =====");
     Serial.printf("[SETUP] 启动时间: %lu ms\n", millis());
-    esp_sleep_wakeup_cause_t wake_cause = esp_sleep_get_wakeup_cause();
-    Serial.printf("[SETUP] 唤醒原因: %d\n", (int)wake_cause);
+    // Use global wake cause so other modules can access it
+    g_wake_cause = esp_sleep_get_wakeup_cause();
+    Serial.printf("[SETUP] 唤醒原因: %d\n", (int)g_wake_cause);
     Serial.println("========================================");
     printBootTime("Serial initialized");
 
@@ -207,7 +208,7 @@ void setup()
     // 在显示与字体初始化完成后再显示启动画面
     M5.Display.waitDisplay();
     // 唤醒则跳过开始画面
-    if (int(wake_cause) == 0)
+    if (int(g_wake_cause) == 0)
         show_start_screen("");
 
 #if DBG_SETUP

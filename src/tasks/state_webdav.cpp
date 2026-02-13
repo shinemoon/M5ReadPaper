@@ -43,28 +43,26 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
     switch (msg->type)
     {
     case MSG_TIMER_MIN_TIMEOUT:
-        // Do not timeout in WEBDAV
-        /*
-            if (++shutCnt == READING_IDLE_WAIT_MIN)
+        // Do not timeout in WEBDAV => To protec in case it is stuck in TRMNL 
+        if (++shutCnt == READING_IDLE_WAIT_MIN)
+        {
+#if DBG_STATE_MACHINE_TASK
+            sm_dbg_printf("WEBDAV状态收到超时，进入IDLE\n");
+#endif
+            shutCnt = 0;
+            show_lockscreen(PAPER_S3_WIDTH, PAPER_S3_HEIGHT, 30, "双击屏幕解锁");
+            if (g_current_book)
             {
-    #if DBG_STATE_MACHINE_TASK
-                sm_dbg_printf("WEBDAV状态收到超时，进入IDLE\n");
-    #endif
-                shutCnt = 0;
-                show_lockscreen(PAPER_S3_WIDTH, PAPER_S3_HEIGHT, 30, "双击屏幕解锁");
-                if (g_current_book)
+                TextPageResult tp = g_current_book->currentPage();
+                if (tp.success)
                 {
-                    TextPageResult tp = g_current_book->currentPage();
-                    if (tp.success)
-                    {
-                        insertAutoTagForFile(g_current_book->filePath(), tp.file_pos);
-                        g_current_book->refreshTagsCache();
-                    }
+                    insertAutoTagForFile(g_current_book->filePath(), tp.file_pos);
+                    g_current_book->refreshTagsCache();
                 }
-                currentState_ = STATE_IDLE;
-                webdavShown = false;
             }
-                */
+            currentState_ = STATE_IDLE;
+            webdavShown = false;
+        }
         break;
 
     case MSG_BATTERY_STATUS_CHANGED:
@@ -128,11 +126,11 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
             if (!sleepIssued)
             {
                 sleepIssued = true;
-               // Ensure display push queue and panel refresh are done before sleep
-                //              waitDisplayPushIdle(2000);
-                // Sleep 10 seconds then wake
-                //                esp_sleep_enable_timer_wakeup(10ULL * 1000000ULL);
-                //               esp_deep_sleep_start();
+                // Ensure display push queue and panel refresh are done before sleep
+                waitDisplayPushIdle(2000);
+                // Sleep 1 hour then wake to refresh
+                esp_sleep_enable_timer_wakeup(60 * 60ULL * 1000000ULL);
+                esp_deep_sleep_start();
                 return;
             }
         }

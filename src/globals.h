@@ -49,3 +49,7 @@ extern uint8_t autospeed;
 // WiFi STA连接状态标志
 // true = 已连接到WiFi AP，false = 未连接
 extern bool g_wifi_sta_connected;
+
+// Wakeup cause from esp_sleep (global for access across modules)
+#include <esp_sleep.h>
+extern esp_sleep_wakeup_cause_t g_wake_cause;
