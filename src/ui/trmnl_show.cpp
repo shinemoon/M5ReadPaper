@@ -27,6 +27,7 @@ static bool fetch_daily_poem(String &out_content, String &out_origin);
 static int render_list_items(const char *content, int16_t x, int16_t y, int16_t area_width, int16_t area_height, uint8_t fontSize, uint8_t textColor, int16_t margin);
 static bool fetch_rss_feed(const String &url, String &out_titles);
 static bool parse_rss_titles(const String &xml_content, String &out_titles);
+static bool fetch_weather(const String &citycode, const String &apiKey, String &out_today_info, String &out_tomorrow_info);
 
 // 从 WebDAV 读取 readpaper.rdt 文件内容
 static bool fetch_webdav_rdt_config(String &out_content)
@@ -572,14 +573,14 @@ static bool fetch_daily_poem(String &out_content, String &out_origin)
 // 渲染列表项（分号分隔的文本，带bullet点）
 // 返回实际渲染的项数
 static int render_list_items(
-    const char *content,      // 分号分隔的文本内容
-    int16_t x,                // 起始x坐标
-    int16_t y,                // 起始y坐标
-    int16_t area_width,       // 可用宽度
-    int16_t area_height,      // 可用高度
-    uint8_t fontSize,         // 字体大小
-    uint8_t textColor,        // 文本颜色（0-15灰度）
-    int16_t margin            // 行间距（像素）
+    const char *content, // 分号分隔的文本内容
+    int16_t x,           // 起始x坐标
+    int16_t y,           // 起始y坐标
+    int16_t area_width,  // 可用宽度
+    int16_t area_height, // 可用高度
+    uint8_t fontSize,    // 字体大小
+    uint8_t textColor,   // 文本颜色（0-15灰度）
+    int16_t margin       // 行间距（像素）
 )
 {
     if (!content || strlen(content) == 0)
@@ -600,7 +601,7 @@ static int render_list_items(
         max_lines = 1;
 
 #if DBG_TRMNL_SHOW
-    Serial.printf("[TRMNL] 列表渲染: area_height=%d, fontSize=%d, base=%d, scale=%.2f, 行高=%d, margin=%d, 最大行数=%d\n", 
+    Serial.printf("[TRMNL] 列表渲染: area_height=%d, fontSize=%d, base=%d, scale=%.2f, 行高=%d, margin=%d, 最大行数=%d\n",
                   area_height, fontSize, base_font_size, scale_factor, line_height, margin, max_lines);
 #endif
 
@@ -609,7 +610,7 @@ static int render_list_items(
     int item_count = 0;
     int16_t current_y = y;
     int start_pos = 0;
-    
+
     while (item_count < max_lines)
     {
         // 查找下一个分号
@@ -648,17 +649,17 @@ static int render_list_items(
 
         // 使用 bin_font_print 单行渲染文本
         bin_font_print(
-            item.c_str(),       // text
-            fontSize,           // font_size
-            textColor,          // color
-            area_width,         // area_width
-            x + 20,             // x（bullet后留20像素）
+            item.c_str(),             // text
+            fontSize,                 // font_size
+            textColor,                // color
+            area_width,               // area_width
+            x + 20,                   // x（bullet后留20像素）
             current_y - fontSize / 2, // y（垂直居中）
-            false,              // horizontal
+            false,                    // horizontal
             g_canvas,
-            TEXT_ALIGN_LEFT,    // align（左对齐）
-            area_width,          // max_length
-            false //SkipConv
+            TEXT_ALIGN_LEFT, // align（左对齐）
+            area_width,      // max_length
+            false            // SkipConv
         );
 
         current_y += line_height;
@@ -681,16 +682,16 @@ static int render_list_items(
 static int extract_next_rss_item(String &buffer, bool is_atom, String &out_title)
 {
     out_title = "";
-    
+
     // 查找下一个item/entry起始标签
     int item_start = buffer.indexOf(is_atom ? "<entry>" : "<item>");
     int item_start_with_attr = buffer.indexOf(is_atom ? "<entry " : "<item ");
-    
+
     if (item_start == -1 || (item_start_with_attr != -1 && item_start_with_attr < item_start))
     {
         item_start = item_start_with_attr;
     }
-    
+
     if (item_start == -1)
         return -1; // 未找到item起始标签
 
@@ -698,7 +699,7 @@ static int extract_next_rss_item(String &buffer, bool is_atom, String &out_title
     const char *item_end_tag = is_atom ? "</entry>" : "</item>";
     int item_end_tag_len = is_atom ? 8 : 7;
     int item_end = buffer.indexOf(item_end_tag, item_start);
-    
+
     if (item_end == -1)
         return -1; // item未完整（可能跨缓冲区边界），需要继续读取
 
@@ -708,11 +709,11 @@ static int extract_next_rss_item(String &buffer, bool is_atom, String &out_title
     {
         title_start += 7; // 跳过"<title>"
         int title_end = buffer.indexOf("</title>", title_start);
-        
+
         if (title_end != -1 && title_end < item_end)
         {
             String title = buffer.substring(title_start, title_end);
-            
+
             // 处理CDATA
             if (title.startsWith("<![CDATA["))
             {
@@ -721,7 +722,7 @@ static int extract_next_rss_item(String &buffer, bool is_atom, String &out_title
                 if (cdata_end >= 0)
                     title = title.substring(0, cdata_end);
             }
-            
+
             title.trim();
             out_title = title;
         }
@@ -735,7 +736,7 @@ static int extract_next_rss_item(String &buffer, bool is_atom, String &out_title
 static bool fetch_rss_feed(const String &url, String &out_titles)
 {
     out_titles = "";
-    
+
     // 检查WiFi连接
     if (!g_wifi_sta_connected)
     {
@@ -762,7 +763,7 @@ static bool fetch_rss_feed(const String &url, String &out_titles)
     cfg.url = url.c_str();
     cfg.method = HTTP_METHOD_GET;
     cfg.timeout_ms = 15000; // RSS可能较大，增加超时时间
-    cfg.buffer_size = 8192;  // 增加缓冲区
+    cfg.buffer_size = 8192; // 增加缓冲区
     cfg.buffer_size_tx = 1024;
     cfg.crt_bundle_attach = esp_crt_bundle_attach; // 支持HTTPS
 
@@ -827,7 +828,7 @@ static bool fetch_rss_feed(const String &url, String &out_titles)
     int item_count = 0;
     bool is_atom = false;
     bool format_detected = false;
-    
+
     while (item_count < MAX_ITEMS)
     {
         // 读取一块数据
@@ -844,11 +845,11 @@ static bool fetch_rss_feed(const String &url, String &out_titles)
             // 文件读取完毕
             break;
         }
-        
+
         read_buffer[data_read] = '\0';
         parse_buffer += String(read_buffer);
         total_read += data_read;
-        
+
         // 检测RSS格式（只在第一次检测）
         if (!format_detected && parse_buffer.length() > 100)
         {
@@ -858,13 +859,13 @@ static bool fetch_rss_feed(const String &url, String &out_titles)
             Serial.printf("[TRMNL] 检测到RSS格式: %s\n", is_atom ? "Atom" : "RSS");
 #endif
         }
-        
+
         // 尝试从parse_buffer中提取完整的item
         while (item_count < MAX_ITEMS)
         {
             String title = "";
             int item_end_pos = extract_next_rss_item(parse_buffer, is_atom, title);
-            
+
             if (item_end_pos == -1)
             {
                 // 未找到完整item，需要继续读取
@@ -874,11 +875,11 @@ static bool fetch_rss_feed(const String &url, String &out_titles)
                     // 查找最后一个item起始标签的位置
                     int last_item_start = parse_buffer.lastIndexOf(is_atom ? "<entry>" : "<item>");
                     int last_item_start_attr = parse_buffer.lastIndexOf(is_atom ? "<entry " : "<item ");
-                    
+
                     // 取两者中较晚出现的
                     if (last_item_start < last_item_start_attr)
                         last_item_start = last_item_start_attr;
-                    
+
                     if (last_item_start > 0)
                     {
                         // 从最后一个item标签开始保留
@@ -898,7 +899,7 @@ static bool fetch_rss_feed(const String &url, String &out_titles)
                 }
                 break;
             }
-            
+
             // 成功提取一个title
             if (title.length() > 0)
             {
@@ -906,7 +907,7 @@ static bool fetch_rss_feed(const String &url, String &out_titles)
                     out_titles += ";";
                 out_titles += title;
                 item_count++;
-                
+
 #if DBG_TRMNL_SHOW
                 Serial.printf("[TRMNL] RSS item %d: %s\n", item_count, title.c_str());
 #endif
@@ -917,13 +918,13 @@ static bool fetch_rss_feed(const String &url, String &out_titles)
                 Serial.printf("[TRMNL] 跳过空title的item (pos: %d)\n", item_end_pos);
             }
 #endif
-            
+
             // 从buffer中删除已处理的部分
             parse_buffer = parse_buffer.substring(item_end_pos);
 #if DBG_TRMNL_SHOW
             Serial.printf("[TRMNL] Buffer剩余: %d字节\n", parse_buffer.length());
 #endif
-            
+
             // 如果已达到目标数量，提前退出
             if (item_count >= MAX_ITEMS)
             {
@@ -933,7 +934,7 @@ static bool fetch_rss_feed(const String &url, String &out_titles)
                 break;
             }
         }
-        
+
         // 如果已找到足够的item，停止读取
         if (item_count >= MAX_ITEMS)
             break;
@@ -945,7 +946,7 @@ static bool fetch_rss_feed(const String &url, String &out_titles)
 #if DBG_TRMNL_SHOW
     Serial.printf("[TRMNL] RSS流式解析完成: 共读取%d字节, 提取%d个标题\n", total_read, item_count);
 #endif
-    
+
     return item_count > 0;
 }
 
@@ -1434,6 +1435,105 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                     }
                 }
             }
+            // 处理天气查询组件（weather）
+            else if (strcmp(type, "weather") == 0)
+            {
+                // 从嵌套结构读取属性
+                int pos_x = 0;
+                int pos_y = 0;
+                int a_w = 0;
+                int a_h = 0;
+                if (component.containsKey("position"))
+                {
+                    JsonObject position = component["position"].as<JsonObject>();
+                    pos_x = position["x"] | 0;
+                    pos_y = position["y"] | 0;
+                }
+                JsonObject areaSize = component["size"].as<JsonObject>();
+                a_w = areaSize["width"] | 1;
+                a_h = areaSize["height"] | 1;
+
+                // config: {citycode, apiKey, fontSize, textColor, xOffset, yOffset, align}
+                String citycode = "110000";
+                String apiKey = "";
+                int fontSize = 24;
+                int textColor = 0;
+                int xOffset = 0;
+                int yOffset = 0;
+                int align = 0; // 0=left
+
+                if (component.containsKey("config"))
+                {
+                    JsonObject config = component["config"].as<JsonObject>();
+                    citycode = config["citycode"] | "110000";
+                    apiKey = config["apiKey"] | "";
+                    fontSize = config["fontSize"] | 24;
+                    textColor = config["textColor"] | 0;
+                    xOffset = config["xOffset"] | 0;
+                    yOffset = config["yOffset"] | 0;
+                    align = config["align"] | 0;
+                }
+
+                // 计算打印起点（单元格坐标转像素）
+                const int CELL_WIDTH = 60;
+                const int CELL_HEIGHT = 60;
+                int16_t x = pos_x * CELL_WIDTH + 20 + xOffset;
+                int16_t y = pos_y * CELL_HEIGHT + yOffset;
+                a_w = a_w * CELL_WIDTH - 40;
+                a_h = a_h * CELL_HEIGHT;
+
+                // 获取天气信息
+                String today_info, tomorrow_info;
+                if (fetch_weather(citycode, apiKey, today_info, tomorrow_info))
+                {
+                    // 先打印今天的天气（使用 fontSize）
+                    int lines_used = display_print_wrapped(
+                        today_info.c_str(), // text
+                        x,                  // x (起点)
+                        y,                  // y (起点)
+                        a_w,                // area_width (可用宽度)
+                        a_h,                // area_height (可用高度)
+                        fontSize,           // font_size
+                        textColor,          // color (0-15 灰度)
+                        15,                 // bg_color (15=白色)
+                        align,              // align (0=左，1=中，2=右)
+                        false,              // vertical
+                        false               // skip (不跳过繁简转换)
+                    );
+
+                    // 计算今天天气占用的高度
+                    uint8_t base_font_size = get_font_size_from_file();
+                    if (base_font_size == 0)
+                        base_font_size = 24;
+                    float scale_factor = (fontSize > 0) ? ((float)fontSize / (float)base_font_size) : 1.0f;
+                    int16_t line_height = (int16_t)((base_font_size + 8) * scale_factor); // LINE_MARGIN=8
+                    int16_t used_height = lines_used * line_height;
+                    int16_t remaining_height = a_h - used_height;
+
+                    // 如果剩余高度 > fontSize 且有明天的天气信息，则打印明天的天气（使用 0.8*fontSize）
+                    if (remaining_height > fontSize && tomorrow_info.length() > 0)
+                    {
+                        int tomorrow_font_size = (int)(fontSize * 0.8f);
+                        int16_t tomorrow_y = y + used_height + 30;
+
+                        g_canvas->fillRect(x , tomorrow_y, x + 3, tomorrow_y + tomorrow_font_size, TFT_BLACK);
+
+                        display_print_wrapped(
+                            tomorrow_info.c_str(), // text
+                            x + 6,                     // x (起点)
+                            tomorrow_y,            // y (今天下方)
+                            a_w,                   // area_width (可用宽度)
+                            remaining_height,      // area_height (剩余高度)
+                            tomorrow_font_size,    // font_size (0.8倍)
+                            textColor,             // color (0-15 灰度)
+                            15,                    // bg_color (15=白色)
+                            align,                 // align (0=左，1=中，2=右)
+                            false,                 // vertical
+                            false                  // skip (不跳过繁简转换)
+                        );
+                    }
+                }
+            }
             // 处理列表组件（list）
             else if (strcmp(type, "list") == 0)
             {
@@ -1458,7 +1558,7 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                 int textColor = 0;
                 int xOffset = 0;
                 int yOffset = 0;
-                int margin = 10;  // 默认行间距10像素
+                int margin = 10; // 默认行间距10像素
 
                 if (component.containsKey("config"))
                 {
@@ -1511,7 +1611,7 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                 int textColor = 0;
                 int xOffset = 0;
                 int yOffset = 0;
-                int margin = 10;  // 默认行间距10像素
+                int margin = 10; // 默认行间距10像素
 
                 if (component.containsKey("config"))
                 {
@@ -1541,7 +1641,7 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                 // 获取RSS feed内容
                 String rss_titles = "";
                 bool success = fetch_rss_feed(String(url), rss_titles);
-                
+
                 if (success && rss_titles.length() > 0)
                 {
 #if DBG_TRMNL_SHOW
@@ -1567,8 +1667,7 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                         g_canvas,
                         TEXT_ALIGN_LEFT,
                         a_w,
-                        false
-                    );
+                        false);
                 }
             }
             // TODO: 后续扩展其他动态组件的渲染（clock, barcode等）
@@ -1899,6 +1998,250 @@ bool show_default_trmnl(M5Canvas *canvas)
     bin_font_print("点击屏幕返回菜单", 24, TFT_BLACK,
                    PAPER_S3_WIDTH, 0, PAPER_S3_HEIGHT - 80, false, canvas, TEXT_ALIGN_CENTER);
     canvas->drawLine(120, PAPER_S3_HEIGHT - 50, PAPER_S3_WIDTH - 120, PAPER_S3_HEIGHT - 50, TFT_BLACK);
+
+    return true;
+}
+
+// 获取天气信息（高德天气API）
+static bool fetch_weather(const String &citycode, const String &apiKey, String &out_today_info, String &out_tomorrow_info)
+{
+    // 检查 WiFi 连接
+    if (!g_wifi_sta_connected)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] WiFi 未连接，无法获取天气信息");
+#endif
+        return false;
+    }
+
+    // 检查 apiKey 是否有效
+    if (apiKey.length() == 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] API Key 为空，无法获取天气信息");
+#endif
+        return false;
+    }
+
+    // 构建 API URL：extensions=all 获取预报信息
+    String api_url = "https://restapi.amap.com/v3/weather/weatherInfo?city=" + citycode +
+                     "&key=" + apiKey + "&extensions=all";
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] 请求天气 API: %s\n", api_url.c_str());
+#endif
+
+    // 配置 HTTP 客户端
+    esp_http_client_config_t cfg = {};
+    cfg.url = api_url.c_str();
+    cfg.method = HTTP_METHOD_GET;
+    cfg.timeout_ms = 10000;
+    cfg.buffer_size = 8192;
+    cfg.buffer_size_tx = 1024;
+    cfg.crt_bundle_attach = esp_crt_bundle_attach;
+    cfg.disable_auto_redirect = false;
+
+    esp_http_client_handle_t client = esp_http_client_init(&cfg);
+    if (!client)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] 创建 HTTP 客户端失败");
+#endif
+        return false;
+    }
+
+    // 打开连接
+    esp_err_t err = esp_http_client_open(client, 0);
+    if (err != ESP_OK)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] HTTP 打开连接失败: %s\n", esp_err_to_name(err));
+#endif
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    // 获取响应头
+    int content_length = esp_http_client_fetch_headers(client);
+    int status = esp_http_client_get_status_code(client);
+
+    if (status != 200)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] API 返回错误状态码: %d\n", status);
+#endif
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    // 读取响应内容
+    String response_content;
+    response_content.reserve(8192);
+
+    char buffer[512];
+    int total_read = 0;
+
+    // 使用 read_response 读取完整响应体
+    while (true)
+    {
+        int read_len = esp_http_client_read_response(client, buffer, sizeof(buffer) - 1);
+        if (read_len <= 0)
+            break;
+        buffer[read_len] = '\0';
+        response_content += buffer;
+        total_read += read_len;
+    }
+
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);
+
+    // 检查是否读取到内容
+    if (total_read == 0 || response_content.length() == 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] API 返回空内容");
+#endif
+        return false;
+    }
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] 天气 API 响应长度: %d\n", response_content.length());
+    Serial.printf("[TRMNL] 响应内容: %s\n", response_content.c_str());
+#endif
+
+    // 解析 JSON
+    DynamicJsonDocument doc(12288);
+    DeserializationError error = deserializeJson(doc, response_content);
+
+    if (error)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] JSON 解析失败: %s\n", error.c_str());
+#endif
+        return false;
+    }
+
+    // 检查 status 字段
+    const char *status_str = doc["status"];
+    if (!status_str || strcmp(status_str, "1") != 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] API 返回错误状态: %s\n", status_str ? status_str : "(null)");
+        const char *info = doc["info"];
+        if (info)
+        {
+            Serial.printf("[TRMNL] 错误信息: %s\n", info);
+        }
+#endif
+        return false;
+    }
+
+    // 提取预报信息
+    JsonArray forecasts = doc["forecasts"].as<JsonArray>();
+    if (!forecasts || forecasts.size() == 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] 未找到 forecasts 数组");
+#endif
+        return false;
+    }
+
+    JsonObject forecast = forecasts[0].as<JsonObject>();
+    if (!forecast)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] forecasts[0] 为空");
+#endif
+        return false;
+    }
+
+    JsonArray casts = forecast["casts"].as<JsonArray>();
+    if (!casts || casts.size() == 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] 未找到 casts 数组");
+#endif
+        return false;
+    }
+
+    // 提取今天的天气信息
+    JsonObject today = casts[0].as<JsonObject>();
+    if (!today)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] casts[0] 为空");
+#endif
+        return false;
+    }
+
+    const char *dayweather = today["dayweather"];
+    const char *daytemp = today["daytemp"];
+    const char *nighttemp = today["nighttemp"];
+    const char *daywind = today["daywind"];
+    const char *daypower = today["daypower"];
+
+    // 格式化今天的天气信息：天气 温度 风力
+    String today_info = "";
+    if (dayweather && strlen(dayweather) > 0)
+    {
+        today_info += dayweather;
+    }
+    if (daytemp && nighttemp)
+    {
+        today_info += " ";
+        today_info += nighttemp;
+        today_info += "~";
+        today_info += daytemp;
+        today_info += "℃";
+    }
+    if (daywind && daypower)
+    {
+        today_info += " ";
+        today_info += daywind;
+        today_info += "风";
+        today_info += daypower;
+        today_info += "级";
+    }
+
+    out_today_info = today_info;
+
+    // 提取明天的天气信息（如果有）
+    out_tomorrow_info = "";
+    if (casts.size() > 1)
+    {
+        JsonObject tomorrow = casts[1].as<JsonObject>();
+        if (tomorrow)
+        {
+            const char *tmr_dayweather = tomorrow["dayweather"];
+            const char *tmr_daytemp = tomorrow["daytemp"];
+            const char *tmr_nighttemp = tomorrow["nighttemp"];
+
+            String tomorrow_info = "明天: ";
+            if (tmr_dayweather && strlen(tmr_dayweather) > 0)
+            {
+                tomorrow_info += tmr_dayweather;
+            }
+            if (tmr_daytemp && tmr_nighttemp)
+            {
+                tomorrow_info += " ";
+                tomorrow_info += tmr_nighttemp;
+                tomorrow_info += "~";
+                tomorrow_info += tmr_daytemp;
+                tomorrow_info += "℃";
+            }
+
+            out_tomorrow_info = tomorrow_info;
+        }
+    }
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] 今天天气: %s\n", out_today_info.c_str());
+    if (out_tomorrow_info.length() > 0)
+    {
+        Serial.printf("[TRMNL] 明天天气: %s\n", out_tomorrow_info.c_str());
+    }
+#endif
 
     return true;
 }

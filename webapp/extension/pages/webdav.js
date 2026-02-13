@@ -777,15 +777,17 @@
         const w = comp.width * cellWidth;
         const h = comp.height * cellHeight;
         
-        // 对于动态文本（dynamic_text, daily_poem, list, rss, reading_status），绘制半透明高亮+标签，不渲染真实文本
-          if (comp.type === 'dynamic_text' || comp.type === 'daily_poem' || comp.type === 'list' || comp.type === 'rss' || comp.type === 'reading_status') {
-          // 半透明高亮（今日诗词用蓝色，列表用绿色，RSS用橙色，普通文本用黄色）
+        // 对于动态文本（dynamic_text, daily_poem, list, rss, reading_status, weather），绘制半透明高亮+标签，不渲染真实文本
+          if (comp.type === 'dynamic_text' || comp.type === 'daily_poem' || comp.type === 'list' || comp.type === 'rss' || comp.type === 'reading_status' || comp.type === 'weather') {
+          // 半透明高亮（今日诗词用蓝色，列表用绿色，RSS用橙色，天气用天蓝色，普通文本用黄色）
           if (comp.type === 'daily_poem') {
             ctx.fillStyle = 'rgba(100, 149, 237, 0.3)';  // 蓝色
           } else if (comp.type === 'list') {
             ctx.fillStyle = 'rgba(76, 175, 80, 0.3)';  // 绿色
           } else if (comp.type === 'rss') {
             ctx.fillStyle = 'rgba(255, 152, 0, 0.3)';  // 橙色
+          } else if (comp.type === 'weather') {
+            ctx.fillStyle = 'rgba(33, 150, 243, 0.3)';  // 天蓝色
           } else {
             ctx.fillStyle = 'rgba(251, 192, 45, 0.3)';  // 黄色
           }
@@ -983,19 +985,21 @@
       col: minCol,
       width: width,
       height: height,
-      text: (type === 'daily_poem' || type === 'divider' || type === 'reading_status') ? '' : (type === 'list' ? '项目1;项目2;项目3' : (type === 'rss' ? 'https://example.com/feed.xml' : '示例文本')),  // 今日诗词、分割线和阅读状态不需要文本输入，列表默认示例，RSS默认URL
-      fontSize: (type === 'dynamic_text' || type === 'daily_poem' || type === 'list' || type === 'rss' || type === 'reading_status') ? 24 : 24,  // 动态文本默认24
-      fontFamily: (type === 'dynamic_text' || type === 'daily_poem' || type === 'list' || type === 'rss' || type === 'reading_status') ? '' : 'Arial',  // 动态文本、列表、RSS和阅读状态不支持字体选择
+      text: (type === 'daily_poem' || type === 'divider' || type === 'reading_status' || type === 'weather') ? '' : (type === 'list' ? '项目1;项目2;项目3' : (type === 'rss' ? 'https://example.com/feed.xml' : '示例文本')),  // 今日诗词、分割线、阅读状态和天气不需要文本输入，列表默认示例，RSS默认URL
+      fontSize: (type === 'dynamic_text' || type === 'daily_poem' || type === 'list' || type === 'rss' || type === 'reading_status' || type === 'weather') ? 24 : 24,  // 动态文本默认24
+      fontFamily: (type === 'dynamic_text' || type === 'daily_poem' || type === 'list' || type === 'rss' || type === 'reading_status' || type === 'weather') ? '' : 'Arial',  // 动态文本、列表、RSS、阅读状态和天气不支持字体选择
       textColor: 0,  // 0-15 灰度级别，0=黑色，15=白色
-      bgColor: (type === 'dynamic_text' || type === 'daily_poem' || type === 'reading_status') ? 15 : 'transparent',  // 动态文本和阅读状态默认白色背景(15)，列表和RSS透明
-      align: (type === 'dynamic_text' || type === 'daily_poem' || type === 'reading_status') ? 'left' : undefined,  // 动态文本与阅读状态支持对齐，列表和RSS不支持
-      rotation: (type === 'dynamic_text' || type === 'daily_poem' || type === 'reading_status' || type === 'divider') ? 0 : 0,  // 动态文本和分割线支持旋转
+      bgColor: (type === 'dynamic_text' || type === 'daily_poem' || type === 'reading_status' || type === 'weather') ? 15 : 'transparent',  // 动态文本、阅读状态和天气默认白色背景(15)，列表和RSS透明
+      align: (type === 'dynamic_text' || type === 'daily_poem' || type === 'reading_status' || type === 'weather') ? 'left' : undefined,  // 动态文本、阅读状态与天气支持对齐，列表和RSS不支持
+      rotation: (type === 'dynamic_text' || type === 'daily_poem' || type === 'reading_status' || type === 'weather' || type === 'divider') ? 0 : 0,  // 动态文本和分割线支持旋转
       xOffset: 0,  // x偏移量（像素）
       yOffset: 0,  // y偏移量（像素）
       lineColor: type === 'divider' ? 0 : undefined,  // 分割线颜色（0-15灰度）
       lineStyle: type === 'divider' ? 'solid' : undefined,  // 分割线样式
       lineWidth: type === 'divider' ? 2 : undefined,  // 分割线粗细（像素）
       margin: (type === 'list' || type === 'rss') ? 10 : undefined,  // 列表和RSS行间距（像素）
+      citycode: type === 'weather' ? '110000' : undefined,  // 天气组件城市代码（默认北京）
+      apiKey: type === 'weather' ? '' : undefined,  // 天气组件高德API Key
       dynamic: type !== 'text' && type !== 'divider'  // text和divider默认为false（预渲染），其他类型为true（设备动态渲染）
     };
 
@@ -1026,6 +1030,8 @@
         return '今日诗词';
       case 'reading_status':
         return '阅读状态';
+      case 'weather':
+        return '天气查询';
       case 'list':
         return '列表';
       case 'rss':
@@ -1138,8 +1144,8 @@
       const sizeInput = document.createElement('input');
       sizeInput.type = 'number';
       sizeInput.value = comp.fontSize || 24;
-      // 动态文本（dynamic_text, daily_poem, list, rss, reading_status）限制字体大小24-38，预渲染文本12-72
-      if (comp.type === 'dynamic_text' || comp.type === 'daily_poem' || comp.type === 'list' || comp.type === 'rss' || comp.type === 'reading_status') {
+      // 动态文本（dynamic_text, daily_poem, list, rss, reading_status, weather）限制字体大小24-38，预渲染文本12-72
+      if (comp.type === 'dynamic_text' || comp.type === 'daily_poem' || comp.type === 'list' || comp.type === 'rss' || comp.type === 'reading_status' || comp.type === 'weather') {
         sizeInput.min = 24;
         sizeInput.max = 38;
       } else {
@@ -1524,7 +1530,61 @@
         detailsContainer.appendChild(textColorField);  // 文本颜色
         detailsContainer.appendChild(marginField);  // 行间距
         // RSS不支持字体选择、旋转、背景色、对齐
-      } else {
+      }
+      // 天气组件的配置
+      else if (comp.type === 'weather') {
+        // 城市代码输入
+        const citycodeField = document.createElement('div');
+        citycodeField.className = 'field';
+        
+        const citycodeLabel = document.createElement('label');
+        citycodeLabel.textContent = '城市代码';
+        
+        const citycodeInput = document.createElement('input');
+        citycodeInput.type = 'text';
+        citycodeInput.value = comp.citycode || '110000';
+        citycodeInput.placeholder = '例如: 110000 (北京)';
+        citycodeInput.dataset.componentId = comp.id;
+        citycodeInput.className = 'component-citycode-input';
+        citycodeInput.addEventListener('input', (e) => {
+          const id = parseInt(e.target.dataset.componentId);
+          updateComponentCitycode(id, e.target.value);
+        });
+        
+        citycodeField.appendChild(citycodeLabel);
+        citycodeField.appendChild(citycodeInput);
+        
+        // API Key输入
+        const apiKeyField = document.createElement('div');
+        apiKeyField.className = 'field';
+        
+        const apiKeyLabel = document.createElement('label');
+        apiKeyLabel.textContent = '高德地图 API Key';
+        
+        const apiKeyInput = document.createElement('input');
+        apiKeyInput.type = 'text';
+        apiKeyInput.value = comp.apiKey || '';
+        apiKeyInput.placeholder = '请输入高德地图 API Key';
+        apiKeyInput.dataset.componentId = comp.id;
+        apiKeyInput.className = 'component-apikey-input';
+        apiKeyInput.addEventListener('input', (e) => {
+          const id = parseInt(e.target.dataset.componentId);
+          updateComponentApiKey(id, e.target.value);
+        });
+        
+        apiKeyField.appendChild(apiKeyLabel);
+        apiKeyField.appendChild(apiKeyInput);
+        
+        detailsContainer.appendChild(citycodeField);
+        detailsContainer.appendChild(apiKeyField);
+        detailsContainer.appendChild(posField);
+        detailsContainer.appendChild(widthHeightField);
+        detailsContainer.appendChild(offsetField);
+        detailsContainer.appendChild(sizeField);
+        detailsContainer.appendChild(textColorField);
+        // 天气组件不支持字体选择、旋转、背景色
+      }
+      else {
         // 文本类组件（今日诗词组件不显示文本输入框）
         if (comp.type !== 'daily_poem' && comp.type !== 'reading_status') {
           detailsContainer.appendChild(field);
@@ -1748,6 +1808,24 @@
     const comp = components.find(c => c.id === id);
     if (comp) {
       comp.margin = Math.max(0, Math.min(50, parseInt(margin) || 10));
+      updateBackgroundPreview();
+    }
+  }
+  
+  // 更新天气组件城市代码
+  function updateComponentCitycode(id, citycode) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      comp.citycode = citycode || '110000';
+      updateBackgroundPreview();
+    }
+  }
+  
+  // 更新天气组件API Key
+  function updateComponentApiKey(id, apiKey) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      comp.apiKey = apiKey || '';
       updateBackgroundPreview();
     }
   }
@@ -1986,7 +2064,12 @@
           lineColor: comp.lineColor !== undefined ? comp.lineColor : 0,  // 分割线颜色
           lineStyle: comp.lineStyle || 'solid',  // 分割线样式
           lineWidth: comp.lineWidth || 2,  // 分割线粗细
-          margin: comp.margin !== undefined ? comp.margin : ((comp.type === 'list' || comp.type === 'rss') ? 10 : undefined)  // 列表和RSS行间距
+          margin: comp.margin !== undefined ? comp.margin : ((comp.type === 'list' || comp.type === 'rss') ? 10 : undefined),  // 列表和RSS行间距
+          // 天气组件特有字段
+          ...(comp.type === 'weather' ? { 
+            citycode: comp.citycode || '110000',
+            apiKey: comp.apiKey || ''
+          } : {})
         },
         dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
       }))
@@ -2049,6 +2132,9 @@
         lineStyle: comp.config.lineStyle || 'solid',
         lineWidth: comp.config.lineWidth || 2,
         margin: comp.config.margin !== undefined ? comp.config.margin : ((comp.type === 'list' || comp.type === 'rss') ? 10 : undefined),
+        // 天气组件特有字段
+        citycode: comp.type === 'weather' ? (comp.config.citycode || '110000') : undefined,
+        apiKey: comp.type === 'weather' ? (comp.config.apiKey || '') : undefined,
         dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
       }));
     }
@@ -2479,6 +2565,9 @@
                 lineStyle: comp.config.lineStyle || 'solid',
                 lineWidth: comp.config.lineWidth !== undefined ? comp.config.lineWidth : 2,
                 margin: comp.config.margin !== undefined ? comp.config.margin : ((comp.type === 'list' || comp.type === 'rss') ? 10 : undefined),
+                // 天气组件特有字段
+                citycode: comp.type === 'weather' ? (comp.config.citycode || '110000') : undefined,
+                apiKey: comp.type === 'weather' ? (comp.config.apiKey || '') : undefined,
                 dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
               }));
               updateScreenPreview();
