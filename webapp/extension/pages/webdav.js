@@ -2457,7 +2457,7 @@
         await new Promise((resolve) => {
           chrome.storage.local.get(['display_config', 'background_image', 'has_bg_pic'], (res) => {
             const config = res && res.display_config;
-            if (config && config.components) {
+                if (config && config.components) {
                 components = config.components.map((comp, idx) => ({
                 id: Date.now() + idx,
                 type: comp.type || 'text',
@@ -2465,19 +2465,21 @@
                 col: comp.position.x,
                 width: comp.size.width,
                 height: comp.size.height,
-                text: comp.config.text || '',
+                // RSS组件特殊处理：url字段映射为text
+                text: comp.type === 'rss' ? (comp.config.url || '') : (comp.config.text || ''),
                 fontSize: comp.config.fontSize || 24,
                 fontFamily: comp.config.fontFamily || 'Arial',
-                  textColor: comp.config.textColor !== undefined ? comp.config.textColor : 0,
-                  bgColor: comp.config.bgColor !== undefined ? comp.config.bgColor : 'transparent',
-                  rotation: comp.config.rotation !== undefined ? comp.config.rotation : 0,
-                  align: comp.config.align || 'left',
-                  xOffset: comp.config.xOffset || 0,
-                  yOffset: comp.config.yOffset || 0,
-                  lineColor: comp.config.lineColor !== undefined ? comp.config.lineColor : 0,
-                  lineStyle: comp.config.lineStyle || 'solid',
-                  lineWidth: comp.config.lineWidth || 2,
-                  dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
+                textColor: comp.config.textColor !== undefined ? comp.config.textColor : 0,
+                bgColor: comp.config.bgColor !== undefined ? comp.config.bgColor : 'transparent',
+                rotation: comp.config.rotation !== undefined ? comp.config.rotation : 0,
+                align: comp.config.align || 'left',
+                xOffset: comp.config.xOffset || 0,
+                yOffset: comp.config.yOffset || 0,
+                lineColor: comp.config.lineColor !== undefined ? comp.config.lineColor : 0,
+                lineStyle: comp.config.lineStyle || 'solid',
+                lineWidth: comp.config.lineWidth !== undefined ? comp.config.lineWidth : 2,
+                margin: comp.config.margin !== undefined ? comp.config.margin : ((comp.type === 'list' || comp.type === 'rss') ? 10 : undefined),
+                dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
               }));
               updateScreenPreview();
               updateComponentList();
