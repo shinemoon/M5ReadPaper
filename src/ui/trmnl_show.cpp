@@ -1516,11 +1516,11 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                         int tomorrow_font_size = (int)(fontSize * 0.8f);
                         int16_t tomorrow_y = y + used_height + 30;
 
-                        g_canvas->fillRect(x , tomorrow_y, x + 3, tomorrow_y + tomorrow_font_size, TFT_BLACK);
+                        g_canvas->fillRect(x , tomorrow_y, 4, tomorrow_font_size, TFT_BLACK);
 
                         display_print_wrapped(
                             tomorrow_info.c_str(), // text
-                            x + 6,                     // x (起点)
+                            x + 8,                     // x (起点)
                             tomorrow_y,            // y (今天下方)
                             a_w,                   // area_width (可用宽度)
                             remaining_height,      // area_height (剩余高度)
@@ -1825,6 +1825,32 @@ bool trmnl_display(M5Canvas *canvas)
             // 否则继续使用本地 RDT（已在 rdt_content 中）
         }
     }
+
+    // 步骤3.5: 在解析和显示本地RDT之前，确保WiFi连接可用（为联网组件提供支持）
+    if (!g_wifi_sta_connected && g_wifi_hotspot)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] WiFi未连接，尝试重新连接以支持联网组件...");
+#endif
+        g_wifi_hotspot->connectToWiFiFromToken();
+        // 不论连接成功或失败，都继续后续处理
+#if DBG_TRMNL_SHOW
+        if (g_wifi_sta_connected)
+        {
+            Serial.println("[TRMNL] WiFi重新连接成功");
+        }
+        else
+        {
+            Serial.println("[TRMNL] WiFi重新连接失败，继续使用本地RDT（联网组件可能无法工作）");
+        }
+#endif
+    }
+#if DBG_TRMNL_SHOW
+    else if (g_wifi_sta_connected)
+    {
+        Serial.println("[TRMNL] WiFi已连接，联网组件可正常工作");
+    }
+#endif
 
     // 步骤4: 解析并显示 SD 卡的 RDT 配置
     if (parse_and_display_rdt(canvas, rdt_content))

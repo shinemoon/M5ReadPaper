@@ -1054,16 +1054,26 @@
 
   // 更新组件列表显示
   function updateComponentList() {
+    console.log('[updateComponentList] 开始执行，components.length =', components.length);
+    
     const listEl = document.getElementById('componentList');
-    if (!listEl) return;
+    if (!listEl) {
+      console.error('[updateComponentList] 找不到 componentList 元素！');
+      return;
+    }
+
+    console.log('[updateComponentList] 找到 componentList 元素');
 
     // 保留标题
     listEl.innerHTML = '<h6>已添加组件</h6>';
 
     if (components.length === 0) {
+      console.log('[updateComponentList] 组件列表为空');
       listEl.innerHTML += '<p class="muted">暂无组件</p>';
       return;
     }
+
+    console.log('[updateComponentList] 开始渲染', components.length, '个组件');
 
     // 计算每个组件的添加序号（按 id 升序），以保持 UI 编号按添加顺序显示
     const byIdAsc = [...components].sort((a, b) => a.id - b.id);
@@ -1641,6 +1651,8 @@
       item.appendChild(detailsContainer);
       listEl.appendChild(item);
     });
+    
+    console.log('[updateComponentList] 组件列表渲染完成');
   }
 
   // 删除组件
@@ -2079,7 +2091,10 @@
   // 从本地文件导入配置
   async function loadFromLocalFile() {
     const rdtFileInput = document.getElementById('rdtFileInput');
-    if (!rdtFileInput) return;
+    if (!rdtFileInput) {
+      console.error('找不到 rdtFileInput 元素');
+      return;
+    }
     
     rdtFileInput.onchange = async function(e) {
       const file = e.target.files[0];
@@ -2089,10 +2104,17 @@
         setStatus('读取本地配置文件...', 'info', 'display');
         
         const content = await file.text();
+        console.log('文件内容:', content.substring(0, 200) + '...');
+        
         const config = JSON.parse(content);
+        console.log('解析后的配置:', config);
+        console.log('组件数量:', config.components ? config.components.length : 0);
         
         // 解析配置
         loadDisplayConfig(config);
+        
+        console.log('导入后的 components 数组:', components);
+        console.log('导入后的 components 长度:', components.length);
         
         setStatus('本地配置导入成功', 'success', 'display');
         
@@ -2110,42 +2132,94 @@
   
   // 从配置对象加载显示配置（提取为公共函数，供WebDAV和本地导入共用）
   function loadDisplayConfig(config) {
-    if (config && config.components && Array.isArray(config.components)) {
-      components = config.components.map((comp, idx) => ({
-        id: Date.now() + idx,
-        type: comp.type || 'text',
-        row: comp.position.y,
-        col: comp.position.x,
-        width: comp.size.width,
-        height: comp.size.height,
-        // RSS组件特殊处理：url字段映射为text
-        text: comp.type === 'rss' ? (comp.config.url || '') : (comp.config.text || ''),
-        fontSize: comp.config.fontSize || 24,
-        fontFamily: comp.config.fontFamily || 'Arial',
-        textColor: comp.config.textColor !== undefined ? comp.config.textColor : 0,
-        bgColor: comp.config.bgColor !== undefined ? comp.config.bgColor : 'transparent',
-        rotation: comp.config.rotation !== undefined ? comp.config.rotation : 0,
-        align: comp.config.align || 'left',
-        xOffset: comp.config.xOffset || 0,
-        yOffset: comp.config.yOffset || 0,
-        lineColor: comp.config.lineColor !== undefined ? comp.config.lineColor : 0,
-        lineStyle: comp.config.lineStyle || 'solid',
-        lineWidth: comp.config.lineWidth || 2,
-        margin: comp.config.margin !== undefined ? comp.config.margin : ((comp.type === 'list' || comp.type === 'rss') ? 10 : undefined),
-        // 天气组件特有字段
-        citycode: comp.type === 'weather' ? (comp.config.citycode || '110000') : undefined,
-        apiKey: comp.type === 'weather' ? (comp.config.apiKey || '') : undefined,
-        dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
-      }));
+    console.log('[loadDisplayConfig v2] 开始执行，配置:', config);
+    
+    if (!config) {
+      console.error('[loadDisplayConfig] 配置对象为空');
+      return;
     }
+    
+    if (!config.components || !Array.isArray(config.components)) {
+      console.error('[loadDisplayConfig] 没有有效的组件数组');
+      return;
+    }
+    
+    console.log('[loadDisplayConfig] 原始组件数组长度:', config.components.length);
+    
+    // 为每个组件生成唯一ID（使用时间戳+索引，乘以1000确保不重复）
+    const baseId = Date.now();
+    const newComponents = [];
+    
+    config.components.forEach((comp, idx) => {
+      try {
+        console.log(`[loadDisplayConfig] 处理组件 ${idx}:`, comp);
+        
+        const newComp = {
+          id: baseId + idx * 1000,
+          type: comp.type || 'text',
+          row: comp.position?.y ?? 0,
+          col: comp.position?.x ?? 0,
+          width: comp.size?.width ?? 3,
+          height: comp.size?.height ?? 2,
+          // RSS组件特殊处理：url字段映射为text
+          text: comp.type === 'rss' ? (comp.config?.url || '') : (comp.config?.text || ''),
+          fontSize: comp.config?.fontSize || 24,
+          fontFamily: comp.config?.fontFamily || 'Arial',
+          textColor: comp.config?.textColor !== undefined ? comp.config.textColor : 0,
+          bgColor: comp.config?.bgColor !== undefined ? comp.config.bgColor : 'transparent',
+          rotation: comp.config?.rotation !== undefined ? comp.config.rotation : 0,
+          align: comp.config?.align || 'left',
+          xOffset: comp.config?.xOffset || 0,
+          yOffset: comp.config?.yOffset || 0,
+          lineColor: comp.config?.lineColor !== undefined ? comp.config.lineColor : 0,
+          lineStyle: comp.config?.lineStyle || 'solid',
+          lineWidth: comp.config?.lineWidth || 2,
+          margin: comp.config?.margin !== undefined ? comp.config.margin : ((comp.type === 'list' || comp.type === 'rss') ? 10 : undefined),
+          // 天气组件特有字段
+          citycode: comp.type === 'weather' ? (comp.config?.citycode || '110000') : undefined,
+          apiKey: comp.type === 'weather' ? (comp.config?.apiKey || '') : undefined,
+          dynamic: comp.dynamic !== undefined ? comp.dynamic : (comp.type !== 'text')
+        };
+        
+        newComponents.push(newComp);
+        console.log(`[loadDisplayConfig] 组件 ${idx} 处理成功`);
+      } catch (err) {
+        console.error(`[loadDisplayConfig] 处理组件 ${idx} 时出错:`, err, comp);
+      }
+    });
+    
+    components = newComponents;
+    console.log('[loadDisplayConfig] 最终 components 数组长度:', components.length);
     
     // 处理 bgpic（本地导入时不加载背景图片，需要用户手动设置）
     hasBgPic = !!config.bgpic;
     backgroundImage = null;
     
+    // 更新"包含背景图"复选框状态
+    const chkIncludeBgPic = document.getElementById('chkIncludeBgPic');
+    if (chkIncludeBgPic) {
+      chkIncludeBgPic.checked = hasBgPic;
+      console.log('[loadDisplayConfig] 复选框已更新');
+    } else {
+      console.warn('[loadDisplayConfig] 找不到 chkIncludeBgPic 元素');
+    }
+    
+    console.log('[loadDisplayConfig] 开始更新UI...');
+    console.log('[loadDisplayConfig] 调用 updateScreenPreview');
     updateScreenPreview();
+    
+    console.log('[loadDisplayConfig] 调用 updateComponentList');
     updateComponentList();
+    
+    console.log('[loadDisplayConfig] 调用 updateBackgroundPreview');
     updateBackgroundPreview();
+    
+    // 更新按钮状态
+    console.log('[loadDisplayConfig] 更新按钮状态');
+    updateLoadCurrentButtonState();
+    updateUploadButtonState();
+    
+    console.log('[loadDisplayConfig] 执行完成');
   }
 
   // 从浏览器本地存储异步加载显示配置（页面初始化时调用）
@@ -2537,7 +2611,8 @@
   }
 
   // 加载配置
-  async function loadDisplayConfig() {
+  // 从浏览器本地存储加载显示配置（用于页面初始化）
+  async function loadDisplayConfigFromStorage() {
     try {
       if (chrome && chrome.storage && chrome.storage.local) {
         await new Promise((resolve) => {
