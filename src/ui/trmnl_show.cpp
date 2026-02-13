@@ -2161,6 +2161,13 @@ static bool fetch_weather(const String &citycode, const String &apiKey, String &
     {
 #if DBG_TRMNL_SHOW
         Serial.println("[TRMNL] 未找到 casts 数组");
+        Serial.println("[TRMNL] 完整响应内容:");
+        Serial.println(response_content.c_str());
+        Serial.printf("[TRMNL] forecast 对象包含的字段: ");
+        for (JsonPair kv : forecast) {
+            Serial.printf("%s ", kv.key().c_str());
+        }
+        Serial.println();
 #endif
         return false;
     }

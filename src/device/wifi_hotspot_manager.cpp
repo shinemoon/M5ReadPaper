@@ -2036,6 +2036,33 @@ bool WiFiHotspotManager::connectToWiFiFromToken() {
             }
             
             g_wifi_sta_connected = true;
+            
+            // 同步网络时间（HTTPS证书验证需要正确的系统时间）
+#if DBG_WIFI_HOTSPOT
+            Serial.println("[WIFI_HOTSPOT] 正在同步网络时间...");
+#endif
+            configTime(8 * 3600, 0, "ntp.aliyun.com", "cn.pool.ntp.org", "pool.ntp.org");
+            
+            // 等待时间同步（最多3秒）
+            int retry = 0;
+            struct tm timeinfo;
+            while (!getLocalTime(&timeinfo) && retry < 6) {
+                delay(500);
+                retry++;
+            }
+            
+            if (getLocalTime(&timeinfo)) {
+#if DBG_WIFI_HOTSPOT
+                Serial.printf("[WIFI_HOTSPOT] ✅ 时间同步成功: %04d-%02d-%02d %02d:%02d:%02d\n",
+                             timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+                             timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+#endif
+            } else {
+#if DBG_WIFI_HOTSPOT
+                Serial.println("[WIFI_HOTSPOT] ⚠️ 时间同步超时，HTTPS请求可能失败");
+#endif
+            }
+            
             return true;
         } else {
 #if DBG_WIFI_HOTSPOT
