@@ -766,6 +766,10 @@
       // 计算偏移量的缩放比例（设备实际是540x960，预览画布可能不同）
       const offsetScaleX = canvas.width / 540;
       const offsetScaleY = canvas.height / 960;
+      // 计算每个组件的添加序号映射（按 id 升序），以便预览中显示与组件列表一致的添加序号
+      const byIdAscPreview = [...components].sort((a, b) => a.id - b.id);
+      const idToIndexPreview = new Map();
+      byIdAscPreview.forEach((c, i) => idToIndexPreview.set(c.id, i + 1));
       
       components.forEach((comp, idx) => {
         const x = comp.col * cellWidth + (comp.xOffset || 0) * offsetScaleX;
@@ -773,8 +777,8 @@
         const w = comp.width * cellWidth;
         const h = comp.height * cellHeight;
         
-        // 对于动态文本（dynamic_text, daily_poem, list, rss），绘制半透明高亮+标签，不渲染真实文本
-        if (comp.type === 'dynamic_text' || comp.type === 'daily_poem' || comp.type === 'list' || comp.type === 'rss') {
+        // 对于动态文本（dynamic_text, daily_poem, list, rss, reading_status），绘制半透明高亮+标签，不渲染真实文本
+          if (comp.type === 'dynamic_text' || comp.type === 'daily_poem' || comp.type === 'list' || comp.type === 'rss' || comp.type === 'reading_status') {
           // 半透明高亮（今日诗词用蓝色，列表用绿色，RSS用橙色，普通文本用黄色）
           if (comp.type === 'daily_poem') {
             ctx.fillStyle = 'rgba(100, 149, 237, 0.3)';  // 蓝色
@@ -787,13 +791,14 @@
           }
           ctx.fillRect(x, y, w, h);
           
-          // 在左上角显示标签
+          // 在左上角显示标签（使用添加序号，与组件列表一致）
           const typeLabel = getComponentTypeLabel(comp.type);
+          const addIndexPreview = idToIndexPreview.get(comp.id) || (idx + 1);
           ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
           ctx.font = '14px Arial, sans-serif';
           ctx.textAlign = 'left';
           ctx.textBaseline = 'top';
-          ctx.fillText(`组件${idx + 1}-${typeLabel}`, x + 4, y + 4);
+          ctx.fillText(`组件${addIndexPreview}-${typeLabel}`, x + 4, y + 4);
           return;  // 跳过后续的旋转渲染
         }
         
@@ -978,13 +983,13 @@
       col: minCol,
       width: width,
       height: height,
-      text: (type === 'daily_poem' || type === 'divider') ? '' : (type === 'list' ? '项目1;项目2;项目3' : (type === 'rss' ? 'https://example.com/feed.xml' : '示例文本')),  // 今日诗词和分割线不需要文本输入，列表默认示例，RSS默认URL
-      fontSize: (type === 'dynamic_text' || type === 'daily_poem' || type === 'list' || type === 'rss') ? 24 : 24,  // 动态文本默认24
-      fontFamily: (type === 'dynamic_text' || type === 'daily_poem' || type === 'list' || type === 'rss') ? '' : 'Arial',  // 动态文本、列表和RSS不支持字体选择
+      text: (type === 'daily_poem' || type === 'divider' || type === 'reading_status') ? '' : (type === 'list' ? '项目1;项目2;项目3' : (type === 'rss' ? 'https://example.com/feed.xml' : '示例文本')),  // 今日诗词、分割线和阅读状态不需要文本输入，列表默认示例，RSS默认URL
+      fontSize: (type === 'dynamic_text' || type === 'daily_poem' || type === 'list' || type === 'rss' || type === 'reading_status') ? 24 : 24,  // 动态文本默认24
+      fontFamily: (type === 'dynamic_text' || type === 'daily_poem' || type === 'list' || type === 'rss' || type === 'reading_status') ? '' : 'Arial',  // 动态文本、列表、RSS和阅读状态不支持字体选择
       textColor: 0,  // 0-15 灰度级别，0=黑色，15=白色
-      bgColor: (type === 'dynamic_text' || type === 'daily_poem') ? 15 : 'transparent',  // 动态文本默认白色背景(15)，列表和RSS透明
-      align: (type === 'dynamic_text' || type === 'daily_poem') ? 'left' : undefined,  // 动态文本支持对齐，列表和RSS不支持
-      rotation: (type === 'dynamic_text' || type === 'daily_poem' || type === 'divider') ? 0 : 0,  // 动态文本和分割线支持旋转
+      bgColor: (type === 'dynamic_text' || type === 'daily_poem' || type === 'reading_status') ? 15 : 'transparent',  // 动态文本和阅读状态默认白色背景(15)，列表和RSS透明
+      align: (type === 'dynamic_text' || type === 'daily_poem' || type === 'reading_status') ? 'left' : undefined,  // 动态文本与阅读状态支持对齐，列表和RSS不支持
+      rotation: (type === 'dynamic_text' || type === 'daily_poem' || type === 'reading_status' || type === 'divider') ? 0 : 0,  // 动态文本和分割线支持旋转
       xOffset: 0,  // x偏移量（像素）
       yOffset: 0,  // y偏移量（像素）
       lineColor: type === 'divider' ? 0 : undefined,  // 分割线颜色（0-15灰度）
@@ -1019,6 +1024,8 @@
         return '普通文本';
       case 'daily_poem':
         return '今日诗词';
+      case 'reading_status':
+        return '阅读状态';
       case 'list':
         return '列表';
       case 'rss':
@@ -1131,8 +1138,8 @@
       const sizeInput = document.createElement('input');
       sizeInput.type = 'number';
       sizeInput.value = comp.fontSize || 24;
-      // 动态文本（dynamic_text, daily_poem, list, rss）限制字体大小24-38，预渲染文本12-72
-      if (comp.type === 'dynamic_text' || comp.type === 'daily_poem' || comp.type === 'list' || comp.type === 'rss') {
+      // 动态文本（dynamic_text, daily_poem, list, rss, reading_status）限制字体大小24-38，预渲染文本12-72
+      if (comp.type === 'dynamic_text' || comp.type === 'daily_poem' || comp.type === 'list' || comp.type === 'rss' || comp.type === 'reading_status') {
         sizeInput.min = 24;
         sizeInput.max = 38;
       } else {
@@ -1519,7 +1526,7 @@
         // RSS不支持字体选择、旋转、背景色、对齐
       } else {
         // 文本类组件（今日诗词组件不显示文本输入框）
-        if (comp.type !== 'daily_poem') {
+        if (comp.type !== 'daily_poem' && comp.type !== 'reading_status') {
           detailsContainer.appendChild(field);
         }
         detailsContainer.appendChild(posField);
@@ -1527,16 +1534,16 @@
         detailsContainer.appendChild(offsetField);
         detailsContainer.appendChild(sizeField);
         // 动态文本（dynamic_text, daily_poem）不支持字体选择和旋转
-        if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem') {
+        if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem' && comp.type !== 'reading_status') {
           detailsContainer.appendChild(fontField);
         }
         detailsContainer.appendChild(textColorField);
         // 动态文本不显示背景色设置
-        if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem') {
+        if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem' && comp.type !== 'reading_status') {
           detailsContainer.appendChild(bgColorField);
         }
         // 动态文本和今日诗词默认左对齐，不显示对齐选项
-        if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem') {
+        if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem' && comp.type !== 'reading_status') {
           detailsContainer.appendChild(rotField);
         }
       }
