@@ -1538,11 +1538,19 @@
       fontField.className = 'field';
       
       const fontLabel = document.createElement('label');
-      fontLabel.textContent = '字体';
+      fontLabel.textContent = '字体（可选择或手动输入）';
       
-      const fontSelect = document.createElement('select');
-      fontSelect.dataset.componentId = comp.id;
-      fontSelect.className = 'component-fontfamily-input';
+      // 使用 input + datalist 支持选择和手动输入
+      const fontInput = document.createElement('input');
+      fontInput.type = 'text';
+      fontInput.dataset.componentId = comp.id;
+      fontInput.className = 'component-fontfamily-input';
+      fontInput.value = comp.fontFamily || 'Arial';
+      fontInput.placeholder = '选择或输入字体名称';
+      fontInput.setAttribute('list', `font-list-${comp.id}`);
+      
+      const fontDatalist = document.createElement('datalist');
+      fontDatalist.id = `font-list-${comp.id}`;
       
       // 使用动态获取的字体列表
       const fonts = availableFonts.length > 0 ? availableFonts : ['Arial', '微软雅黑'];
@@ -1550,15 +1558,12 @@
       fonts.forEach(font => {
         const option = document.createElement('option');
         option.value = font;
-        option.textContent = font;
-        if (font === (comp.fontFamily || 'Arial')) {
-          option.selected = true;
-        }
-        fontSelect.appendChild(option);
+        fontDatalist.appendChild(option);
       });
       
       fontField.appendChild(fontLabel);
-      fontField.appendChild(fontSelect);
+      fontField.appendChild(fontInput);
+      fontField.appendChild(fontDatalist);
       
       // 文本颜色选择
       const textColorField = document.createElement('div');
@@ -3578,8 +3583,8 @@
     });
     
     componentList.addEventListener('change', (e) => {
-      // 处理字体选择变化
-      if (e.target.tagName === 'SELECT' && e.target.classList.contains('component-fontfamily-input')) {
+      // 处理字体选择变化（支持 input 和 select）
+      if ((e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') && e.target.classList.contains('component-fontfamily-input')) {
         const id = parseInt(e.target.dataset.componentId);
         if (id && !isNaN(id)) {
           updateComponentFontFamily(id, e.target.value);
