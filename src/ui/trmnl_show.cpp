@@ -1431,7 +1431,21 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                     {
                         int chapSize = std::max(8, (int)(fontSize * 0.9f));
                         int16_t next_y = y + fontSize + 24; // 简单换行间距
-                        bin_font_print(chapter_name.c_str(), (uint8_t)chapSize, (uint8_t)textColor, a_w, x, next_y, false, nullptr, (TextAlign)align, a_w);
+
+                        // 追加阅读百分比：重用 BookHandle 的 position() 与 getFileSize()
+                        std::string chapter_display = chapter_name;
+                        if (g_current_book)
+                        {
+                            size_t total = g_current_book->getFileSize();
+                            if (total > 0)
+                            {
+                                size_t pos = g_current_book->position();
+                                int pct = (int)((double)pos / (double)total * 100.0 + 0.5); // 四舍五入到整数
+                                chapter_display += std::string(" · ") + std::to_string(pct) + std::string("%");
+                            }
+                        }
+
+                        bin_font_print(chapter_display.c_str(), (uint8_t)chapSize, (uint8_t)textColor, a_w, x, next_y, false, nullptr, (TextAlign)align, a_w);
                     }
                 }
             }
