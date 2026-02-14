@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>WebDAV 配置 - ReadPaper</title>
+  <title>联线待机 - ReadPaper</title>
   <link rel="stylesheet" href="../vendors/chota.css">
   <link rel="stylesheet" href="css/main.css">
   <link rel="icon" href="../assets/favicon.png">
@@ -214,6 +214,7 @@
           <div class="field webdav-actions">
             <button id="btnReload" class="button is-small outline" type="button">重新读取</button>
             <button id="btnSave" class="button primary" type="button">保存到设备</button>
+            <button id="btnSaveWebDAVSettings" class="button is-success primary" type="button" title="申请访问权限并保存 WebDAV 配置到扩展存储">保存设置</button>
           </div>
         </div>
 
@@ -222,7 +223,8 @@
           <ul class="webdav-help">
             <li>地址支持 http/https，建议以 / 结尾。</li>
             <li>用户名和密码可为空，具体取决于你的 WebDAV 服务。</li>
-            <li>保存后会写入设备配置文件，断电后仍保留。</li>
+            <li class="text-primary">配置更新后，请务必点击‘保存设置’并且确认相应权限授予。</li>
+            <li class="text-primary">保存到设备需要热点连接到设备，写入设备配置文件后，断电后仍保留。</li>
           </ul>
         </div>
       </div>
@@ -233,7 +235,7 @@
         <div class="col-12">
           <div class="field webdav-actions">
             <button id="btnUploadToWebdav" class="button primary" type="button">更新云</button>
-            <button id="btnPushToDevice" class="button primary" type="button" disabled>更新设备</button>
+            <button id="btnPushToDevice" class="button " type="button" disabled>更新设备</button>
             <button id="btnSaveLocal" class="button outline" type="button">保存本地</button>
             <label style="margin-left: 10px; display:none;">
               <input type="checkbox" id="chkIncludeBgPic" checked />

@@ -3,6 +3,241 @@
   const urlEl = document.getElementById('webdavUrl');
   const userEl = document.getElementById('webdavUser');
   const passEl = document.getElementById('webdavPassword');
+
+  // ========== Fetch 代理（通过 Background 绕过 CORS） ==========
+  /**
+   * 代理 fetch 请求到 background service worker
+   * 用于 WebDAV 请求以绕过 CORS 限制
+   * @param {string} url - 请求 URL
+   * @param {object} options - fetch 选项
+   * @param {boolean} skipPermissionRequest - 是否跳过权限请求（用于非用户交互的检测）
+   * @returns {Promise<Response>} 模拟的 Response 对象
+   */
+  async function backgroundFetch(url, options = {}, skipPermissionRequest = false) {
+    // 对于设备 API (192.168.4.1) 使用原生 fetch
+    if (url.includes('192.168.4.1')) {
+      return fetch(url, options);
+    }
+    
+    // 检查权限状态
+    if (!skipPermissionRequest) {
+      try {
+        const permissionGranted = await requestWebDAVPermission(url);
+        if (!permissionGranted) {
+          throw new Error('WebDAV 访问权限被拒绝');
+        }
+      } catch (permErr) {
+        console.error('[backgroundFetch] 权限申请失败:', permErr);
+        throw permErr;
+      }
+    } else {
+      // 仅检查权限，不申请
+      try {
+        const urlObj = new URL(url);
+        const origin = urlObj.origin + "/*";
+        const hasPermission = await new Promise((resolve) => {
+          if (!chrome || !chrome.permissions) {
+            resolve(false);
+            return;
+          }
+          chrome.permissions.contains({ origins: [origin] }, (result) => {
+            resolve(result);
+          });
+        });
+        
+        if (!hasPermission) {
+          throw new Error('没有 WebDAV 访问权限，请先点击「保存设置」按钮授权');
+        }
+      } catch (permErr) {
+        console.warn('[backgroundFetch] 权限检查失败:', permErr);
+        throw permErr;
+      }
+    }
+    
+    // 处理 Blob body：转换为 base64
+    let processedOptions = { ...options };
+    if (options.body && options.body instanceof Blob) {
+      const base64Body = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(options.body);
+      });
+      processedOptions.body = base64Body;
+      processedOptions._bodyIsBlob = true;
+    }
+    
+    // 对于外部 WebDAV，通过 background 代理
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        { type: 'webdav_fetch', url, options: processedOptions },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          
+          if (!response || !response.ok) {
+            const error = new Error(response?.error || 'Background fetch failed');
+            // 如果是权限错误，提供更友好的提示
+            if (response?.error && response.error.includes('需要访问权限')) {
+              error.message = '请先授予 WebDAV 访问权限。刷新页面后请在浏览器弹出的权限请求中点击"允许"。';
+            }
+            reject(error);
+            return;
+          }
+          
+          const bgResp = response.response;
+          
+          console.log('[backgroundFetch] 收到 background 响应:', {
+            ok: bgResp.ok,
+            status: bgResp.status,
+            bodyType: bgResp.bodyType,
+            bodyLength: typeof bgResp.body === 'string' ? bgResp.body.length : 
+                        (bgResp.body ? JSON.stringify(bgResp.body).length : 0)
+          });
+          
+          // 创建模拟的 Response 对象
+          const mockResponse = {
+            ok: bgResp.ok,
+            status: bgResp.status,
+            statusText: bgResp.statusText,
+            url: bgResp.url,
+            headers: {
+              get: (name) => bgResp.headers[name.toLowerCase()] || null,
+              has: (name) => name.toLowerCase() in bgResp.headers,
+              forEach: (callback) => {
+                Object.entries(bgResp.headers).forEach(([key, value]) => {
+                  callback(value, key);
+                });
+              }
+            },
+            // 根据 bodyType 提供相应的方法
+            text: async () => {
+              console.log('[backgroundFetch] text() 被调用, bodyType:', bgResp.bodyType);
+              if (bgResp.bodyType === 'text' || bgResp.bodyType === 'json') {
+                const result = typeof bgResp.body === 'string' ? bgResp.body : JSON.stringify(bgResp.body);
+                console.log('[backgroundFetch] text() 返回长度:', result.length, '预览:', result.substring(0, 100));
+                return result;
+              }
+              if (bgResp.bodyType === 'blob') {
+                // 尝试将 base64 解码为文本
+                console.log('[backgroundFetch] text() 尝试解码 blob 为文本');
+                try {
+                  const base64 = bgResp.body;
+                  const match = base64.match(/^data:([^;]+);base64,(.+)$/);
+                  if (match) {
+                    const mimeType = match[1];
+                    const base64Data = match[2];
+                    const byteCharacters = atob(base64Data);
+                    console.log('[backgroundFetch] 成功解码 blob，长度:', byteCharacters.length, 'MIME:', mimeType);
+                    return byteCharacters;
+                  }
+                } catch (e) {
+                  console.error('[backgroundFetch] blob 解码失败:', e);
+                }
+              }
+              return '';
+            },
+            json: async () => {
+              if (bgResp.bodyType === 'json') {
+                const result = typeof bgResp.body === 'string' ? JSON.parse(bgResp.body) : bgResp.body;
+                console.log('[backgroundFetch] json() 返回对象，类型:', typeof result);
+                return result;
+              }
+              if (bgResp.bodyType === 'text') {
+                if (!bgResp.body || (typeof bgResp.body === 'string' && bgResp.body.trim() === '')) {
+                  console.error('[backgroundFetch] json() 收到空文本');
+                  throw new Error('Response body is empty');
+                }
+                console.log('[backgroundFetch] json() 解析文本:', bgResp.body.substring(0, 100));
+                return JSON.parse(bgResp.body);
+              }
+              throw new Error('Response is not JSON');
+            },
+            blob: async () => {
+              if (bgResp.bodyType === 'blob') {
+                // 从 base64 还原 blob
+                const base64 = bgResp.body;
+                const match = base64.match(/^data:([^;]+);base64,(.+)$/);
+                if (match) {
+                  const mimeType = match[1];
+                  const base64Data = match[2];
+                  const byteCharacters = atob(base64Data);
+                  const byteNumbers = new Array(byteCharacters.length);
+                  for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                  }
+                  const byteArray = new Uint8Array(byteNumbers);
+                  return new Blob([byteArray], { type: mimeType });
+                }
+              }
+              // 回退：从文本创建 blob
+              const text = await mockResponse.text();
+              return new Blob([text], { type: 'application/octet-stream' });
+            }
+          };
+          
+          resolve(mockResponse);
+        }
+      );
+    });
+  }
+
+  // ========== 动态权限管理 ==========
+  /**
+   * 动态申请 WebDAV 访问权限
+   * @param {string} url - WebDAV URL
+   * @returns {Promise<boolean>} 是否成功获得权限
+   */
+  async function requestWebDAVPermission(url) {
+    if (!url || !chrome || !chrome.permissions) {
+      console.warn('无效的 URL 或浏览器不支持动态权限');
+      return false;
+    }
+
+    try {
+      // 解析 URL 获取 origin
+      const urlObj = new URL(url);
+      const origin = urlObj.origin + "/*";
+
+      // 先检查是否已有权限
+      const hasPermission = await new Promise((resolve) => {
+        chrome.permissions.contains({ origins: [origin] }, (result) => {
+          resolve(result);
+        });
+      });
+
+      if (hasPermission) {
+        console.log('已有访问权限:', origin);
+        return true;
+      }
+
+      // 申请新权限（会弹出浏览器确认对话框）
+      console.log('请求访问权限:', origin);
+      const granted = await new Promise((resolve) => {
+        chrome.permissions.request({ origins: [origin] }, (result) => {
+          if (chrome.runtime.lastError) {
+            console.error('权限申请错误:', chrome.runtime.lastError.message);
+            resolve(false);
+          } else {
+            resolve(result);
+          }
+        });
+      });
+
+      if (granted) {
+        console.log('权限已授予:', origin);
+      } else {
+        console.warn('权限被拒绝:', origin);
+      }
+
+      return granted;
+    } catch (e) {
+      console.error('权限申请失败:', e && e.message ? e.message : e);
+      return false;
+    }
+  }
   
   // WiFi���置元素（3组）
   const wifiSsidEls = [
@@ -106,11 +341,12 @@
       const localUser = userEl ? userEl.value.trim() : '';
       const localPass = passEl ? passEl.value : '';
       if (localUrl) {
-        // 不用 await 阻塞后续设备同步，但保留 await 以便状态显示明确
-        await ensureReadpaperDir(localUrl, localUser, localPass);
+        // 跳过权限申请，用于页面加载时的自动检查
+        await ensureReadpaperDir(localUrl, localUser, localPass, true);
       }
     } catch (e) {
-      // ignore
+      // 如果权限不足，安静忽略，用户需点击「保存设置」按钮授权
+      console.log('[页面加载] WebDAV 自动检查跳过:', e.message);
     }
     try {
       const r = await fetch(`${API_BASE}/api/webdav_config`, { method: 'GET' });
@@ -162,7 +398,7 @@
   }
 
   // 检查并确保目标 WebDAV 上存在 /readpaper/ 目录，若缺失则尝试创建
-  async function ensureReadpaperDir(url, username, password) {
+  async function ensureReadpaperDir(url, username, password, skipPermissionRequest = false) {
     if (!url) return;
     let base = url.trim();
     if (!(base.startsWith('http://') || base.startsWith('https://'))) {
@@ -207,13 +443,13 @@
         return false;
       }
       // 先尝试 OPTIONS/PROPFIND 基址（参考设备侧逻辑）
-      const opt = await fetch(base, {
+      const opt = await backgroundFetch(base, {
         method: 'OPTIONS',
         headers: headers,
         redirect: 'manual',
         credentials: 'omit',
         cache: 'no-store'
-      });
+      }, skipPermissionRequest);
       const optAuth = opt.headers ? opt.headers.get('www-authenticate') : '';
       if (opt.status === 401) {
         setStatus('WebDAV 鉴权失败（401）', 'error', 'webdav');
@@ -221,13 +457,13 @@
         return false;
       }
 
-      const propBase = await fetch(base, {
+      const propBase = await backgroundFetch(base, {
         method: 'PROPFIND',
         headers: headers,
         redirect: 'manual',
         credentials: 'omit',
         cache: 'no-store'
-      });
+      }, skipPermissionRequest);
       const propBaseAuth = propBase.headers ? propBase.headers.get('www-authenticate') : '';
       if (propBase.status === 401) {
         setStatus('WebDAV 鉴权失败（401）', 'error', 'webdav');
@@ -236,13 +472,13 @@
       }
 
       // 再检查 /readpaper/
-      const prop = await fetch(target, {
+      const prop = await backgroundFetch(target, {
         method: 'PROPFIND',
         headers: headers,
         redirect: 'manual',
         credentials: 'omit',
         cache: 'no-store'
-      });
+      }, skipPermissionRequest);
       const propAuth = prop.headers ? prop.headers.get('www-authenticate') : '';
       if (prop.status === 207 || prop.status === 200) {
         setStatus('/readpaper 已存在', 'success', 'webdav');
@@ -257,13 +493,13 @@
       // 若返回 404 或 405 等，尝试创建
       if (prop.status === 404 || prop.status === 405 || prop.status === 0) {
         setStatus('尝试创建 /readpaper...', 'info', 'webdav');
-        const mk = await fetch(target, {
+        const mk = await backgroundFetch(target, {
           method: 'MKCOL',
           headers: headers,
           redirect: 'manual',
           credentials: 'omit',
           cache: 'no-store'
-        });
+        }, skipPermissionRequest);
         if (mk.status === 201 || mk.status === 200) {
           setStatus('/readpaper 创建成功', 'success', 'webdav');
           setNote('/readpaper 创建成功', 'success', 'webdav');
@@ -545,27 +781,45 @@
   async function loadSystemFonts() {
     try {
       // 尝试使用 Font Access API
-      if ('queryLocalFonts' in window) {
+      if (typeof window.queryLocalFonts === 'function' || typeof navigator.queryLocalFonts === 'function') {
         console.log('使用 Font Access API 获取字体...');
-        const status = await navigator.permissions.query({ name: 'local-fonts' });
-        
-        if (status.state === 'granted' || status.state === 'prompt') {
-          const fonts = await window.queryLocalFonts();
-          const fontFamilies = new Set();
-          
-          fonts.forEach(font => {
-            if (font.family) {
-              fontFamilies.add(font.family);
+
+        // 先尝试安全查询权限（部分环境会抛出 DOMException）
+        let permAllowed = false;
+        try {
+          if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+            try {
+              const status = await navigator.permissions.query({ name: 'local-fonts' });
+              permAllowed = (status && (status.state === 'granted' || status.state === 'prompt'));
+            } catch (permErr) {
+              console.warn('查询 local-fonts 权限失败:', permErr && permErr.message ? permErr.message : permErr);
+              // 若权限查询本身失败，仍然尝试调用 API（某些环境不支持 permissions，但支持 queryLocalFonts）
+              permAllowed = true;
             }
-          });
-          
-          availableFonts = Array.from(fontFamilies).sort();
-          console.log(`获取到 ${availableFonts.length} 个系统字体`);
-          return;
+          } else {
+            permAllowed = true;
+          }
+
+          if (permAllowed) {
+            const q = window.queryLocalFonts || navigator.queryLocalFonts;
+            if (typeof q === 'function') {
+              const fonts = await q();
+              const fontFamilies = new Set();
+              fonts.forEach(font => {
+                if (font && font.family) fontFamilies.add(font.family);
+              });
+              availableFonts = Array.from(fontFamilies).sort();
+              console.log(`获取到 ${availableFonts.length} 个系统字体`);
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn('Font Access API 获取字体失败:', e && e.message ? e.message : e);
+          // 继续执行回退检测
         }
       }
     } catch (e) {
-      console.warn('Font Access API 不可用:', e);
+      console.warn('Font Access API 不可用:', e && e.message ? e.message : e);
     }
     
     // 回退方案：通过 canvas 检测字体是否实际可用
@@ -2120,9 +2374,19 @@
         const content = await file.text();
         console.log('文件内容:', content.substring(0, 200) + '...');
         
+        // 检查内容是否为空
+        if (!content || content.trim() === '') {
+          throw new Error('配置文件为空');
+        }
+        
         const config = JSON.parse(content);
         console.log('解析后的配置:', config);
         console.log('组件数量:', config.components ? config.components.length : 0);
+        
+        // 验证配置结构
+        if (!config || typeof config !== 'object') {
+          throw new Error('配置文件格式无效');
+        }
         
         // 解析配置
         loadDisplayConfig(config);
@@ -2292,7 +2556,7 @@
         return;
       }
 
-      // 确保 /readpaper 目录存在
+      // 确保 /readpaper 目录存在（backgroundFetch 会自动处理权限）
       const dirReady = await ensureReadpaperDir(url, username, password);
       if (!dirReady) {
         setStatus('无法访问 WebDAV /readpaper 目录', 'error', 'display');
@@ -2313,7 +2577,7 @@
       }
 
       // 读取 RDT 文件
-      const response = await fetch(rdtUrl, {
+      const response = await backgroundFetch(rdtUrl, {
         method: 'GET',
         headers: headers,
         credentials: 'omit',
@@ -2330,7 +2594,31 @@
       }
 
       const content = await response.text();
-      const config = JSON.parse(content);
+      
+      // 检查响应内容是否为空
+      if (!content || content.trim() === '') {
+        setStatus('WebDAV 返回的配置文件为空', 'error', 'display');
+        console.error('[loadFromWebDAV] 空响应内容');
+        return;
+      }
+      
+      // 尝试解析 JSON，提供详细的错误信息
+      let config;
+      try {
+        config = JSON.parse(content);
+      } catch (parseError) {
+        setStatus(`配置文件格式错误: ${parseError.message}`, 'error', 'display');
+        console.error('[loadFromWebDAV] JSON 解析失败:', parseError);
+        console.error('[loadFromWebDAV] 响应内容:', content.substring(0, 200)); // 只显示前200字符
+        return;
+      }
+      
+      // 验证配置结构
+      if (!config || typeof config !== 'object') {
+        setStatus('配置文件格式无效', 'error', 'display');
+        console.error('[loadFromWebDAV] 配置不是有效对象:', config);
+        return;
+      }
 
       // 解析配置（使用公共函数）
       loadDisplayConfig(config);
@@ -2342,7 +2630,7 @@
         // 尝试读取背景图 _0.png
         const bgUrl = base + 'readpaper/readpaper_0.png';
         try {
-          const bgResponse = await fetch(bgUrl, {
+          const bgResponse = await backgroundFetch(bgUrl, {
             method: 'GET',
             headers: headers,
             credentials: 'omit',
@@ -2379,8 +2667,17 @@
       
       setStatus('已从 WebDAV 加载配置', 'success', 'display');
     } catch (e) {
-      console.error('加载配置失败:', e);
-      setStatus(`加载失败: ${e.message}`, 'error', 'display');
+      console.error('[loadFromWebDAV] 加载配置失败:', e);
+      console.error('[loadFromWebDAV] 错误堆栈:', e.stack);
+      
+      let errorMsg = e.message;
+      if (e.message.includes('Unexpected end of JSON')) {
+        errorMsg = 'WebDAV 返回的配置文件为空或格式不正确。请确保文件已正确保存。';
+      } else if (e.message.includes('需要访问权限')) {
+        errorMsg = '需要先授予 WebDAV 访问权限。刷新页面后在浏览器弹出的对话框中点击"允许"。';
+      }
+      
+      setStatus(`加载失败: ${errorMsg}`, 'error', 'display');
     }
   }
 
@@ -2487,6 +2784,16 @@
     const config = generateRDTConfig();
     const content = JSON.stringify(config, null, 2);
     
+    // 验证生成的配置
+    if (!content || content.trim() === '' || content === '{}') {
+      showUploadError('配置为空，无法上传');
+      console.error('[uploadToWebDAV] 生成的配置为空');
+      return;
+    }
+    
+    console.log('[uploadToWebDAV] 配置大小:', content.length, '字节');
+    console.log('[uploadToWebDAV] 配置预览:', content.substring(0, 200));
+    
     try {
       showUploadProgress('准备上传到云端', '正在生成配置和图片...', 0);
       
@@ -2513,7 +2820,7 @@
         return;
       }
 
-      // 确保 /readpaper 目录存在
+      // 确保 /readpaper 目录存在（backgroundFetch 会自动处理权限）
       showUploadProgress('检查云端目录', '正在检查/创建 /readpaper 目录...', 5);
       const dirReady = await ensureReadpaperDir(url, username, password);
       if (!dirReady) {
@@ -2538,7 +2845,10 @@
       // 上传配置文件
       showUploadProgress('上传配置文件', '正在上传 readpaper.rdt...', 15);
       
-      const response = await fetch(rdtUrl, {
+      console.log('[uploadToWebDAV] 开始上传到:', rdtUrl);
+      console.log('[uploadToWebDAV] 内容大小:', content.length);
+      
+      const response = await backgroundFetch(rdtUrl, {
         method: 'PUT',
         headers: headers,
         body: content,
@@ -2546,9 +2856,13 @@
         cache: 'no-store'
       });
 
+      console.log('[uploadToWebDAV] 上传响应状态:', response.status, response.ok);
+
       if (!response.ok) {
         throw new Error(`上传配置失败: HTTP ${response.status}`);
       }
+      
+      console.log('[uploadToWebDAV] 配置文件上传成功');
 
       // 生成并上传渲染图片
       showUploadProgress('生成渲染图片', '正在生成 PNG...', 30);
@@ -2567,7 +2881,7 @@
 
       showUploadProgress('上传渲染图片', `正在上传 PNG (${Math.round(pngBlob.size / 1024)} KB)...`, 50);
 
-      const pngResponse = await fetch(pngUrl, {
+      const pngResponse = await backgroundFetch(pngUrl, {
         method: 'PUT',
         headers: pngHeaders,
         body: pngBlob,
@@ -2610,7 +2924,7 @@
         }
         bgHeaders['Content-Type'] = mimeType;
 
-        const bgResponse = await fetch(bgUrl, {
+        const bgResponse = await backgroundFetch(bgUrl, {
           method: 'PUT',
           headers: bgHeaders,
           body: blob,
@@ -2738,12 +3052,12 @@
         }
       }
 
-      const response = await fetch(rdtUrl, {
+      const response = await backgroundFetch(rdtUrl, {
         method: 'HEAD',
         headers: headers,
         credentials: 'omit',
         cache: 'no-store'
-      });
+      }, true); // 跳过权限申请，仅检查已有权限
 
       return response.ok;
     } catch (e) {
@@ -2776,13 +3090,13 @@
 
       // 策略1: 尝试 OPTIONS 请求（最轻量，CORS 友好）
       try {
-        const optResponse = await fetch(base, {
+        const optResponse = await backgroundFetch(base, {
           method: 'OPTIONS',
           headers: headers,
           redirect: 'manual',
           credentials: 'omit',
           cache: 'no-store'
-        });
+        }, true); // 跳过权限申请，仅检查已有权限
         
         if (optResponse.status === 401) {
           console.warn('[WebDAV检测] OPTIONS 鉴权失败 (401)');
@@ -2799,13 +3113,13 @@
 
       // 策略2: 降级到 HEAD 请求
       try {
-        const headResponse = await fetch(base, {
+        const headResponse = await backgroundFetch(base, {
           method: 'HEAD',
           headers: headers,
           redirect: 'manual',
           credentials: 'omit',
           cache: 'no-store'
-        });
+        }, true); // 跳过权限申请，仅检查已有权限
         
         if (headResponse.status === 401) {
           console.warn('[WebDAV检测] HEAD 鉴权失败 (401)');
@@ -2822,7 +3136,7 @@
 
       // 策略3: 最后尝试 PROPFIND（标准 WebDAV 方法）
       const propHeaders = { ...headers, 'Depth': '0' };
-      const propResponse = await fetch(base, {
+      const propResponse = await backgroundFetch(base, {
         method: 'PROPFIND',
         headers: propHeaders,
         redirect: 'manual',
@@ -2870,12 +3184,100 @@
   async function updateUploadButtonState() {
     const btn = document.getElementById('btnUploadToWebdav');
     if (!btn) return;
-    const reachable = await checkWebDAVReachable();
-    btn.disabled = !reachable;
-    if (!reachable) {
-      btn.title = '无法连接到 WebDAV，请检查地址或凭据';
-    } else {
-      btn.title = '上传配置到 WebDAV';
+    try {
+      const reachable = await checkWebDAVReachable();
+      btn.disabled = !reachable;
+      if (!reachable) {
+        btn.title = '无法连接到 WebDAV，请先点击「保存设置」授权或检查地址凭据';
+      } else {
+        btn.title = '上传配置到 WebDAV';
+      }
+    } catch (err) {
+      // 权限检查失败（未授权）
+      btn.disabled = true;
+      btn.title = '请先点击「保存设置」按钮授权访问 WebDAV';
+      console.log('[updateUploadButtonState] 权限检查失败:', err.message);
+    }
+  }
+
+  /**
+   * 保存 WebDAV 设置到扩展存储（同时申请权限）
+   * 必须在用户点击事件中调用以符合 Firefox 权限要求
+   * 关键：权限请求必须在同步调用链中，不能有 await 延迟
+   */
+  function saveWebDAVSettings() {
+    try {
+      setStatus('保存 WebDAV 设置...', 'info', 'webdav');
+      
+      const url = urlEl ? urlEl.value.trim() : '';
+      const username = userEl ? userEl.value.trim() : '';
+      const password = passEl ? passEl.value : '';
+      
+      if (!url) {
+        setStatus('请先填写 WebDAV 地址', 'error', 'webdav');
+        return;
+      }
+      
+      if (!chrome || !chrome.permissions) {
+        setStatus('浏览器不支持动态权限', 'error', 'webdav');
+        return;
+      }
+      
+      // 解析 URL 获取 origin
+      let origin;
+      try {
+        const urlObj = new URL(url);
+        origin = urlObj.origin + "/*";
+      } catch (e) {
+        setStatus('WebDAV 地址格式无效', 'error', 'webdav');
+        return;
+      }
+      
+      // 关键：直接同步调用 chrome.permissions.request()，不使用 await
+      // Firefox 要求权限请求必须在用户输入处理器的同步调用链中
+      console.log('[saveWebDAVSettings] 请求权限:', origin);
+      chrome.permissions.request({ origins: [origin] }, function(granted) {
+        if (chrome.runtime.lastError) {
+          console.error('[saveWebDAVSettings] 权限申请错误:', chrome.runtime.lastError.message);
+          setStatus('权限申请失败: ' + chrome.runtime.lastError.message, 'error', 'webdav');
+          return;
+        }
+        
+        if (!granted) {
+          console.warn('[saveWebDAVSettings] 权限被拒绝');
+          setStatus('权限申请被拒绝', 'error', 'webdav');
+          return;
+        }
+        
+        console.log('[saveWebDAVSettings] 权限已授予:', origin);
+        
+        // 保存到扩展存储
+        if (chrome.storage && chrome.storage.local) {
+          chrome.storage.local.set({
+            webdav_url: url,
+            webdav_username: username,
+            webdav_password: password,
+            webdav_permission_granted: true
+          }, function() {
+            if (chrome.runtime.lastError) {
+              setStatus('保存失败: ' + chrome.runtime.lastError.message, 'error', 'webdav');
+              return;
+            }
+            
+            setStatus('WebDAV 设置已保存，权限已授予', 'success', 'webdav');
+            console.log('[saveWebDAVSettings] 设置已保存:', { url, username: username ? '***' : '' });
+            
+            // 更新按钮状态
+            updateUploadButtonState();
+            updateLoadCurrentButtonState();
+          });
+        } else {
+          setStatus('浏览器不支持扩展存储', 'error', 'webdav');
+        }
+      });
+    } catch (err) {
+      setStatus('保存设置失败: ' + err.message, 'error', 'webdav');
+      console.error('[saveWebDAVSettings] 失败:', err);
     }
   }
 
@@ -3128,6 +3530,10 @@
   }
   if (btnResetConfig) {
     btnResetConfig.addEventListener('click', resetConfig);
+  }
+  const btnSaveWebDAVSettings = document.getElementById('btnSaveWebDAVSettings');
+  if (btnSaveWebDAVSettings) {
+    btnSaveWebDAVSettings.addEventListener('click', saveWebDAVSettings);
   }
 
   // 初始化 push 按钮状态并周期检查 device-info（heartbeat）

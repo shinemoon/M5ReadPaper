@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ReadPaper Utils",
   "description": "用来管理ReadPaper的扩展套件",
-  "version": "1.6.11.1",
+  "version": "1.7.0",
   "icons": {
     "48": "/assets/icon.png",
     "128": "/assets/icon.png"
@@ -20,9 +20,12 @@
   "content_security_policy": {
     "extension_pages": "script-src 'self';"
   },
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
   "host_permissions": [
-    "http://192.168.4.1/*",
-    "<all_urls>"
+    "http://192.168.4.1/*"
   ],
   "permissions": [
     "tabs",

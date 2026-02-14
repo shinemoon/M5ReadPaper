@@ -26,14 +26,15 @@
                             <h4 class="text-primary">Y.A.P.T.R. — Yet Another PaperS3 Text Reader</h4>
                             <p class="muted">出于个人兴趣开发的轻量级阅读固件，针对 PaperS3 平台的文本阅读体验进行了优化。</p>
                             <p><b>代码和设计已开源</b>， <a href="https://github.com/shinemoon/M5ReadPaper">仓库地址</a></p>
-                            <p>更详细的使用和帮助信息后续也会在Wiki部分更新</b>， <a href="https://github.com/shinemoon/M5ReadPaper/wiki">Wiki</a></p>
+                            <p>更详细的使用和帮助信息后续也会在Wiki部分更新</b>， <a
+                                    href="https://github.com/shinemoon/M5ReadPaper/wiki">Wiki</a></p>
                             <h5>快速上手</h5>
                             <ul>
                                 <li>双击解锁</li>
                                 <li>左右翻页</li>
                                 <li>阅读快捷手势(单击)
                                     <ul>
-                                        <li>中心:   显示菜单</li>
+                                        <li>中心: 显示菜单</li>
                                         <li>左上角：目录/索引列表</li>
                                         <li>右上角：增删书签</li>
                                         <li>右下角：自动翻页</li>
@@ -43,8 +44,8 @@
                                 </li>
                                 <li>阅读快捷手势(双击)
                                     <ul>
-                                        <li>顶部中心:   截屏</li>
-                                        <li>中轴线（除去顶部正中）:   手动全刷</li>
+                                        <li>顶部中心: 截屏</li>
+                                        <li>中轴线（除去顶部正中）: 手动全刷</li>
                                     </ul>
                                 </li>
                                 <li>支持180度自动旋转</li>
@@ -52,14 +53,19 @@
                                 <li>支持竖排</li>
                                 <li>支持深色模式</li>
                                 <li>支持详细阅读时间记录</li>
+                                <li>可配置联线待机显示</li>
                             </ul>
 
-                            <p><b>固件安装</b>， <a href="https://docs.m5stack.com/zh_CN/uiflow/m5burner/intro">使用M5Stack官方烧录工具</a>, 参考官方教程，在<b>PAPER</b>分类找到<b>ReadPaper</b>即可：</p>
+                            <p><b>固件安装</b>， <a
+                                    href="https://docs.m5stack.com/zh_CN/uiflow/m5burner/intro">使用M5Stack官方烧录工具</a>,
+                                参考官方教程，在<b>PAPER</b>分类找到<b>ReadPaper</b>即可：</p>
 
                             <img src="../assets/publish.png">
                             <h4>Readpaper Utils 浏览器扩展</h4>
                             <p>与之配套的浏览器扩展则是为了方便使用，把文件管理（仅支持Readpaper固件），字体生成，文本文件优化，Epub文件转换和壁纸生成整合在浏览器中方便使用。</p>
-                            <p>除了文件管理需要配合Readpaper固件之外，其余功能都可以配合<a href="https://edcbook.cn">EDCBook</a>固件来使用（字体生成请注意正确的字体类型，即EDCBook字体），而目录文件也是EDCBook兼容。</p>
+                            <p>除了文件管理需要配合Readpaper固件之外，其余功能都可以配合<a
+                                    href="https://edcbook.cn">EDCBook</a>固件来使用（字体生成请注意正确的字体类型，即EDCBook字体），而目录文件也是EDCBook兼容。
+                            </p>
                         </div>
                     </div>
 
@@ -78,8 +84,8 @@
                             <div class="card-body">
                                 <h4>文件管理</h4>
                                 <p>推荐1.3之后使用扩展进行文件管理，网页直连后续不一定能够及时更新了；而用于支持前端或者工具开发的API文档参见:</p>
-                                <p><a href="https://github.com/shinemoon/M5ReadPaper/wiki/WIFI_HTTP_API"
-                                        target="_blank" rel="noopener noreferrer">ReaderPaper — HTTP API（Web 前端
+                                <p><a href="https://github.com/shinemoon/M5ReadPaper/wiki/WIFI_HTTP_API" target="_blank"
+                                        rel="noopener noreferrer">ReaderPaper — HTTP API（Web 前端
                                         开发者参考）</a></p>
 
                             </div>
@@ -139,14 +145,32 @@
                                 <ul>
                                     <li>在阅读菜单界面，点击"已读"的信息部分，将会进入阅读记录细节汇总页面；</li>
                                     <li>从扩展的1.6.6版本开始，可以在文件管理页面点击按钮进入完整的阅读记录报告页面（可选单本、多本、全部），并且可以生成简单、标准、详细三种图片汇总；</li>
-                                    <li>从扩展的1.6.11版本开始，支持“数据中心”，在每次导入阅读记录时，会自动存入本地数据库，之后可以脱机管理查看（即使设备侧记录被删除也不影响），后续不论是设备导入还是JSON文件导入都是自动会进行查重合并，方便持久性保存阅读历史和记录；</li>
+                                    <li>从扩展的1.6.11版本开始，支持“数据中心”，在每次导入阅读记录时，会自动存入本地数据库，之后可以脱机管理查看（即使设备侧记录被删除也不影响），后续不论是设备导入还是JSON文件导入都是自动会进行查重合并，方便持久性保存阅读历史和记录；
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-05">
+                        <div class="card">
+                            <div class="card-body">
+                                <h4>联线待机</h4>
+                                <p>从固件1.7版本开始支持本功能，简单讲就是TRMNL丐版吧：</p>
+                                <ul>
+                                    <li>通过热点连接后，扩展（V1.7+)可以配置设备侧的WIFI连接和WEBDAV连接；</li>
+                                    <li>扩展可以通过添加、定制组件的方式来定义“联线待机”时的具体显示的格式和内容，之后可以按照需要将该配置同步到WEBDAV云端、设备侧或者导出到本地保存；</li>
+                                    <li>设备通过主菜单-连接-联线待机进入该模式，试图从WebDAV同步显示设置，如果不成功回退到使用本地或者上一次的配置进行显示;</li>
+                                    <li>更详细的介绍参见Wiki.</li>
+                                    </li>
                                 </ul>
                             </div>
                         </div>
                     </div>
 
 
- 
+
+
                     <div class="mt-05">
                         <div class="card">
                             <div class="card-body">
@@ -210,7 +234,9 @@
                         <div class="card">
                             <div class="card-body">
                                 <h4>版本历史</h4>
-                                <div>V1.5之后的版本更新参见<a href="https://github.com/shinemoon/M5ReadPaper/commits/main/">Github的历史</a>和<a href="https://github.com/shinemoon/M5ReadPaper/releases"> Release记录</a></div>
+                                <div>V1.5之后的版本更新参见<a
+                                        href="https://github.com/shinemoon/M5ReadPaper/commits/main/">Github的历史</a>和<a
+                                        href="https://github.com/shinemoon/M5ReadPaper/releases"> Release记录</a></div>
                                 <ul>
                                     <li>V1.5 - UI调整 / Bug修正 /字体调整</li>
                                     <li>V1.4</li>

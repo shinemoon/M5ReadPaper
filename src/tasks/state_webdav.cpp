@@ -44,7 +44,7 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
     switch (msg->type)
     {
     case MSG_TIMER_MIN_TIMEOUT:
-        // Do not timeout in WEBDAV => To protec in case it is stuck in TRMNL 
+        // Do not timeout in WEBDAV => To protec in case it is stuck in TRMNL
         if (++shutCnt == READING_IDLE_WAIT_MIN)
         {
 #if DBG_STATE_MACHINE_TASK
@@ -74,46 +74,18 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
         {
             char buf[64];
             snprintf(buf, sizeof(buf), "电池: %.2fV %d%%", msg->data.power.voltage, msg->data.power.percentage);
-            bin_font_print(buf, 24, TFT_BLACK, 540, 540, 400, false, g_canvas, TEXT_ALIGN_CENTER);
-            bin_font_flush_canvas(false, false, true);
+            //            bin_font_print(buf, 24, TFT_BLACK, 540, 540, 400, false, g_canvas, TEXT_ALIGN_CENTER);
+            //           bin_font_flush_canvas(false, false, true);
         }
         break;
 
     case MSG_TOUCH_PRESSED:
-#if DBG_STATE_MACHINE_TASK
-        sm_dbg_printf("WEBDAV状态收到触摸, 返回READING: (%d,%d)\n", msg->data.touch.x, msg->data.touch.y);
-#endif
-        shutCnt = 0;
-        lastActivityTime_ = millis();
-        webdavShown = false;
-        if (g_wifi_hotspot)
-        {
-            g_wifi_hotspot->disconnectWiFiDeferred();
-        }
-        currentState_ = STATE_READING;
-        if (g_current_book)
-        {
-            g_current_book->renderCurrentPage(font_size, nullptr, true, false, false, false, RECT);
-        }
         break;
 
     case MSG_USER_ACTIVITY:
-        lastActivityTime_ = millis();
         break;
 
     case MSG_DOUBLE_TOUCH_PRESSED:
-        if (isInScreenshotArea(msg->data.touch.x, msg->data.touch.y))
-        {
-#if DBG_STATE_MACHINE_TASK
-            sm_dbg_printf("双击截图区域，开始截图\n");
-#endif
-            if (screenShot())
-            {
-#if DBG_STATE_MACHINE_TASK
-                sm_dbg_printf("截图成功\n");
-#endif
-            }
-        }
         break;
 
     default:
