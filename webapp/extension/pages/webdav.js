@@ -23,6 +23,7 @@
   const btnToggle = document.getElementById('togglePassword');
   const btnToggleWifiAll = document.querySelectorAll('.toggle-wifi-password');
   const tabButtons = document.querySelectorAll('.config-tabs .tab-btn');
+  const refreshPeriodEl = document.getElementById('refreshPeriod');
 
   const getNotePanel = (tabKey) => {
     if (tabKey) {
@@ -323,6 +324,17 @@
       setStatus(`保存失败: ${e.message}`, 'error', 'webdav');
     } finally {
       setWebdavDisabled(false);
+    }
+  }
+
+  // Helper: read refreshPeriod from input and clamp to allowed range
+  function readRefreshPeriod() {
+    try {
+      const v = refreshPeriodEl ? parseInt(refreshPeriodEl.value, 10) : NaN;
+      if (isNaN(v)) return 30;
+      return Math.min(1440, Math.max(10, v));
+    } catch (e) {
+      return 30;
     }
   }
 
@@ -2047,6 +2059,8 @@
       version: '1.0',
       // timestamp: ISO 格式的最后修改时间，每次生成 .rdt 时更新
       timestamp: new Date().toISOString(),
+      // 刷新周期（分钟）——兼容旧格式，会写入 readpaper.rdt
+      refreshPeriod: readRefreshPeriod(),
       bgpic: hasBgPic,
       screen: {
         width: SCREEN_COLS,
@@ -2144,6 +2158,17 @@
       return;
     }
     
+    // 如果旧格式缺少 refreshPeriod，则补上默认值以兼容
+    if (config.refreshPeriod === undefined || config.refreshPeriod === null) {
+      config.refreshPeriod = 30;
+      console.log('[loadDisplayConfig] 未检测到 refreshPeriod，已补默认 30');
+    }
+    // 将 refreshPeriod 更新到 UI 输入框（并保持在允许范围内）
+    try {
+      const rp = Math.min(1440, Math.max(10, parseInt(config.refreshPeriod, 10) || 30));
+      if (refreshPeriodEl) refreshPeriodEl.value = rp;
+    } catch (e) { if (refreshPeriodEl) refreshPeriodEl.value = 30; }
+
     console.log('[loadDisplayConfig] 原始组件数组长度:', config.components.length);
     
     // 为每个组件生成唯一ID（使用时间戳+索引，乘以1000确保不重复）

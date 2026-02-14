@@ -15,3 +15,6 @@ int8_t fontLoadLoc = 1;
 
 // WiFi STA连接状态，默认未连接
 bool g_wifi_sta_connected = false;
+
+// 默认唤醒周期（分钟）
+int refreshPeriod = 30;

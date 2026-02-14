@@ -1092,6 +1092,17 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
     Serial.printf("[TRMNL] RDT 版本: %s\n", version);
 #endif
 
+        // 读取 refreshPeriod（分钟），兼容老格式：若缺失则使用默认 30
+        {
+        int rp = doc["refreshPeriod"] | 30;
+        if (rp < 10) rp = 10;
+        if (rp > 1440) rp = 1440;
+        refreshPeriod = rp;
+    #if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] 设置 refreshPeriod=%d 分钟\n", refreshPeriod);
+    #endif
+        }
+
     // 检查是否有背景图
     bool has_bgpic = doc["bgpic"] | false;
 

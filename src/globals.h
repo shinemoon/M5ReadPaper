@@ -53,3 +53,6 @@ extern bool g_wifi_sta_connected;
 // Wakeup cause from esp_sleep (global for access across modules)
 #include <esp_sleep.h>
 extern esp_sleep_wakeup_cause_t g_wake_cause;
+
+// 默认唤醒周期（分钟），可被其他模块读取/修改
+extern int refreshPeriod;

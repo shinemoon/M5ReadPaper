@@ -17,6 +17,7 @@
 
 extern M5Canvas *g_canvas;
 extern float font_size;
+// refreshPeriod moved to globals.h/globals.cpp
 
 void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
 {
@@ -128,8 +129,8 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
                 sleepIssued = true;
                 // Ensure display push queue and panel refresh are done before sleep
                 waitDisplayPushIdle(2000);
-                // Sleep 1 hour then wake to refresh
-                esp_sleep_enable_timer_wakeup(60 * 60ULL * 1000000ULL);
+                // Sleep for refreshPeriod minutes then wake to refresh
+                esp_sleep_enable_timer_wakeup((uint64_t)refreshPeriod * 60ULL * 1000000ULL);
                 esp_deep_sleep_start();
                 return;
             }
