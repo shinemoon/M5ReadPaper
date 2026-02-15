@@ -27,7 +27,7 @@ extern GlobalConfig g_config;
 static bool extract_rdt_timestamp(const String &content, String &out_timestamp);
 static bool fetch_daily_poem(String &out_content, String &out_origin);
 static int render_list_items(const char *content, int16_t x, int16_t y, int16_t area_width, int16_t area_height, uint8_t fontSize, uint8_t textColor, int16_t margin);
-static bool fetch_rss_feed(const String &url, String &out_titles);
+static bool fetch_rss_feed(const String &url, String &out_titles, int max_items = 10);
 static bool parse_rss_titles(const String &xml_content, String &out_titles);
 static bool fetch_weather(const String &citycode, const String &apiKey, String &out_today_info, String &out_tomorrow_info);
 
@@ -933,7 +933,9 @@ static int extract_next_rss_item(String &buffer, bool is_atom, String &out_title
 }
 
 // 获取RSS feed并返回title列表（分号分隔）
-static bool fetch_rss_feed(const String &url, String &out_titles)
+// 获取RSS feed并返回title列表（分号分隔）
+// max_items: 最多提取的 item 数量（用于按需解析）
+static bool fetch_rss_feed(const String &url, String &out_titles, int max_items)
 {
     out_titles = "";
 
@@ -1019,8 +1021,7 @@ static bool fetch_rss_feed(const String &url, String &out_titles)
     Serial.printf("[TRMNL] RSS内容长度: %d\n", content_length);
 #endif
 
-    // 流式读取并解析RSS - 最多提取10个item
-    const int MAX_ITEMS = 10;
+    // 流式读取并解析RSS - 最多提取 max_items 个 item
     const int READ_BUFFER_SIZE = 2048;
     char read_buffer[READ_BUFFER_SIZE];
     String parse_buffer = ""; // 累积未完成解析的内容
@@ -1029,7 +1030,7 @@ static bool fetch_rss_feed(const String &url, String &out_titles)
     bool is_atom = false;
     bool format_detected = false;
 
-    while (item_count < MAX_ITEMS)
+    while (item_count < max_items)
     {
         // 读取一块数据
         int data_read = esp_http_client_read(client, read_buffer, READ_BUFFER_SIZE - 1);
@@ -1061,7 +1062,7 @@ static bool fetch_rss_feed(const String &url, String &out_titles)
         }
 
         // 尝试从parse_buffer中提取完整的item
-        while (item_count < MAX_ITEMS)
+        while (item_count < max_items)
         {
             String title = "";
             int item_end_pos = extract_next_rss_item(parse_buffer, is_atom, title);
@@ -1126,7 +1127,7 @@ static bool fetch_rss_feed(const String &url, String &out_titles)
 #endif
 
             // 如果已达到目标数量，提前退出
-            if (item_count >= MAX_ITEMS)
+            if (item_count >= max_items)
             {
 #if DBG_TRMNL_SHOW
                 Serial.printf("[TRMNL] 已提取%d个item，停止读取 (共读取%d字节)\n", item_count, total_read);
@@ -1136,7 +1137,7 @@ static bool fetch_rss_feed(const String &url, String &out_titles)
         }
 
         // 如果已找到足够的item，停止读取
-        if (item_count >= MAX_ITEMS)
+        if (item_count >= max_items)
             break;
     }
 
@@ -2005,9 +2006,18 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                 Serial.printf("[TRMNL] RSS URL: %s\n", url);
 #endif
 
-                // 获取RSS feed内容
+                // 计算最大可显示项数（先分析能容纳几个item，再按需解析）
+                uint8_t base_font_size = get_font_size_from_file();
+                if (base_font_size == 0)
+                    base_font_size = 24;
+                float scale_factor = (fontSize > 0) ? ((float)fontSize / (float)base_font_size) : 1.0f;
+                int16_t line_height = (int16_t)(base_font_size * scale_factor) + margin;
+                int max_lines = a_h / line_height;
+                if (max_lines <= 0) max_lines = 1;
+
+                // 获取RSS feed内容（按需解析至可显示的项数）
                 String rss_titles = "";
-                bool success = fetch_rss_feed(String(url), rss_titles);
+                bool success = fetch_rss_feed(String(url), rss_titles, max_lines);
 
                 if (success && rss_titles.length() > 0)
                 {
