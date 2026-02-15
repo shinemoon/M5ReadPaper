@@ -9,8 +9,7 @@
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.5);
-  -webkit-backdrop-filter: blur(4px);
-          backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -185,6 +184,15 @@
     width: 100%;
   }
 }
+.one-tag {
+  font-size: 0.85em;
+  color: #666;
+}
+
+.one-content {
+  font-weight: 500;
+}
+
 :root {
   --color-primary: #f04f0f;
   /* brand color */
@@ -1153,9 +1161,6 @@ body label {
 }
 
 /* Per-page info label/value alignment (moved from main.html inline style) */
-.info-row {
-  /* 限制 value 最大宽度为 100px，超出时截断为省略号；min-width:0 允许 flex 项按需收缩 */
-}
 .info-row .info-item {
   display: flex;
   align-items: center;
@@ -1165,6 +1170,9 @@ body label {
   width: 6.5rem;
   font-weight: 600;
   color: var(--muted);
+}
+.info-row {
+  /* 限制 value 最大宽度为 100px，超出时截断为省略号；min-width:0 允许 flex 项按需收缩 */
 }
 .info-row .info-value {
   flex: 1;
@@ -1217,8 +1225,6 @@ body label {
   border-collapse: collapse;
   font-size: 13px;
   background: transparent;
-  /* Truncate long file names with ellipsis */
-  /* also apply to inline truncate wrapper */
 }
 .convert-summary .convert-summary-table th,
 .convert-summary .convert-summary-table td {
@@ -1245,6 +1251,9 @@ body label {
 .convert-summary .convert-summary-table .col-name {
   min-width: 180px;
 }
+.convert-summary .convert-summary-table {
+  /* Truncate long file names with ellipsis */
+}
 .convert-summary .convert-summary-table td.col-name,
 .convert-summary .convert-summary-table th.col-name {
   max-width: 300px;
@@ -1252,6 +1261,9 @@ body label {
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: middle;
+}
+.convert-summary .convert-summary-table {
+  /* also apply to inline truncate wrapper */
 }
 .convert-summary .convert-summary-table .truncate {
   display: inline-block;

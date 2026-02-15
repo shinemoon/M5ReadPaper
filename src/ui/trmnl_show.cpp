@@ -13,6 +13,8 @@
 #include <mbedtls/base64.h>
 #include "ui/ui_canvas_image.h"
 #include <ArduinoJson.h>
+#include <lwip/netdb.h>
+#include <lwip/sockets.h>
 // TOC helpers (find_toc_entry_for_position, get_toc_title_for_index)
 #include "ui/toc_display.h"
 
@@ -565,6 +567,204 @@ static bool fetch_daily_poem(String &out_content, String &out_origin)
 
 #if DBG_TRMNL_SHOW
     Serial.printf("[TRMNL] 今日诗词: %s / %s\n", out_content.c_str(), out_origin.c_str());
+#endif
+
+    return true;
+}
+
+// 从 ONE 一言 API 获取一言内容
+static bool fetch_one_sentence(String &out_content, String &out_origin)
+{
+    // 检查 WiFi 连接
+    if (!g_wifi_sta_connected)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] WiFi 未连接，无法获取 ONE 一言");
+#endif
+        return false;
+    }
+
+    // 小延迟，确保之前的 HTTP 连接完全清理
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+#if DBG_TRMNL_SHOW
+    Serial.println("[TRMNL] 请求 ONE 一言 API: https://api.xygeng.cn/openapi/one");
+#endif
+
+    // 先进行 DNS 解析，避开 HTTP 客户端的主机名解析 bug
+    const char* hostname = "api.xygeng.cn";
+    struct addrinfo hints, *res;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    
+    int ret = getaddrinfo(hostname, "443", &hints, &res);
+    if (ret != 0 || res == NULL) {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] DNS 解析失败: %d\n", ret);
+#endif
+        return false;
+    }
+    
+    static char ip_str[INET_ADDRSTRLEN];  // 静态变量确保在 HTTP 请求期间有效
+    struct sockaddr_in *addr = (struct sockaddr_in *)res->ai_addr;
+    inet_ntop(AF_INET, &(addr->sin_addr), ip_str, INET_ADDRSTRLEN);
+    freeaddrinfo(res);
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] DNS 解析成功: %s -> %s\n", hostname, ip_str);
+#endif
+
+    // 使用解析后的 IP 地址配置 HTTP 客户端
+    esp_http_client_config_t cfg = {};
+    memset(&cfg, 0, sizeof(cfg));
+    cfg.host = ip_str;  // 使用 IP 地址而非主机名
+    cfg.port = 443;
+    cfg.path = "/openapi/one";
+    cfg.transport_type = HTTP_TRANSPORT_OVER_SSL;
+    cfg.method = HTTP_METHOD_GET;
+    cfg.timeout_ms = 10000;
+    cfg.buffer_size = 4096;
+    cfg.buffer_size_tx = 1024;
+    cfg.crt_bundle_attach = esp_crt_bundle_attach;
+    cfg.disable_auto_redirect = false;
+    cfg.skip_cert_common_name_check = true;  // 使用 IP 时必须跳过证书域名验证
+
+    esp_http_client_handle_t client = esp_http_client_init(&cfg);
+    if (!client)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] 创建 HTTP 客户端失败");
+#endif
+        return false;
+    }
+
+    esp_http_client_set_header(client, "User-Agent", "ReadPaper-ONE");
+
+    // 打开连接
+    esp_err_t err = esp_http_client_open(client, 0);
+    if (err != ESP_OK)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] HTTP 打开连接失败: %s\n", esp_err_to_name(err));
+#endif
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    // 获取响应头
+    int content_length = esp_http_client_fetch_headers(client);
+    int status = esp_http_client_get_status_code(client);
+
+    if (status != 200)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] API 返回错误状态码: %d\n", status);
+#endif
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    // 读取响应内容
+    String response_content;
+    response_content.reserve(4096);
+
+    char buffer[512];
+    int total_read = 0;
+
+    // 使用 read_response 读取完整响应体
+    while (true)
+    {
+        int read_len = esp_http_client_read_response(client, buffer, sizeof(buffer) - 1);
+        if (read_len <= 0)
+            break;
+        buffer[read_len] = '\0';
+        response_content += buffer;
+        total_read += read_len;
+    }
+
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);
+
+    // 检查是否读取到内容
+    if (total_read == 0 || response_content.length() == 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] API 返回空内容");
+#endif
+        return false;
+    }
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] API 响应长度: %d\n", response_content.length());
+    Serial.printf("[TRMNL] 成功关闭 HTTP 客户端连接\n");
+    Serial.printf("[TRMNL] 原始响应内容: %s\n", response_content.c_str());
+#endif
+
+    DynamicJsonDocument doc(8192);
+    DeserializationError error = deserializeJson(doc, response_content);
+    if (error)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] ONE JSON 解析失败: %s\n", error.c_str());
+#endif
+        return false;
+    }
+
+    // 检查响应状态码
+    int code = doc["code"] | 0;
+    if (code != 200)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] ONE API 返回错误代码: %d\n", code);
+#endif
+        return false;
+    }
+
+    // 提取 data 对象
+    JsonObject data = doc["data"].as<JsonObject>();
+    if (!data)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] 未找到 data 字段");
+#endif
+        return false;
+    }
+
+    // 按照文档格式提取字段：content, tag, name, origin
+    const char *content = data["content"];
+    const char *tag = data["tag"];
+    const char *name = data["name"];
+    const char *origin = data["origin"];
+
+    if (!content || strlen(content) == 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] ONE 响应中未找到内容字段");
+#endif
+        return false;
+    }
+
+    out_content = String(content);
+    out_origin = "";
+    if (tag && strlen(tag) > 0)
+    {
+        out_origin += String(tag);
+    }
+    if (name && strlen(name) > 0)
+    {
+        if (out_origin.length() > 0) out_origin += "·";
+        out_origin += String(name);
+    }
+    if (origin && strlen(origin) > 0)
+    {
+        if (out_origin.length() > 0) out_origin += "·";
+        out_origin += String(origin);
+    }
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] ONE 一言: %s / %s\n", out_content.c_str(), out_origin.c_str());
 #endif
 
     return true;
@@ -1356,6 +1556,148 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                         align,                         // align
                         false,                         // vertical
                         false                          // skip
+                    );
+                }
+            }
+            // 处理 ONE 一言 组件（one） - 与今日诗词渲染方式一致，但数据来源不同
+            else if (strcmp(type, "one") == 0)
+            {
+                // 从嵌套结构读取属性
+                int pos_x = 0;
+                int pos_y = 0;
+                int a_w = 0;
+                int a_h = 0;
+                if (component.containsKey("position"))
+                {
+                    JsonObject position = component["position"].as<JsonObject>();
+                    pos_x = position["x"] | 0;
+                    pos_y = position["y"] | 0;
+                }
+                JsonObject areaSize = component["size"].as<JsonObject>();
+                a_w = areaSize["width"] | 1;
+                a_h = areaSize["height"] | 1;
+
+                // config: {fontSize, textColor, align, xOffset, yOffset, ...}
+                int fontSize = 24;
+                int textColor = 0;
+                const char *alignStr = "left";
+                uint8_t align = 0;
+                int xOffset = 0; // x偏移量
+                int yOffset = 0; // y偏移量
+
+                if (component.containsKey("config"))
+                {
+                    JsonObject config = component["config"].as<JsonObject>();
+                    fontSize = config["fontSize"] | 24;
+                    textColor = config["textColor"] | 0;
+                    alignStr = config["align"] | "left";
+                    xOffset = config["xOffset"] | 0;
+                    yOffset = config["yOffset"] | 0;
+
+                    // 映射对齐方式
+                    if (strcmp(alignStr, "center") == 0)
+                    {
+                        align = 1;
+                    }
+                    else if (strcmp(alignStr, "right") == 0)
+                    {
+                        align = 2;
+                    }
+                }
+
+                // 计算打印起点（单元格坐标转像素）
+                const int CELL_WIDTH = 60;
+                const int CELL_HEIGHT = 60;
+                int16_t x = pos_x * CELL_WIDTH + 20 + xOffset;
+                int16_t y = pos_y * CELL_HEIGHT + yOffset;
+                a_w = a_w * CELL_WIDTH - 40;
+                a_h = a_h * CELL_HEIGHT;
+
+                // 获取 ONE 一言
+                String one_content;
+                String one_origin;
+                if (!fetch_one_sentence(one_content, one_origin))
+                {
+#if DBG_TRMNL_SHOW
+                    Serial.println("[TRMNL] 获取ONE一言失败，使用默认文本");
+#endif
+                    one_content = "日日行，不怕千万人，怕自己不强。";
+                    one_origin = "生活·佚名·佚名";
+                }
+
+                // 去除内容中的空行
+                String cleaned_content = "";
+                int start = 0;
+                while (start < one_content.length())
+                {
+                    int end = one_content.indexOf('\n', start);
+                    if (end == -1) end = one_content.length();
+                    
+                    String line = one_content.substring(start, end);
+                    line.trim();
+                    if (line.length() > 0)
+                    {
+                        if (cleaned_content.length() > 0) cleaned_content += " ";
+                        cleaned_content += line;
+                    }
+                    start = end + 1;
+                }
+                one_content = cleaned_content;
+
+                // 计算行高和总可用行数
+                uint8_t base_font_size = get_font_size_from_file();
+                if (base_font_size == 0)
+                    base_font_size = 24;
+                float scale_factor = (fontSize > 0) ? ((float)fontSize / (float)base_font_size) : 1.0f;
+                int16_t line_height = (int16_t)((base_font_size + LINE_MARGIN) * scale_factor);
+                int max_lines = a_h / line_height;
+
+                // 预留最后 1 行给 origin 信息
+                int content_max_lines = max_lines - 1;
+                if (content_max_lines < 1) content_max_lines = 1;
+                int16_t content_height = content_max_lines * line_height;
+
+#if DBG_TRMNL_SHOW
+                Serial.printf("[TRMNL] 渲染ONE一言: 单元格(%d, %d) 像素(%d, %d) 字号%d 颜色%d 宽度%d 高度%d 对齐%s\n",
+                              pos_x, pos_y, x, y, fontSize, textColor, a_w, a_h, alignStr);
+                Serial.printf("[TRMNL] 总行数:%d 内容行数:%d origin行数:1\n", max_lines, content_max_lines);
+#endif
+
+                // 打印正文（限制在预留行数内）
+                int used_lines = display_print_wrapped(
+                    one_content.c_str(), // text
+                    x,                    // x (起点)
+                    y,                    // y (起点)
+                    a_w,                  // area_width (可用宽度)
+                    content_height,       // area_height (预留 origin 的高度)
+                    fontSize,             // font_size
+                    textColor,            // color (0-15 灰度)
+                    15,                   // bg_color (15=白色 #ffffff)
+                    align,                // align (0=左，1=中，2=右)
+                    false,                // vertical
+                    false                 // skip (不跳过繁简转换)
+                );
+
+                // 在最后一行打印出处信息（单行，超出截断）
+                if (one_origin.length() > 0)
+                {
+                    int16_t origin_y = y + content_max_lines * line_height;
+                    uint8_t origin_font_size = (uint8_t)(fontSize * 0.8f);
+                    uint8_t origin_color = textColor;
+
+                    // 使用 bin_font_print 单行渲染（超出自动截断）
+                    bin_font_print(
+                        one_origin.c_str(),     // text
+                        origin_font_size,       // font_size (80%)
+                        origin_color,           // color
+                        a_w,                    // area_width
+                        x,                      // x
+                        origin_y,               // y
+                        false,                  // horizontal
+                        g_canvas,
+                        (TextAlign)align,       // align
+                        a_w,                    // max_length
+                        false                   // SkipConv
                     );
                 }
             }

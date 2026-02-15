@@ -16,7 +16,7 @@
 #define DBG_STATE_MACHINE_TASK 0
 #define DBG_UI_DISPLAY 0
 #define DBG_BIN_FONT_PRINT 0
-#define DBG_TRMNL_SHOW 0
+#define DBG_TRMNL_SHOW 1
 
 
 // Override the debug

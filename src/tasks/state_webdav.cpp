@@ -16,6 +16,7 @@
 #include "device/powermgt.h"
 // for screenshot
 #include "ui/screenshot.h"
+#define DEBUGWEBDAV 1
 
 extern M5Canvas *g_canvas;
 extern float font_size;
@@ -82,6 +83,11 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
         break;
 
     case MSG_TOUCH_PRESSED:
+#if DEBUGWEBDAV
+        webdavShown = false;
+        show_main_menu(g_canvas, false, 0, 0, false);
+        currentState_ = STATE_MAIN_MENU;
+#endif
         break;
 
     case MSG_USER_ACTIVITY:
@@ -98,6 +104,8 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
             trmnl_display(g_canvas);
             // show_default_trmnl(g_canvas);
             bin_font_flush_canvas(false, false, true, RECT);
+#if DEBUGWEBDAV
+#else
             if (!sleepIssued)
             {
                 sleepIssued = true;
@@ -117,6 +125,7 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
                 }
                 return;
             }
+#endif
         }
         break;
     }

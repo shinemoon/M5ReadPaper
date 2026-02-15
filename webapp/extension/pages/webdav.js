@@ -1044,9 +1044,9 @@
         const h = comp.height * cellHeight;
         
         // 对于动态文本（dynamic_text, daily_poem, list, rss, reading_status, weather），绘制半透明高亮+标签，不渲染真实文本
-          if (comp.type === 'dynamic_text' || comp.type === 'daily_poem' || comp.type === 'list' || comp.type === 'rss' || comp.type === 'reading_status' || comp.type === 'weather') {
+          if (comp.type === 'dynamic_text' || comp.type === 'daily_poem' || comp.type === 'one' || comp.type === 'list' || comp.type === 'rss' || comp.type === 'reading_status' || comp.type === 'weather') {
           // 半透明高亮（今日诗词用蓝色，列表用绿色，RSS用橙色，天气用天蓝色，普通文本用黄色）
-          if (comp.type === 'daily_poem') {
+          if (comp.type === 'daily_poem' || comp.type === 'one') {
             ctx.fillStyle = 'rgba(100, 149, 237, 0.3)';  // 蓝色
           } else if (comp.type === 'list') {
             ctx.fillStyle = 'rgba(76, 175, 80, 0.3)';  // 绿色
@@ -1251,13 +1251,13 @@
       col: minCol,
       width: width,
       height: height,
-      text: (type === 'daily_poem' || type === 'divider' || type === 'reading_status' || type === 'weather') ? '' : (type === 'list' ? '项目1;项目2;项目3' : (type === 'rss' ? 'https://example.com/feed.xml' : '示例文本')),  // 今日诗词、分割线、阅读状态和天气不需要文本输入，列表默认示例，RSS默认URL
-      fontSize: (type === 'dynamic_text' || type === 'daily_poem' || type === 'list' || type === 'rss' || type === 'reading_status' || type === 'weather') ? 24 : 24,  // 动态文本默认24
-      fontFamily: (type === 'dynamic_text' || type === 'daily_poem' || type === 'list' || type === 'rss' || type === 'reading_status' || type === 'weather') ? '' : 'Arial',  // 动态文本、列表、RSS、阅读状态和天气不支持字体选择
+      text: (type === 'daily_poem' || type === 'one' || type === 'divider' || type === 'reading_status' || type === 'weather') ? '' : (type === 'list' ? '项目1;项目2;项目3' : (type === 'rss' ? 'https://example.com/feed.xml' : '示例文本')),  // 今日诗词/ONE一言、分割线、阅读状态和天气不需要文本输入，列表默认示例，RSS默认URL
+      fontSize: (type === 'dynamic_text' || type === 'daily_poem' || type === 'one' || type === 'list' || type === 'rss' || type === 'reading_status' || type === 'weather') ? 24 : 24,  // 动态文本默认24
+      fontFamily: (type === 'dynamic_text' || type === 'daily_poem' || type === 'one' || type === 'list' || type === 'rss' || type === 'reading_status' || type === 'weather') ? '' : 'Arial',  // 动态文本、列表、RSS、阅读状态和天气不支持字体选择
       textColor: 0,  // 0-15 灰度级别，0=黑色，15=白色
-      bgColor: (type === 'dynamic_text' || type === 'daily_poem' || type === 'reading_status' || type === 'weather') ? 15 : 'transparent',  // 动态文本、阅读状态和天气默认白色背景(15)，列表和RSS透明
-      align: (type === 'dynamic_text' || type === 'daily_poem' || type === 'reading_status' || type === 'weather') ? 'left' : undefined,  // 动态文本、阅读状态与天气支持对齐，列表和RSS不支持
-      rotation: (type === 'dynamic_text' || type === 'daily_poem' || type === 'reading_status' || type === 'weather' || type === 'divider') ? 0 : 0,  // 动态文本和分割线支持旋转
+      bgColor: (type === 'dynamic_text' || type === 'daily_poem' || type === 'one' || type === 'reading_status' || type === 'weather') ? 15 : 'transparent',  // 动态文本、今日诗词/ONE一言、阅读状态和天气默认白色背景(15)，列表和RSS透明
+      align: (type === 'dynamic_text' || type === 'daily_poem' || type === 'one' || type === 'reading_status' || type === 'weather') ? 'left' : undefined,  // 动态文本、今日诗词/ONE一言、阅读状态与天气支持对齐，列表和RSS不支持
+      rotation: (type === 'dynamic_text' || type === 'daily_poem' || type === 'one' || type === 'reading_status' || type === 'weather' || type === 'divider') ? 0 : 0,  // 动态文本和分割线支持旋转
       xOffset: 0,  // x偏移量（像素）
       yOffset: 0,  // y偏移量（像素）
       lineColor: type === 'divider' ? 0 : undefined,  // 分割线颜色（0-15灰度）
@@ -1294,6 +1294,8 @@
         return '普通文本';
       case 'daily_poem':
         return '今日诗词';
+      case 'one':
+        return 'ONE一言';
       case 'reading_status':
         return '阅读状态';
       case 'weather':
@@ -1420,8 +1422,8 @@
       const sizeInput = document.createElement('input');
       sizeInput.type = 'number';
       sizeInput.value = comp.fontSize || 24;
-      // 动态文本（dynamic_text, daily_poem, list, rss, reading_status, weather）限制字体大小24-38，预渲染文本12-72
-      if (comp.type === 'dynamic_text' || comp.type === 'daily_poem' || comp.type === 'list' || comp.type === 'rss' || comp.type === 'reading_status' || comp.type === 'weather') {
+      // 动态文本（dynamic_text, daily_poem, one, list, rss, reading_status, weather）限制字体大小24-38，预渲染文本12-72
+      if (comp.type === 'dynamic_text' || comp.type === 'daily_poem' || comp.type === 'one' || comp.type === 'list' || comp.type === 'rss' || comp.type === 'reading_status' || comp.type === 'weather') {
         sizeInput.min = 24;
         sizeInput.max = 38;
       } else {
@@ -1867,7 +1869,7 @@
       }
       else {
         // 文本类组件（今日诗词组件不显示文本输入框）
-        if (comp.type !== 'daily_poem' && comp.type !== 'reading_status') {
+        if (comp.type !== 'daily_poem' && comp.type !== 'one' && comp.type !== 'reading_status') {
           detailsContainer.appendChild(field);
         }
         detailsContainer.appendChild(posField);
@@ -1875,16 +1877,16 @@
         detailsContainer.appendChild(offsetField);
         detailsContainer.appendChild(sizeField);
         // 动态文本（dynamic_text, daily_poem）不支持字体选择和旋转
-        if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem' && comp.type !== 'reading_status') {
+        if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem' && comp.type !== 'one' && comp.type !== 'reading_status') {
           detailsContainer.appendChild(fontField);
         }
         detailsContainer.appendChild(textColorField);
         // 动态文本不显示背景色设置
-        if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem' && comp.type !== 'reading_status') {
+        if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem' && comp.type !== 'one' && comp.type !== 'reading_status') {
           detailsContainer.appendChild(bgColorField);
         }
         // 动态文本和今日诗词默认左对齐，不显示对齐选项
-        if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem' && comp.type !== 'reading_status') {
+        if (comp.type !== 'dynamic_text' && comp.type !== 'daily_poem' && comp.type !== 'one' && comp.type !== 'reading_status') {
           detailsContainer.appendChild(rotField);
         }
       }
