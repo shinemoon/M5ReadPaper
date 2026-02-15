@@ -124,7 +124,7 @@ void createRequiredDirectories()
 #endif
         }
     }
-    const char *directories[] = {"/book", "/bookmarks", "/font", "/image"};
+    const char *directories[] = {"/book", "/bookmarks", "/font", "/image", "/rdt"};
     const int numDirs = sizeof(directories) / sizeof(directories[0]);
 
     for (int i = 0; i < numDirs; i++)
