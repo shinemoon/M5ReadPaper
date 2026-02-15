@@ -30,6 +30,7 @@ static int render_list_items(const char *content, int16_t x, int16_t y, int16_t 
 static bool fetch_rss_feed(const String &url, String &out_titles, int max_items = 10);
 static bool parse_rss_titles(const String &xml_content, String &out_titles);
 static bool fetch_weather(const String &citycode, const String &apiKey, String &out_today_info, String &out_tomorrow_info);
+static bool fetch_day_info(String &out_content, String &out_origin);
 
 // 从 WebDAV 读取 readpaper.rdt 文件内容
 static bool fetch_webdav_rdt_config(String &out_content)
@@ -43,6 +44,7 @@ static bool fetch_webdav_rdt_config(String &out_content)
         return false;
     }
 
+    Serial.println("[TRMNL] 打开 HTTP 连接...");
     // 检查 WiFi 连接
     if (!g_wifi_sta_connected)
     {
@@ -592,21 +594,22 @@ static bool fetch_one_sentence(String &out_content, String &out_origin)
 #endif
 
     // 先进行 DNS 解析，避开 HTTP 客户端的主机名解析 bug
-    const char* hostname = "api.xygeng.cn";
+    const char *hostname = "api.xygeng.cn";
     struct addrinfo hints, *res;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
-    
+
     int ret = getaddrinfo(hostname, "443", &hints, &res);
-    if (ret != 0 || res == NULL) {
+    if (ret != 0 || res == NULL)
+    {
 #if DBG_TRMNL_SHOW
         Serial.printf("[TRMNL] DNS 解析失败: %d\n", ret);
 #endif
         return false;
     }
-    
-    static char ip_str[INET_ADDRSTRLEN];  // 静态变量确保在 HTTP 请求期间有效
+
+    static char ip_str[INET_ADDRSTRLEN]; // 静态变量确保在 HTTP 请求期间有效
     struct sockaddr_in *addr = (struct sockaddr_in *)res->ai_addr;
     inet_ntop(AF_INET, &(addr->sin_addr), ip_str, INET_ADDRSTRLEN);
     freeaddrinfo(res);
@@ -618,7 +621,7 @@ static bool fetch_one_sentence(String &out_content, String &out_origin)
     // 使用解析后的 IP 地址配置 HTTP 客户端
     esp_http_client_config_t cfg = {};
     memset(&cfg, 0, sizeof(cfg));
-    cfg.host = ip_str;  // 使用 IP 地址而非主机名
+    cfg.host = ip_str; // 使用 IP 地址而非主机名
     cfg.port = 443;
     cfg.path = "/openapi/one";
     cfg.transport_type = HTTP_TRANSPORT_OVER_SSL;
@@ -628,7 +631,7 @@ static bool fetch_one_sentence(String &out_content, String &out_origin)
     cfg.buffer_size_tx = 1024;
     cfg.crt_bundle_attach = esp_crt_bundle_attach;
     cfg.disable_auto_redirect = false;
-    cfg.skip_cert_common_name_check = true;  // 使用 IP 时必须跳过证书域名验证
+    cfg.skip_cert_common_name_check = true; // 使用 IP 时必须跳过证书域名验证
 
     esp_http_client_handle_t client = esp_http_client_init(&cfg);
     if (!client)
@@ -754,18 +757,252 @@ static bool fetch_one_sentence(String &out_content, String &out_origin)
     }
     if (name && strlen(name) > 0)
     {
-        if (out_origin.length() > 0) out_origin += "·";
+        if (out_origin.length() > 0)
+            out_origin += "·";
         out_origin += String(name);
     }
     if (origin && strlen(origin) > 0)
     {
-        if (out_origin.length() > 0) out_origin += "·";
+        if (out_origin.length() > 0)
+            out_origin += "·";
         out_origin += String(origin);
     }
 
 #if DBG_TRMNL_SHOW
     Serial.printf("[TRMNL] ONE 一言: %s / %s\n", out_content.c_str(), out_origin.c_str());
 #endif
+
+    return true;
+}
+
+// 从 日历 API 获取今日节日与农历信息
+static bool fetch_day_info(String &out_content, String &out_origin)
+{
+    if (!g_wifi_sta_connected)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] WiFi 未连接，无法获取日历信息");
+#endif
+        return false;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+#if DBG_TRMNL_SHOW
+    Serial.println("[TRMNL] 请求日历 API: https://api.xygeng.cn/openapi/day");
+#endif
+
+    // 使用完整 URL 让 HTTP 客户端处理主机名与 TLS（SNI）
+    esp_http_client_config_t cfg = {};
+    memset(&cfg, 0, sizeof(cfg));
+    cfg.url = "https://api.xygeng.cn/openapi/day";
+    cfg.method = HTTP_METHOD_POST;
+    cfg.timeout_ms = 10000;
+    cfg.buffer_size = 4096;
+    cfg.buffer_size_tx = 1024;
+    cfg.crt_bundle_attach = esp_crt_bundle_attach; // 使用证书捆绑验证
+
+    esp_http_client_handle_t client = esp_http_client_init(&cfg);
+    if (!client)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] 创建 HTTP 客户端失败");
+#endif
+        return false;
+    }
+
+    esp_http_client_set_header(client, "User-Agent", "ReadPaper-Day");
+    esp_http_client_set_header(client, "Content-Type", "application/json");
+    // 明确设置 Host 头为原始主机名，避免使用 IP 时服务器基于虚拟主机路由失败
+    // 不显式设置 Host，使用 cfg.url 让客户端处理 SNI/Host
+
+    // 使用最小JSON体以确保服务器识别为有效 POST 请求
+    const char *post_body = "{}";
+    esp_err_t err = esp_http_client_set_post_field(client, post_body, (int)strlen(post_body));
+    if (err != ESP_OK)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] 设置 POST body 失败: %s\n", esp_err_to_name(err));
+#endif
+    }
+
+    err = esp_http_client_open(client, 0);
+    if (err != ESP_OK)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] HTTP 打开连接失败: %s\n", esp_err_to_name(err));
+#endif
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    // 先读取并解析响应头（与 fetch_one_sentence 保持一致）
+    int content_length = esp_http_client_fetch_headers(client);
+    if (content_length < 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] 获取响应头失败: %s\n", esp_err_to_name((esp_err_t)content_length));
+#endif
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    int status = esp_http_client_get_status_code(client);
+    if (status != 200)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] 日历 API 返回状态: %d\n", status);
+#endif
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    String response_content;
+    response_content.reserve(4096);
+    char buffer[512];
+    while (true)
+    {
+        int read_len = esp_http_client_read_response(client, buffer, sizeof(buffer) - 1);
+        if (read_len <= 0)
+            break;
+        buffer[read_len] = '\0';
+        response_content += buffer;
+    }
+
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);
+
+    if (response_content.length() == 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] 日历 API 返回空内容");
+#endif
+        return false;
+    }
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] 日历 API 响应长度: %d\n", response_content.length());
+    Serial.printf("[TRMNL] 原始响应: %s\n", response_content.c_str());
+#endif
+
+    DynamicJsonDocument doc(8192);
+    DeserializationError derr = deserializeJson(doc, response_content);
+    if (derr)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] 日历 JSON 解析失败: %s\n", derr.c_str());
+#endif
+        return false;
+    }
+
+    int code = doc["code"] | 0;
+    if (code != 200)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] 日历 API 返回 code=%d\n", code);
+#endif
+        return false;
+    }
+
+    JsonObject data = doc["data"].as<JsonObject>();
+    if (!data)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] 未找到 data 字段");
+#endif
+        return false;
+    }
+
+    const char *date = data["date"] | "";
+    const char *sign = data["sign"] | "";
+    JsonObject solar = data["solar"].as<JsonObject>();
+    JsonObject lunar = data["lunar"].as<JsonObject>();
+    JsonArray festivals = data["festival"].as<JsonArray>();
+
+    // 构建展示文本：阳历（日期 + 星期），农历（同行显示节日）
+    String content = "";
+    if (date && strlen(date) > 0)
+    {
+        content += String(date);
+    }
+
+    if (solar && solar["day"])
+    {
+        if (content.length() > 0)
+            content += " ";
+        content += String(solar["day"].as<const char *>());
+    }
+
+    // 构建 lunar_str（格式：year month date lunar_day）
+    String lunar_str = "";
+    if (lunar)
+    {
+        const char *lyear = lunar["year"] | "";
+        const char *lmonth = lunar["month"] | "";
+        const char *lunarmonth = lunar["lunar_month"] | "";
+        const char *ldate = lunar["date"] | "";
+        const char *llunar_day = lunar["lunar_day"] | "";
+
+        if (lyear && strlen(lyear) > 0)
+        {
+            lunar_str += String(lyear);
+            lunar_str += "年";
+        }
+        if (lunarmonth && strlen(llunar_day) > 0)
+        {
+           lunar_str += String(lunarmonth);
+            lunar_str += "月";
+        }
+
+        if (llunar_day&& strlen(llunar_day) > 0)
+        {
+            lunar_str += String(llunar_day);
+            lunar_str += "日";
+        }
+
+        if (lmonth && strlen(lmonth) > 0)
+        {
+            if (lunar_str.length() > 0)
+                lunar_str += " ";
+            lunar_str += String(lmonth);
+        }
+        if (ldate && strlen(ldate) > 0)
+        {
+            if (lunar_str.length() > 0)
+                lunar_str += " ";
+            lunar_str += String(ldate);
+        }
+    }
+
+    if (lunar_str.length() > 0)
+    {
+        content += "\n农历：" + lunar_str;
+    }
+
+    // 将 festivals 单独作为第三行（如存在）
+    if (festivals)
+    {
+        String fest = "";
+        for (JsonVariant v : festivals)
+        {
+            const char *s = v.as<const char *>();
+            if (s && strlen(s) > 0)
+            {
+                if (fest.length() > 0)
+                    fest += ",";
+                fest += String(s);
+            }
+        }
+        if (fest.length() > 0)
+        {
+            content += "\n节日：" + fest;
+        }
+    }
+
+    out_content = content;
+    out_origin = String(sign);
 
     return true;
 }
@@ -1293,16 +1530,18 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
     Serial.printf("[TRMNL] RDT 版本: %s\n", version);
 #endif
 
-        // 读取 refreshPeriod（分钟），兼容老格式：若缺失则使用默认 30
-        {
+    // 读取 refreshPeriod（分钟），兼容老格式：若缺失则使用默认 30
+    {
         int rp = doc["refreshPeriod"] | 30;
-        if (rp < 10) rp = 10;
-        if (rp > 1440) rp = 1440;
+        if (rp < 10)
+            rp = 10;
+        if (rp > 1440)
+            rp = 1440;
         refreshPeriod = rp;
-    #if DBG_TRMNL_SHOW
+#if DBG_TRMNL_SHOW
         Serial.printf("[TRMNL] 设置 refreshPeriod=%d 分钟\n", refreshPeriod);
-    #endif
-        }
+#endif
+    }
 
     // 检查是否有背景图
     bool has_bgpic = doc["bgpic"] | false;
@@ -1632,13 +1871,15 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                 while (start < one_content.length())
                 {
                     int end = one_content.indexOf('\n', start);
-                    if (end == -1) end = one_content.length();
-                    
+                    if (end == -1)
+                        end = one_content.length();
+
                     String line = one_content.substring(start, end);
                     line.trim();
                     if (line.length() > 0)
                     {
-                        if (cleaned_content.length() > 0) cleaned_content += " ";
+                        if (cleaned_content.length() > 0)
+                            cleaned_content += " ";
                         cleaned_content += line;
                     }
                     start = end + 1;
@@ -1655,7 +1896,8 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
 
                 // 预留最后 1 行给 origin 信息
                 int content_max_lines = max_lines - 1;
-                if (content_max_lines < 1) content_max_lines = 1;
+                if (content_max_lines < 1)
+                    content_max_lines = 1;
                 int16_t content_height = content_max_lines * line_height;
 
 #if DBG_TRMNL_SHOW
@@ -1667,16 +1909,16 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                 // 打印正文（限制在预留行数内）
                 int used_lines = display_print_wrapped(
                     one_content.c_str(), // text
-                    x,                    // x (起点)
-                    y,                    // y (起点)
-                    a_w,                  // area_width (可用宽度)
-                    content_height,       // area_height (预留 origin 的高度)
-                    fontSize,             // font_size
-                    textColor,            // color (0-15 灰度)
-                    15,                   // bg_color (15=白色 #ffffff)
-                    align,                // align (0=左，1=中，2=右)
-                    false,                // vertical
-                    false                 // skip (不跳过繁简转换)
+                    x,                   // x (起点)
+                    y,                   // y (起点)
+                    a_w,                 // area_width (可用宽度)
+                    content_height,      // area_height (预留 origin 的高度)
+                    fontSize,            // font_size
+                    textColor,           // color (0-15 灰度)
+                    15,                  // bg_color (15=白色 #ffffff)
+                    align,               // align (0=左，1=中，2=右)
+                    false,               // vertical
+                    false                // skip (不跳过繁简转换)
                 );
 
                 // 在最后一行打印出处信息（单行，超出截断）
@@ -1688,18 +1930,222 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
 
                     // 使用 bin_font_print 单行渲染（超出自动截断）
                     bin_font_print(
-                        one_origin.c_str(),     // text
-                        origin_font_size,       // font_size (80%)
-                        origin_color,           // color
-                        a_w,                    // area_width
-                        x,                      // x
-                        origin_y,               // y
-                        false,                  // horizontal
+                        one_origin.c_str(), // text
+                        origin_font_size,   // font_size (80%)
+                        origin_color,       // color
+                        a_w,                // area_width
+                        x,                  // x
+                        origin_y,           // y
+                        false,              // horizontal
                         g_canvas,
-                        (TextAlign)align,       // align
-                        a_w,                    // max_length
-                        false                   // SkipConv
+                        (TextAlign)align, // align
+                        a_w,              // max_length
+                        false             // SkipConv
                     );
+                }
+            }
+            // 处理 日历 组件（day） - 获取今天的节日与农历信息
+            else if (strcmp(type, "day") == 0)
+            {
+                // 从嵌套结构读取属性
+                int pos_x = 0;
+                int pos_y = 0;
+                int a_w = 0;
+                int a_h = 0;
+                if (component.containsKey("position"))
+                {
+                    JsonObject position = component["position"].as<JsonObject>();
+                    pos_x = position["x"] | 0;
+                    pos_y = position["y"] | 0;
+                }
+                JsonObject areaSize = component["size"].as<JsonObject>();
+                a_w = areaSize["width"] | 1;
+                a_h = areaSize["height"] | 1;
+
+                // config: {fontSize, textColor, align, xOffset, yOffset, ...}
+                int fontSize = 24;
+                int textColor = 0;
+                const char *alignStr = "left";
+                uint8_t align = 0;
+                int xOffset = 0; // x偏移量
+                int yOffset = 0; // y偏移量
+
+                if (component.containsKey("config"))
+                {
+                    JsonObject config = component["config"].as<JsonObject>();
+                    fontSize = config["fontSize"] | 24;
+                    textColor = config["textColor"] | 0;
+                    alignStr = config["align"] | "left";
+                    xOffset = config["xOffset"] | 0;
+                    yOffset = config["yOffset"] | 0;
+
+                    if (strcmp(alignStr, "center") == 0)
+                    {
+                        align = 1;
+                    }
+                    else if (strcmp(alignStr, "right") == 0)
+                    {
+                        align = 2;
+                    }
+                }
+
+                // 计算打印起点（单元格坐标转像素）
+                const int CELL_WIDTH = 60;
+                const int CELL_HEIGHT = 60;
+                int16_t x = pos_x * CELL_WIDTH + 20 + xOffset;
+                int16_t y = pos_y * CELL_HEIGHT + yOffset;
+                a_w = a_w * CELL_WIDTH - 40;
+                a_h = a_h * CELL_HEIGHT;
+
+#if DBG_TRMNL_SHOW
+                Serial.printf("[TRMNL] 渲染日历: 单元格(%d, %d) 像素(%d, %d) 字号%d 颜色%d 宽度%d 高度%d 对齐%s\n",
+                              pos_x, pos_y, x, y, fontSize, textColor, a_w, a_h, alignStr);
+#endif
+
+                // 获取日历信息
+                String day_content;
+                String day_origin;
+                if (!fetch_day_info(day_content, day_origin))
+                {
+#if DBG_TRMNL_SHOW
+                    Serial.println("[TRMNL] 获取日历信息失败，使用本地 RTC 回退显示日期");
+#endif
+                    // 回退到本地 RTC，仅显示当前阳历日期和星期，其余信息跳过
+                    struct tm timeinfo;
+                    if (getLocalTime(&timeinfo))
+                    {
+                        char buf[64];
+                        const char *weekdays[] = {"星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"};
+                        snprintf(buf, sizeof(buf), "%04d-%02d-%02d %s",
+                                 timeinfo.tm_year + 1900,
+                                 timeinfo.tm_mon + 1,
+                                 timeinfo.tm_mday,
+                                 weekdays[timeinfo.tm_wday]);
+                        day_content = String(buf);
+                    }
+                    else
+                    {
+                        day_content = String("日期信息不可用");
+                    }
+                    day_origin = "";
+                }
+
+                // 去除空行并分割为行数组
+                std::vector<String> lines;
+                {
+                    String cleaned = "";
+                    int start = 0;
+                    while (start < day_content.length())
+                    {
+                        int end = day_content.indexOf('\n', start);
+                        if (end == -1)
+                            end = day_content.length();
+                        String line = day_content.substring(start, end);
+                        line.trim();
+                        if (line.length() > 0)
+                        {
+                            lines.push_back(line);
+                        }
+                        start = end + 1;
+                    }
+                }
+
+                // 提取阳历（第一行）与农历（查找以"农历"开头的行）
+                String solar_line = "";
+                String lunar_line = "";
+                if (!lines.empty())
+                    solar_line = lines[0];
+
+                int lunar_idx = -1;
+                for (size_t i = 1; i < lines.size(); ++i)
+                {
+                    String &ln = lines[i];
+                    if (ln.startsWith("农历") || ln.startsWith("农历：") || ln.startsWith("农历:"))
+                    {
+                        int p = ln.indexOf(':');
+                        if (p == -1)
+                            p = ln.indexOf('：');
+                        if (p != -1 && p + 1 < ln.length())
+                            lunar_line = ln.substring(p + 1);
+                        else
+                            lunar_line = ln;
+                        lunar_idx = (int)i;
+                        break;
+                    }
+                }
+
+                // 查找节日行（位于农历行之后）
+                String festival_line = "";
+                if (lunar_idx != -1)
+                {
+                    for (size_t j = lunar_idx + 1; j < lines.size(); ++j)
+                    {
+                        String &ln2 = lines[j];
+                        if (ln2.startsWith("节日") || ln2.startsWith("节日：") || ln2.startsWith("节日:"))
+                        {
+                            int p2 = ln2.indexOf(':');
+                            if (p2 == -1)
+                                p2 = ln2.indexOf('：');
+                            if (p2 != -1 && p2 + 1 < ln2.length())
+                                festival_line = ln2.substring(p2 + 1);
+                            else
+                                festival_line = ln2;
+                            break;
+                        }
+                    }
+                }
+
+                // 星座（sign）可能在 day_origin 中
+                String sign = day_origin;
+
+                // 字号与行高计算
+                uint8_t base_font_size = get_font_size_from_file();
+                if (base_font_size == 0)
+                    base_font_size = 24;
+
+                int main_font = fontSize; // 阳历字号
+                int lunar_font = std::max(8, (int)(fontSize * 0.8f));
+                int sign_font = std::max(6, (int)(fontSize * 0.6f));
+
+                float main_scale = (main_font > 0) ? ((float)main_font / (float)base_font_size) : 1.0f;
+                float lunar_scale = (lunar_font > 0) ? ((float)lunar_font / (float)base_font_size) : 1.0f;
+
+                int16_t main_line_h = (int16_t)((base_font_size + LINE_MARGIN) * main_scale);
+                int16_t lunar_line_h = (int16_t)((base_font_size + LINE_MARGIN) * lunar_scale);
+
+                // 判断是否有足够高度显示第二行（农历）
+                bool show_lunar = (a_h >= (main_line_h + lunar_line_h));
+
+                // 绘制阳历（第一行）
+                if (solar_line.length() == 0)
+                    solar_line = "";
+
+                // 先绘制阳历主文本（根据 align）
+                bin_font_print(solar_line.c_str(), (uint8_t)main_font, (uint8_t)textColor, a_w, x, y, false, g_canvas, (TextAlign)align, a_w);
+
+                // 绘制星座于同一行末尾，使用 0.6 倍字号，右对齐
+                if (sign.length() > 0)
+                {
+                    // 右对齐绘制星座，保证在行尾
+//                    bin_font_print(sign.c_str(), (uint8_t)sign_font, (uint8_t)textColor, a_w, x, y, false, g_canvas, TEXT_ALIGN_RIGHT, a_w);
+                }
+                // 绘制农历于第二行（0.8 倍字号），若高度够用
+                int16_t lunar_y = y + main_font + (int16_t)roundf(fontSize * 0.8f);
+                if (show_lunar && lunar_line.length() > 0)
+                {
+                    bin_font_print(lunar_line.c_str(), (uint8_t)lunar_font, (uint8_t)textColor, a_w, x, lunar_y, false, g_canvas, (TextAlign)align, a_w);
+                }
+
+                // 若存在节日行，检查是否有空间显示第三行
+                if (festival_line.length() > 0)
+                {
+                    int16_t festival_font = lunar_font;
+                    int16_t festival_line_h = lunar_line_h;
+                    int16_t festival_y = lunar_y + lunar_line_h + (int16_t)roundf(fontSize * 0.8f);
+                    if ((festival_y + festival_line_h - y) <= a_h)
+                    {
+                        bin_font_print(festival_line.c_str(), (uint8_t)festival_font, (uint8_t)textColor, a_w, x, festival_y, false, g_canvas, (TextAlign)align, a_w);
+                    }
                 }
             }
             // 处理阅读状态组件（reading_status）
@@ -1884,11 +2330,11 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                         int tomorrow_font_size = (int)(fontSize * 0.8f);
                         int16_t tomorrow_y = y + used_height + 30;
 
-                        g_canvas->fillRect(x , tomorrow_y, 4, tomorrow_font_size, TFT_BLACK);
+                        g_canvas->fillRect(x, tomorrow_y, 4, tomorrow_font_size, TFT_BLACK);
 
                         display_print_wrapped(
                             tomorrow_info.c_str(), // text
-                            x + 8,                     // x (起点)
+                            x + 8,                 // x (起点)
                             tomorrow_y,            // y (今天下方)
                             a_w,                   // area_width (可用宽度)
                             remaining_height,      // area_height (剩余高度)
@@ -2013,7 +2459,8 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
                 float scale_factor = (fontSize > 0) ? ((float)fontSize / (float)base_font_size) : 1.0f;
                 int16_t line_height = (int16_t)(base_font_size * scale_factor) + margin;
                 int max_lines = a_h / line_height;
-                if (max_lines <= 0) max_lines = 1;
+                if (max_lines <= 0)
+                    max_lines = 1;
 
                 // 获取RSS feed内容（按需解析至可显示的项数）
                 String rss_titles = "";
@@ -2084,7 +2531,7 @@ bool trmnl_display(M5Canvas *canvas)
     // 步骤2: 检查是否需要从 WebDAV 更新（只有配置了WebDAV时才检查）
     bool need_update_from_webdav = false;
     bool has_webdav_config = (strlen(g_config.webdav_url) > 0);
-    
+
 #if DBG_TRMNL_SHOW
     if (has_webdav_config)
     {
@@ -2228,14 +2675,14 @@ bool trmnl_display(M5Canvas *canvas)
 #if DBG_TRMNL_SHOW
     Serial.println("[TRMNL] ===== 准备渲染RDT，检查WiFi连接状态 =====");
 #endif
-    
+
     if (!g_wifi_sta_connected && g_wifi_hotspot)
     {
 #if DBG_TRMNL_SHOW
         Serial.println("[TRMNL] WiFi当前未连接，尝试连接WiFi以支持动态组件（天气、RSS等）...");
 #endif
         g_wifi_hotspot->connectToWiFiFromToken();
-        
+
         // 不论连接成功或失败，都继续后续处理
 #if DBG_TRMNL_SHOW
         if (g_wifi_sta_connected)
@@ -2257,7 +2704,7 @@ bool trmnl_display(M5Canvas *canvas)
     {
         Serial.println("[TRMNL] ⚠ 没有WiFi管理器，动态组件可能无法工作");
     }
-    
+
     Serial.println("[TRMNL] ===== 开始渲染RDT配置 =====");
 #endif
 
@@ -2599,7 +3046,8 @@ static bool fetch_weather(const String &citycode, const String &apiKey, String &
         Serial.println("[TRMNL] 完整响应内容:");
         Serial.println(response_content.c_str());
         Serial.printf("[TRMNL] forecast 对象包含的字段: ");
-        for (JsonPair kv : forecast) {
+        for (JsonPair kv : forecast)
+        {
             Serial.printf("%s ", kv.key().c_str());
         }
         Serial.println();
