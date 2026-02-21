@@ -1324,6 +1324,42 @@
     }
   }
 
+  // Helpers: dynamic module loader for component preview modules
+  function getGlobalComponentName(type) {
+    if (!type) return null;
+    return type.split(/[_-]/).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('') + 'Component';
+  }
+
+  function loadComponentModule(type) {
+    return new Promise((resolve, reject) => {
+      const globalName = getGlobalComponentName(type);
+      if (!globalName) return reject(new Error('invalid type'));
+      if (window[globalName]) return resolve(window[globalName]);
+
+      // try to load script from relative components folder
+      const scriptPath = `components/${type}.js`;
+      const existing = document.querySelector(`script[data-component="${type}"]`);
+      if (existing) {
+        existing.addEventListener('load', () => {
+          if (window[globalName]) resolve(window[globalName]); else reject(new Error('module loaded but not exposing component'));
+        });
+        existing.addEventListener('error', () => reject(new Error('failed to load module')));
+        return;
+      }
+
+      const s = document.createElement('script');
+      s.src = scriptPath;
+      s.async = true;
+      s.dataset.component = type;
+      s.onload = () => {
+        if (window[globalName]) resolve(window[globalName]);
+        else reject(new Error('module loaded but not exposing component'));
+      };
+      s.onerror = () => reject(new Error('failed to load module'));
+      document.head.appendChild(s);
+    });
+  }
+
   // 更新组件列表显示
   function updateComponentList() {
     console.log('[updateComponentList] 开始执行，components.length =', components.length);
@@ -1739,6 +1775,28 @@
       // 默认折叠；若该组件之前处于展开状态，则保持展开
       detailsContainer.style.display = (typeof expandedComponentId !== 'undefined' && expandedComponentId === comp.id) ? 'block' : 'none';
       detailsContainer.style.marginTop = '10px';
+
+      // 预览容器（按需加载组件模块并渲染预览）
+      const previewContainer = document.createElement('div');
+      previewContainer.className = 'component-preview-container';
+      previewContainer.style.marginBottom = '8px';
+      detailsContainer.appendChild(previewContainer);
+
+      loadComponentModule(comp.type).then(mod => {
+        try {
+          if (mod && typeof mod.renderPreview === 'function') {
+            mod.renderPreview(comp, previewContainer);
+          } else {
+            previewContainer.textContent = '（暂无预览）';
+          }
+        } catch (e) {
+          console.error('renderPreview error', e);
+          previewContainer.textContent = '（预览渲染失败）';
+        }
+      }).catch((err) => {
+        // 静默失败，显示简单占位
+        previewContainer.textContent = '（预览不可用）';
+      });
       
       // 分割线组件的配置
       if (comp.type === 'divider') {

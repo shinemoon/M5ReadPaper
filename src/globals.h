@@ -50,6 +50,10 @@ extern uint8_t autospeed;
 // true = 已连接到WiFi AP，false = 未连接
 extern bool g_wifi_sta_connected;
 
+// WiFi HTTP 活动标志：当任一 HTTP/HTTPS 请求正在进行时为 true
+// 主循环在此期间跳过 SDMMC 后台索引，避免两路 DMA 并发冲突
+extern volatile bool g_wifi_http_active;
+
 // Wakeup cause from esp_sleep (global for access across modules)
 #include <esp_sleep.h>
 extern esp_sleep_wakeup_cause_t g_wake_cause;

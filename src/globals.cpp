@@ -16,5 +16,8 @@ int8_t fontLoadLoc = 1;
 // WiFi STA连接状态，默认未连接
 bool g_wifi_sta_connected = false;
 
+// HTTP 活动期间为 true，阻止主循环同时做 SDMMC DMA
+volatile bool g_wifi_http_active = false;
+
 // 默认唤醒周期（分钟）
 int refreshPeriod = 30;
