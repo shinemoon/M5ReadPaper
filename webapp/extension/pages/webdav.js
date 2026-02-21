@@ -1229,8 +1229,14 @@
     const minCol = selectedCell.col;
 
     const type = document.getElementById('componentType')?.value || 'text';
-    const width = parseInt(document.getElementById('componentWidth')?.value || 3);
-    const height = parseInt(document.getElementById('componentHeight')?.value || 2);
+    let width = parseInt(document.getElementById('componentWidth')?.value || 3);
+    let height = parseInt(document.getElementById('componentHeight')?.value || 2);
+
+    // 对于黄历类型：最小高度为3，宽度限定为9
+    if (type === 'huangli') {
+      height = Math.max(3, height || 3);
+      width = 9; // 强制宽度为9
+    }
 
     // 检查是否超出边界
     if (minCol + width > SCREEN_COLS) {
@@ -2087,7 +2093,12 @@
   function updateComponentWidth(id, width) {
     const comp = components.find(c => c.id === id);
     if (comp) {
-      comp.width = Math.max(1, Math.min(SCREEN_COLS, parseInt(width) || 3));
+      // 黄历宽度固定为9
+      if (comp.type === 'huangli') {
+        comp.width = 9;
+      } else {
+        comp.width = Math.max(1, Math.min(SCREEN_COLS, parseInt(width) || 3));
+      }
       updateScreenPreview();
       updateComponentList();
       updateBackgroundPreview();
@@ -2098,7 +2109,12 @@
   function updateComponentHeight(id, height) {
     const comp = components.find(c => c.id === id);
     if (comp) {
-      comp.height = Math.max(1, Math.min(SCREEN_ROWS, parseInt(height) || 2));
+      // 黄历高度最低为3
+      if (comp.type === 'huangli') {
+        comp.height = Math.max(3, Math.min(SCREEN_ROWS, parseInt(height) || 3));
+      } else {
+        comp.height = Math.max(1, Math.min(SCREEN_ROWS, parseInt(height) || 2));
+      }
       updateScreenPreview();
       updateComponentList();
       updateBackgroundPreview();
@@ -3599,6 +3615,34 @@
   }
   if (btnResetConfig) {
     btnResetConfig.addEventListener('click', resetConfig);
+  }
+
+  // 当选择组件类型为黄历时，UI 层面限制宽度/高度输入
+  const compTypeSel = document.getElementById('componentType');
+  const compWidthInput = document.getElementById('componentWidth');
+  const compHeightInput = document.getElementById('componentHeight');
+  function handleComponentTypeChange() {
+    if (!compTypeSel || !compWidthInput || !compHeightInput) return;
+    if (compTypeSel.value === 'huangli') {
+      compWidthInput.value = 9;
+      compWidthInput.disabled = true;
+      compWidthInput.min = 9;
+      compWidthInput.max = 9;
+      // 最低高度为3
+      compHeightInput.min = 3;
+      if (parseInt(compHeightInput.value || '0') < 3) compHeightInput.value = 3;
+    } else {
+      compWidthInput.disabled = false;
+      compWidthInput.min = 1;
+      compWidthInput.max = SCREEN_COLS;
+      compHeightInput.min = 1;
+      compHeightInput.max = SCREEN_ROWS;
+    }
+  }
+  if (compTypeSel) {
+    compTypeSel.addEventListener('change', handleComponentTypeChange);
+    // 初始化一次
+    handleComponentTypeChange();
   }
   const btnSaveWebDAVSettings = document.getElementById('btnSaveWebDAVSettings');
   if (btnSaveWebDAVSettings) {
