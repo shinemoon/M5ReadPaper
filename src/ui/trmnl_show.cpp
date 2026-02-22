@@ -34,6 +34,7 @@ extern GlobalConfig g_config;
 #include "ui/trmnlComponents/comp_list.h"
 #include "ui/trmnlComponents/comp_rss.h"
 #include "ui/trmnlComponents/comp_reading_status.h"
+#include "ui/trmnlComponents/comp_history_cache.h"
 
 // 前向声明（本文件保留的内部函数）
 static bool extract_rdt_timestamp(const String &content, String &out_timestamp);
@@ -911,6 +912,8 @@ bool trmnl_display(M5Canvas *canvas)
             {
                 file.print(rdt_content);
                 file.close();
+                // RDT 文件已更新，清空组件历史缓存
+                cache_clear_history();
 #if DBG_TRMNL_SHOW
                 Serial.printf("[TRMNL] RDT 已保存到 SD 卡: %s\n", rdt_sd_path);
 #endif

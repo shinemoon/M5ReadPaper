@@ -1,4 +1,5 @@
 #include "comp_day.h"
+#include "comp_history_cache.h"
 #include "readpaper.h"
 #include "globals.h"
 #include "text/bin_font_print.h"
@@ -208,27 +209,37 @@ void render_day_component(JsonObject component)
                   pos_x, pos_y, x, y, fontSize, textColor, a_w, a_h, alignStr);
 #endif
 
+    const char *comp_type = component["type"] | "day";
+    int comp_zindex = component["zIndex"] | 0;
+
     String day_content, day_origin;
-    if (!fetch_day_info(day_content, day_origin))
+    if (fetch_day_info(day_content, day_origin))
+    {
+        cache_save(comp_type, comp_zindex, day_content.c_str(), day_origin.c_str());
+    }
+    else
     {
 #if DBG_TRMNL_SHOW
-        Serial.println("[DAY] 获取日历信息失败，使用本地 RTC 回退显示日期");
+        Serial.println("[DAY] 获取日历信息失败，尝试读取历史缓存");
 #endif
-        struct tm timeinfo;
-        if (getLocalTime(&timeinfo))
+        if (!cache_load(comp_type, comp_zindex, day_content, day_origin))
         {
-            char buf[64];
-            const char *weekdays[] = {"星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"};
-            snprintf(buf, sizeof(buf), "%04d-%02d-%02d %s",
-                     timeinfo.tm_year + 1900, timeinfo.tm_mon + 1,
-                     timeinfo.tm_mday, weekdays[timeinfo.tm_wday]);
-            day_content = String(buf);
+            struct tm timeinfo;
+            if (getLocalTime(&timeinfo))
+            {
+                char buf[64];
+                const char *weekdays[] = {"星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"};
+                snprintf(buf, sizeof(buf), "%04d-%02d-%02d %s",
+                         timeinfo.tm_year + 1900, timeinfo.tm_mon + 1,
+                         timeinfo.tm_mday, weekdays[timeinfo.tm_wday]);
+                day_content = String(buf);
+            }
+            else
+            {
+                day_content = "日期信息不可用";
+            }
+            day_origin = "";
         }
-        else
-        {
-            day_content = "日期信息不可用";
-        }
-        day_origin = "";
     }
 
     // 分割为行数组

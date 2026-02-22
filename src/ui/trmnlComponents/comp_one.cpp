@@ -1,4 +1,5 @@
 #include "comp_one.h"
+#include "comp_history_cache.h"
 #include "readpaper.h"
 #include "globals.h"
 #include "text/bin_font_print.h"
@@ -185,14 +186,24 @@ void render_one_component(JsonObject component)
     a_w = (int)(cell_w * CELL_WIDTH) - 40;
     a_h = (int)(cell_h * CELL_HEIGHT);
 
+    const char *comp_type = component["type"] | "one";
+    int comp_zindex = component["zIndex"] | 0;
+
     String one_content, one_origin;
-    if (!fetch_one_sentence(one_content, one_origin))
+    if (fetch_one_sentence(one_content, one_origin))
+    {
+        cache_save(comp_type, comp_zindex, one_content.c_str(), one_origin.c_str());
+    }
+    else
     {
 #if DBG_TRMNL_SHOW
-        Serial.println("[ONE] 获取ONE一言失败，使用默认文本");
+        Serial.println("[ONE] 获取ONE一言失败，尝试读取历史缓存");
 #endif
-        one_content = "日日行，不怕千万人，怕自己不强。";
-        one_origin = "生活·佚名·佚名";
+        if (!cache_load(comp_type, comp_zindex, one_content, one_origin))
+        {
+            one_content = "日日行，不怕千万人，怕自己不强。";
+            one_origin = "生活·佚名·佚名";
+        }
     }
 
     // 去除内容中的空行

@@ -1,4 +1,5 @@
 #include "comp_rss.h"
+#include "comp_history_cache.h"
 #include "comp_list.h"
 #include "readpaper.h"
 #include "globals.h"
@@ -236,11 +237,15 @@ void render_rss_component(JsonObject component)
     int max_lines = a_h / line_height;
     if (max_lines <= 0) max_lines = 1;
 
+    const char *comp_type = component["type"] | "rss";
+    int comp_zindex = component["zIndex"] | 0;
+
     String rss_titles = "";
     bool success = fetch_rss_feed(String(url), rss_titles, max_lines);
 
     if (success && rss_titles.length() > 0)
     {
+        cache_save(comp_type, comp_zindex, rss_titles.c_str());
 #if DBG_TRMNL_SHOW
         Serial.printf("[RSS] RSS获取成功，标题列表: %s\n", rss_titles.c_str());
 #endif
@@ -250,10 +255,18 @@ void render_rss_component(JsonObject component)
     else
     {
 #if DBG_TRMNL_SHOW
-        Serial.println("[RSS] RSS获取失败或内容为空");
+        Serial.println("[RSS] RSS获取失败或内容为空，尝试读取历史缓存");
 #endif
-        bin_font_print("RSS加载失败", fontSize, textColor,
-                       a_w, x, y, false, g_canvas,
-                       TEXT_ALIGN_LEFT, a_w, false);
+        if (cache_load(comp_type, comp_zindex, rss_titles) && rss_titles.length() > 0)
+        {
+            render_list_items(rss_titles.c_str(), x, y, a_w, a_h,
+                              (uint8_t)fontSize, (uint8_t)textColor, (int16_t)margin);
+        }
+        else
+        {
+            bin_font_print("RSS加载失败", fontSize, textColor,
+                           a_w, x, y, false, g_canvas,
+                           TEXT_ALIGN_LEFT, a_w, false);
+        }
     }
 }

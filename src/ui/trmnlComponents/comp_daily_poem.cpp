@@ -1,4 +1,5 @@
 #include "comp_daily_poem.h"
+#include "comp_history_cache.h"
 #include "readpaper.h"
 #include "globals.h"
 #include "text/bin_font_print.h"
@@ -150,14 +151,24 @@ void render_daily_poem_component(JsonObject component)
     a_w = (int)(cell_w * CELL_WIDTH) - 40;
     a_h = (int)(cell_h * CELL_HEIGHT);
 
+    const char *comp_type = component["type"] | "daily_poem";
+    int comp_zindex = component["zIndex"] | 0;
+
     String poem_content, poem_origin;
-    if (!fetch_daily_poem(poem_content, poem_origin))
+    if (fetch_daily_poem(poem_content, poem_origin))
+    {
+        cache_save(comp_type, comp_zindex, poem_content.c_str(), poem_origin.c_str());
+    }
+    else
     {
 #if DBG_TRMNL_SHOW
-        Serial.println("[POEM] 获取今日诗词失败，使用默认诗词");
+        Serial.println("[POEM] 获取今日诗词失败，尝试读取历史缓存");
 #endif
-        poem_content = "扣舷独啸，不知今夕何夕。";
-        poem_origin = "过洞庭·宋·张孝祥";
+        if (!cache_load(comp_type, comp_zindex, poem_content, poem_origin))
+        {
+            poem_content = "扣舷独啸，不知今夕何夕。";
+            poem_origin = "过洞庭·宋·张孝祥";
+        }
     }
 
 #if DBG_TRMNL_SHOW

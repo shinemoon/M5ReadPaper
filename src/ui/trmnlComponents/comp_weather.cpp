@@ -1,4 +1,5 @@
 #include "comp_weather.h"
+#include "comp_history_cache.h"
 #include "readpaper.h"
 #include "globals.h"
 #include "text/bin_font_print.h"
@@ -197,9 +198,22 @@ void render_weather_component(JsonObject component)
     a_w = (int)(cell_w * CELL_WIDTH) - 40;
     a_h = (int)(cell_h * CELL_HEIGHT);
 
+    const char *comp_type = component["type"] | "weather";
+    int comp_zindex = component["zIndex"] | 0;
+
     String today_info, tomorrow_info;
-    if (!fetch_weather(citycode, apiKey, today_info, tomorrow_info))
-        return;
+    if (fetch_weather(citycode, apiKey, today_info, tomorrow_info))
+    {
+        cache_save(comp_type, comp_zindex, today_info.c_str(), tomorrow_info.c_str());
+    }
+    else
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[WEATHER] 获取天气失败，尝试读取历史缓存");
+#endif
+        if (!cache_load(comp_type, comp_zindex, today_info, tomorrow_info))
+            return;
+    }
 
     int lines_used = display_print_wrapped(
         today_info.c_str(), x, y, a_w, a_h,

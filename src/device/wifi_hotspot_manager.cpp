@@ -22,6 +22,7 @@
 #include <esp_http_client.h>
 #include <esp_crt_bundle.h>
 #include <mbedtls/base64.h>
+#include "ui/trmnlComponents/comp_history_cache.h"
 
 extern GlobalConfig g_config;
 
@@ -2791,6 +2792,10 @@ void WiFiHotspotManager::handleUpdateDisplayCommit() {
     if (!SDW::SD.rename(upload_path, final_path)) {
         webServer->send(500, "application/json", "{\"ok\":false,\"message\":\"Rename failed\"}");
         return;
+    }
+    // RDT 文件已更新，清空历史缓存以与新布局保持同步
+    if (type == "rdt") {
+        cache_clear_history();
     }
 
 #if DBG_WIFI_HOTSPOT

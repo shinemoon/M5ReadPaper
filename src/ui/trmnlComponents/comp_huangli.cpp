@@ -1,4 +1,5 @@
 ﻿#include "comp_huangli.h"
+#include "comp_history_cache.h"
 #include "webParser.h"
 #include "readpaper.h"
 #include "device/ui_display.h"
@@ -67,15 +68,25 @@ void render_huangli_component(JsonObject component)
     a_w = (int)(cell_w * CELL_WIDTH) - 60;
     a_h = (int)(cell_h * CELL_HEIGHT);
 
+    const char *comp_type = component["type"] | "huangli";
+    int comp_zindex = component["zIndex"] | 0;
+
     String JiStr;
     String XiongStr;
-    if (!fetch_huangli_title(JiStr, XiongStr))
+    if (fetch_huangli_title(JiStr, XiongStr))
+    {
+        cache_save(comp_type, comp_zindex, JiStr.c_str(), XiongStr.c_str());
+    }
+    else
     {
 #if DBG_TRMNL_SHOW
-        Serial.println("[HUANGLI] 获取黄历标题失败，使用默认文本");
+        Serial.println("[HUANGLI] 获取黄历标题失败，尝试读取历史缓存");
 #endif
-        JiStr = "吉不可测";
-        XiongStr = "凶未可知";
+        if (!cache_load(comp_type, comp_zindex, JiStr, XiongStr))
+        {
+            JiStr = "吉不可测";
+            XiongStr = "凶未可知";
+        }
     }
 
 #if DBG_TRMNL_SHOW
