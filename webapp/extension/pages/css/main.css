@@ -193,6 +193,18 @@
   font-weight: 500;
 }
 
+.component-preview-container canvas {
+  border: 1px solid #e6e6e6;
+  display: block;
+}
+
+.component-blockcolor-input,
+.component-opacity-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+}
+
 :root {
   --color-primary: #f04f0f;
   /* brand color */

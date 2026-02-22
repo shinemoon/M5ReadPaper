@@ -1115,6 +1115,13 @@
             ctx.stroke();
           }
         }
+        // 方块预览：在指定区域按灰度与透明度填充
+        else if (comp.type === 'block') {
+          const blockGray = (comp.blockColor || 0) * 17;
+          const opacity = (comp.opacity !== undefined) ? comp.opacity : 0.5;
+          ctx.fillStyle = `rgba(${blockGray}, ${blockGray}, ${blockGray}, ${opacity})`;
+          ctx.fillRect(-w/2, -h/2, w, h);
+        }
         // 预渲染文本内容背景色
         else if (comp.text && comp.type === 'text') {
           if (comp.bgColor !== 'transparent' && comp.bgColor !== undefined) {
@@ -1269,10 +1276,13 @@
       lineColor: type === 'divider' ? 0 : undefined,  // 分割线颜色（0-15灰度）
       lineStyle: type === 'divider' ? 'solid' : undefined,  // 分割线样式
       lineWidth: type === 'divider' ? 2 : undefined,  // 分割线粗细（像素）
+      // 方块组件特有配置：颜色与透明度（0-1）
+      blockColor: type === 'block' ? 0 : undefined, // 16级灰度
+      opacity: type === 'block' ? 0.5 : undefined, // 透明度（0-1）
       margin: (type === 'list' || type === 'rss') ? 10 : undefined,  // 列表和RSS行间距（像素）
       citycode: type === 'weather' ? '110000' : undefined,  // 天气组件城市代码（默认北京）
       apiKey: type === 'weather' ? '' : undefined,  // 天气组件高德API Key
-      dynamic: type !== 'text' && type !== 'divider'  // text和divider默认为false（预渲染），其他类型为true（设备动态渲染）
+      dynamic: type !== 'text' && type !== 'divider' && type !== 'block'  // text/divider/block 为预渲染
     };
 
     // 将新组件添加到数组开头，确保最新组件排在最前面
@@ -1316,6 +1326,8 @@
         return 'RSS订阅';
       case 'divider':
         return '分割线';
+      case 'block':
+        return '方块';
       case 'image':
         return '图片';
       case 'video':
@@ -1651,7 +1663,7 @@
       const bgColorSelect = document.createElement('select');
       bgColorSelect.dataset.componentId = comp.id;
       bgColorSelect.className = 'component-bgcolor-input';
-      
+
       // 透明选项
       const transparentOption = document.createElement('option');
       transparentOption.value = 'transparent';
@@ -1699,81 +1711,134 @@
       rotField.appendChild(rotInput);
       
       // 分割线特有配置：线条颜色（0-15灰度）
-      const lineColorField = document.createElement('div');
-      lineColorField.className = 'field';
-      
-      const lineColorLabel = document.createElement('label');
-      lineColorLabel.textContent = '线条颜色（16级灰度）';
-      
-      const lineColorSelect = document.createElement('select');
-      lineColorSelect.dataset.componentId = comp.id;
-      lineColorSelect.className = 'component-linecolor-input';
-      
-      for (let i = 0; i <= 15; i++) {
-        const option = document.createElement('option');
-        option.value = i;
-        const grayValue = i * 17;
-        const grayHex = grayValue.toString(16).padStart(2, '0');
-        option.textContent = `级别 ${i} (#${grayHex}${grayHex}${grayHex})`;
-        option.style.backgroundColor = `rgb(${grayValue}, ${grayValue}, ${grayValue})`;
-        option.style.color = i < 8 ? '#ffffff' : '#000000';
-        if (i === (comp.lineColor || 0)) {
-          option.selected = true;
+      // 分割线/方块 特有配置 - 先声明变量以便后续条件中 append 可见
+      let lineColorField, lineStyleField, lineWidthField, blockColorField, opacityField;
+      // 分割线特有配置：线条颜色（0-15灰度）
+      if (comp.type === 'divider') {
+        lineColorField = document.createElement('div');
+        lineColorField.className = 'field';
+        
+        const lineColorLabel = document.createElement('label');
+        lineColorLabel.textContent = '线条颜色（16级灰度）';
+        
+        const lineColorSelect = document.createElement('select');
+        lineColorSelect.dataset.componentId = comp.id;
+        lineColorSelect.className = 'component-linecolor-input';
+        
+        for (let i = 0; i <= 15; i++) {
+          const option = document.createElement('option');
+          option.value = i;
+          const grayValue = i * 17;
+          const grayHex = grayValue.toString(16).padStart(2, '0');
+          option.textContent = `级别 ${i} (#${grayHex}${grayHex}${grayHex})`;
+          option.style.backgroundColor = `rgb(${grayValue}, ${grayValue}, ${grayValue})`;
+          option.style.color = i < 8 ? '#ffffff' : '#000000';
+          if (i === (comp.lineColor || 0)) {
+            option.selected = true;
+          }
+          lineColorSelect.appendChild(option);
         }
-        lineColorSelect.appendChild(option);
+        
+        lineColorField.appendChild(lineColorLabel);
+        lineColorField.appendChild(lineColorSelect);
+        
+        // 分割线样式
+        lineStyleField = document.createElement('div');
+        lineStyleField.className = 'field';
+        
+        const lineStyleLabel = document.createElement('label');
+        lineStyleLabel.textContent = '线条样式';
+        
+        const lineStyleSelect = document.createElement('select');
+        lineStyleSelect.dataset.componentId = comp.id;
+        lineStyleSelect.className = 'component-linestyle-input';
+        
+        const lineStyles = [
+          { value: 'solid', label: '实线' },
+          { value: 'dashed', label: '虚线' },
+          { value: 'dotted', label: '点线' },
+          { value: 'double', label: '双线' }
+        ];
+        
+        lineStyles.forEach(style => {
+          const option = document.createElement('option');
+          option.value = style.value;
+          option.textContent = style.label;
+          if (style.value === (comp.lineStyle || 'solid')) {
+            option.selected = true;
+          }
+          lineStyleSelect.appendChild(option);
+        });
+        
+        lineStyleField.appendChild(lineStyleLabel);
+        lineStyleField.appendChild(lineStyleSelect);
+        
+        // 分割线粗细
+        lineWidthField = document.createElement('div');
+        lineWidthField.className = 'field';
+        
+        const lineWidthLabel = document.createElement('label');
+        lineWidthLabel.textContent = '线条粗细（像素）';
+        
+        const lineWidthInput = document.createElement('input');
+        lineWidthInput.type = 'number';
+        lineWidthInput.min = 1;
+        lineWidthInput.max = 20;
+        lineWidthInput.value = comp.lineWidth || 2;
+        lineWidthInput.dataset.componentId = comp.id;
+        lineWidthInput.className = 'component-linewidth-input';
+        
+        lineWidthField.appendChild(lineWidthLabel);
+        lineWidthField.appendChild(lineWidthInput);
+      } else if (comp.type === 'block') {
+        // 方块颜色选择
+        blockColorField = document.createElement('div');
+        blockColorField.className = 'field';
+
+        const blockColorLabel = document.createElement('label');
+        blockColorLabel.textContent = '方块颜色（16级灰度）';
+
+        const blockColorSelect = document.createElement('select');
+        blockColorSelect.dataset.componentId = comp.id;
+        blockColorSelect.className = 'component-blockcolor-input';
+
+        for (let i = 0; i <= 15; i++) {
+          const option = document.createElement('option');
+          option.value = i;
+          const grayValue = i * 17;
+          const grayHex = grayValue.toString(16).padStart(2, '0');
+          option.textContent = `级别 ${i} (#${grayHex}${grayHex}${grayHex})`;
+          option.style.backgroundColor = `rgb(${grayValue}, ${grayValue}, ${grayValue})`;
+          option.style.color = i < 8 ? '#ffffff' : '#000000';
+          if (i === (comp.blockColor || 0)) {
+            option.selected = true;
+          }
+          blockColorSelect.appendChild(option);
+        }
+
+        blockColorField.appendChild(blockColorLabel);
+        blockColorField.appendChild(blockColorSelect);
+
+        // 透明度（百分比输入）
+        opacityField = document.createElement('div');
+        opacityField.className = 'field';
+
+        const opacityLabel = document.createElement('label');
+        opacityLabel.textContent = '透明度（0-100%）';
+
+        const opacityInput = document.createElement('input');
+        opacityInput.type = 'number';
+        opacityInput.min = 0;
+        opacityInput.max = 100;
+        // UI 表示为“透明度百分比”（0% = 不透明, 100% = 全透明），但内部存储为 alpha（0-1，0=透明，1=不透明）
+        const defaultAlpha = (comp.opacity !== undefined ? comp.opacity : 0.5);
+        opacityInput.value = Math.round((1 - defaultAlpha) * 100);
+        opacityInput.dataset.componentId = comp.id;
+        opacityInput.className = 'component-opacity-input';
+
+        opacityField.appendChild(opacityLabel);
+        opacityField.appendChild(opacityInput);
       }
-      
-      lineColorField.appendChild(lineColorLabel);
-      lineColorField.appendChild(lineColorSelect);
-      
-      // 分割线样式
-      const lineStyleField = document.createElement('div');
-      lineStyleField.className = 'field';
-      
-      const lineStyleLabel = document.createElement('label');
-      lineStyleLabel.textContent = '线条样式';
-      
-      const lineStyleSelect = document.createElement('select');
-      lineStyleSelect.dataset.componentId = comp.id;
-      lineStyleSelect.className = 'component-linestyle-input';
-      
-      const lineStyles = [
-        { value: 'solid', label: '实线' },
-        { value: 'dashed', label: '虚线' },
-        { value: 'dotted', label: '点线' },
-        { value: 'double', label: '双线' }
-      ];
-      
-      lineStyles.forEach(style => {
-        const option = document.createElement('option');
-        option.value = style.value;
-        option.textContent = style.label;
-        if (style.value === (comp.lineStyle || 'solid')) {
-          option.selected = true;
-        }
-        lineStyleSelect.appendChild(option);
-      });
-      
-      lineStyleField.appendChild(lineStyleLabel);
-      lineStyleField.appendChild(lineStyleSelect);
-      
-      // 分割线粗细
-      const lineWidthField = document.createElement('div');
-      lineWidthField.className = 'field';
-      
-      const lineWidthLabel = document.createElement('label');
-      lineWidthLabel.textContent = '线条粗细（像素）';
-      
-      const lineWidthInput = document.createElement('input');
-      lineWidthInput.type = 'number';
-      lineWidthInput.min = 1;
-      lineWidthInput.max = 20;
-      lineWidthInput.value = comp.lineWidth || 2;
-      lineWidthInput.dataset.componentId = comp.id;
-      lineWidthInput.className = 'component-linewidth-input';
-      
-      lineWidthField.appendChild(lineWidthLabel);
-      lineWidthField.appendChild(lineWidthInput);
       
       // 创建详情容器（默认折叠）
       const detailsContainer = document.createElement('div');
@@ -1814,6 +1879,16 @@
         detailsContainer.appendChild(lineWidthField);
         detailsContainer.appendChild(rotField);
       }
+        // 方块组件配置
+        else if (comp.type === 'block') {
+          detailsContainer.appendChild(posField);
+          detailsContainer.appendChild(widthHeightField);
+          detailsContainer.appendChild(offsetField);
+          // block 特有：颜色与透明度
+          detailsContainer.appendChild(blockColorField);
+          detailsContainer.appendChild(opacityField);
+          detailsContainer.appendChild(rotField);
+        }
       // 列表组件的配置
       else if (comp.type === 'list') {
         // 创建行间距字段
@@ -2080,6 +2155,30 @@
       updateBackgroundPreview();
     }
   }
+
+  // 更新方块颜色（16级灰度）
+  function updateComponentBlockColor(id, color) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      comp.blockColor = parseInt(color);
+      updateBackgroundPreview();
+    }
+  }
+
+  // 更新方块透明度（接受百分比或小数）
+  function updateComponentOpacity(id, value) {
+    const comp = components.find(c => c.id === id);
+    if (comp) {
+      let v = parseFloat(value);
+      if (isNaN(v)) return;
+      // 输入表示为“透明度”（0-100% 或 0-1），其中 0 = 不透明, 1/100 = 透明度 1%
+      let transparency = (v > 1) ? (v / 100) : v; // 0..1 表示透明度
+      // 内部存储为 alpha（0..1），alpha = 1 - transparency
+      const alpha = 1 - transparency;
+      comp.opacity = Math.max(0, Math.min(1, alpha));
+      updateBackgroundPreview();
+    }
+  }
   
   // 更新组件对齐方式
   function updateComponentAlign(id, value) {
@@ -2314,6 +2413,22 @@
               
               ctx.restore();
             }
+            // 绘制方块
+            else if (comp.type === 'block') {
+              const cx = x + w / 2;
+              const cy = y + h / 2;
+              const angle = (comp.rotation || 0) * Math.PI / 180;
+              ctx.save();
+              ctx.translate(cx, cy);
+              ctx.rotate(angle);
+
+              const blockGray = (comp.blockColor || 0) * 17;
+              const opacity = (comp.opacity !== undefined) ? comp.opacity : 0.5;
+              ctx.fillStyle = `rgba(${blockGray}, ${blockGray}, ${blockGray}, ${opacity})`;
+              ctx.fillRect(-w/2, -h/2, w, h);
+
+              ctx.restore();
+            }
             // 绘制文本（支持旋转）
             else if (comp.text && comp.type === 'text') {
               const cx = x + w / 2;
@@ -2429,6 +2544,9 @@
           lineColor: comp.lineColor !== undefined ? comp.lineColor : 0,  // 分割线颜色
           lineStyle: comp.lineStyle || 'solid',  // 分割线样式
           lineWidth: comp.lineWidth || 2,  // 分割线粗细
+          // 方块组件特有字段
+          blockColor: comp.blockColor !== undefined ? comp.blockColor : undefined,
+          opacity: comp.opacity !== undefined ? comp.opacity : undefined,
           margin: comp.margin !== undefined ? comp.margin : ((comp.type === 'list' || comp.type === 'rss') ? 10 : undefined),  // 列表和RSS行间距
           // 天气组件特有字段
           ...(comp.type === 'weather' ? { 
@@ -2548,6 +2666,9 @@
           lineColor: comp.config?.lineColor !== undefined ? comp.config.lineColor : 0,
           lineStyle: comp.config?.lineStyle || 'solid',
           lineWidth: comp.config?.lineWidth || 2,
+          // 方块组件特有字段
+          blockColor: comp.config?.blockColor !== undefined ? comp.config.blockColor : undefined,
+          opacity: comp.config?.opacity !== undefined ? comp.config.opacity : undefined,
           margin: comp.config?.margin !== undefined ? comp.config.margin : ((comp.type === 'list' || comp.type === 'rss') ? 10 : undefined),
           // 天气组件特有字段
           citycode: comp.type === 'weather' ? (comp.config?.citycode || '110000') : undefined,
@@ -3674,11 +3795,11 @@
           updateComponentText(id, e.target.value);
         }
       }
-      // 处理字体大小输入变化
-      if (e.target.tagName === 'INPUT' && e.target.type === 'number' && e.target.classList.contains('component-fontsize-input')) {
+      // 处理方块透明度变化（百分比输入）
+      if (e.target.tagName === 'INPUT' && e.target.type === 'number' && e.target.classList.contains('component-opacity-input')) {
         const id = parseInt(e.target.dataset.componentId);
         if (id && !isNaN(id)) {
-          updateComponentFontSize(id, e.target.value);
+          updateComponentOpacity(id, e.target.value);
         }
       }
       // 处理旋转角度输入变化

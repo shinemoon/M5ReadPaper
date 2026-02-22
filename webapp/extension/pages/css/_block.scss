@@ -1,0 +1,12 @@
+// Styles for Block component controls and preview
+.component-preview-container canvas {
+  border: 1px solid #e6e6e6;
+  display: block;
+}
+
+.component-blockcolor-input,
+.component-opacity-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+}
