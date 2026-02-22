@@ -8,6 +8,8 @@
 #include "test/per_file_debug.h"
 #include "SD/SDWrapper.h"
 #include <string>
+#include <vector>
+#include <algorithm>
 #include <esp_http_client.h>
 #include <esp_crt_bundle.h>
 #include <mbedtls/base64.h>
@@ -598,7 +600,19 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
         Serial.printf("[TRMNL] 组件数量: %d\n", components.size());
 #endif
 
-        for (JsonObject component : components)
+        // 按 zIndex 升序排列组件（低 zIndex 先渲染，位于底层）；老格式无 zIndex 则保持数组顺序
+        std::vector<JsonObject> compList;
+        compList.reserve(components.size());
+        for (JsonObject c : components) compList.push_back(c);
+        bool hasZIndex = false;
+        for (auto &c : compList) { if ((c["zIndex"] | 0) > 0) { hasZIndex = true; break; } }
+        if (hasZIndex)
+        {
+            std::sort(compList.begin(), compList.end(), [](const JsonObject &a, const JsonObject &b)
+                      { return (a["zIndex"] | 9999) < (b["zIndex"] | 9999); });
+        }
+
+        for (JsonObject component : compList)
         {
             // 获取 dynamic 标志
             bool is_dynamic = component["dynamic"] | true;

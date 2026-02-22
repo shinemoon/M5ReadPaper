@@ -1038,7 +1038,8 @@
 
       // 第一遍：绘制所有“预渲染”背景组件（位于底层）
       const isBackgroundType = (t) => (t === 'block' || (t === 'text' && typeof t !== 'undefined') || t === 'divider');
-      components.forEach((comp) => {
+      const sortedByZAsc = [...components].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+      sortedByZAsc.forEach((comp) => {
         const x = comp.col * cellWidth + (comp.xOffset || 0) * offsetScaleX;
         const y = comp.row * cellHeight + (comp.yOffset || 0) * offsetScaleY;
         const w = comp.width * cellWidth;
@@ -1159,12 +1160,11 @@
         // 对于动态文本等，绘制标签
         if (comp.type === 'dynamic_text' || comp.type === 'huangli' || comp.type === 'daily_poem' || comp.type === 'one' || comp.type === 'day' || comp.type === 'list' || comp.type === 'rss' || comp.type === 'reading_status' || comp.type === 'weather') {
           const typeLabel = getComponentTypeLabel(comp.type);
-          const addIndexPreview = idToIndexPreview.get(comp.id) || (idx + 1);
           ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
           ctx.font = '14px Arial, sans-serif';
           ctx.textAlign = 'left';
           ctx.textBaseline = 'top';
-          ctx.fillText(`组件${addIndexPreview}-${typeLabel}`, x + 4, y + 4);
+          ctx.fillText(`组件${comp.zIndex || (idx+1)}-${typeLabel}`, x + 4, y + 4);
         }
       });
     };
@@ -1267,6 +1267,7 @@
 
     const component = {
       id: Date.now(),
+      zIndex: (components.length > 0 ? Math.max(...components.map(c => c.zIndex || 0)) : 0) + 1,
       type: type,
       row: minRow,
       col: minCol,
@@ -1409,13 +1410,8 @@
 
     console.log('[updateComponentList] 开始渲染', components.length, '个组件');
 
-    // 计算每个组件的添加序号（按 id 升序），以保持 UI 编号按添加顺序显示
-    const byIdAsc = [...components].sort((a, b) => a.id - b.id);
-    const idToIndex = new Map();
-    byIdAsc.forEach((c, i) => idToIndex.set(c.id, i + 1));
-
-    // 按组件ID从大到小排序，用于展示（最新的在前）
-    const sortedComponents = [...components].sort((a, b) => b.id - a.id);
+    // 按 zIndex 从大到小排序展示（zIndex 最高的在最前，代表视觉上最顶层）
+    const sortedComponents = [...components].sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0));
 
     sortedComponents.forEach((comp, idx) => {
       const item = document.createElement('div');
@@ -1436,9 +1432,7 @@
       
       const title = document.createElement('strong');
       const typeLabel = getComponentTypeLabel(comp.type);
-      // 使用添加序号（按创建时间升序分配），使组件标题反映添加顺序
-      const addIndex = idToIndex.get(comp.id) || (idx + 1);
-      title.textContent = `组件 ${addIndex} - ${typeLabel}`;
+      title.textContent = `组件 ${comp.zIndex || (idx + 1)} - ${typeLabel}`;
       
       const info = document.createElement('span');
       info.className = 'muted';
@@ -2367,8 +2361,9 @@
           const cellWidth = canvas.width / SCREEN_COLS; // 540 / 9 = 60
           const cellHeight = canvas.height / SCREEN_ROWS; // 960 / 16 = 60
 
-          // 绘制组件（只渲染 dynamic = false 的组件）
-          components.forEach((comp) => {
+          // 绘制组件（只渲染 dynamic = false 的组件），按 zIndex 升序绘制（低 zIndex 先画，高 zIndex 在顶层）
+          const sortedForRender = [...components].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+          sortedForRender.forEach((comp) => {
             // 跳过需要设备动态渲染的组件
             if (comp.dynamic) {
               return;
@@ -2532,6 +2527,7 @@
       },
       components: components.map(comp => ({
         type: comp.type,
+        zIndex: comp.zIndex || 1,
         position: {
           x: comp.col,
           y: comp.row
@@ -2658,6 +2654,7 @@
         
         const newComp = {
           id: baseId + idx * 1000,
+          zIndex: comp.zIndex != null ? comp.zIndex : (idx + 1),
           type: comp.type || 'text',
           row: comp.position?.y ?? 0,
           col: comp.position?.x ?? 0,
