@@ -16,7 +16,7 @@
 #include "device/powermgt.h"
 // for screenshot
 #include "ui/screenshot.h"
-#define DEBUGWEBDAV 0
+#define DEBUGWEBDAV 1
 
 extern M5Canvas *g_canvas;
 extern float font_size;

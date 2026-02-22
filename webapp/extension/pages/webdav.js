@@ -1028,7 +1028,6 @@
       // 计算单元格尺寸（预览画布）
       const cellWidth = canvas.width / SCREEN_COLS;
       const cellHeight = canvas.height / SCREEN_ROWS;
-      
       // 计算偏移量的缩放比例（设备实际是540x960，预览画布可能不同）
       const offsetScaleX = canvas.width / 540;
       const offsetScaleY = canvas.height / 960;
@@ -1036,41 +1035,17 @@
       const byIdAscPreview = [...components].sort((a, b) => a.id - b.id);
       const idToIndexPreview = new Map();
       byIdAscPreview.forEach((c, i) => idToIndexPreview.set(c.id, i + 1));
-      
-      components.forEach((comp, idx) => {
+
+      // 第一遍：绘制所有“预渲染”背景组件（位于底层）
+      const isBackgroundType = (t) => (t === 'block' || (t === 'text' && typeof t !== 'undefined') || t === 'divider');
+      components.forEach((comp) => {
         const x = comp.col * cellWidth + (comp.xOffset || 0) * offsetScaleX;
         const y = comp.row * cellHeight + (comp.yOffset || 0) * offsetScaleY;
         const w = comp.width * cellWidth;
         const h = comp.height * cellHeight;
-        
-        // 对于动态文本（dynamic_text, daily_poem, list, rss, reading_status, weather），绘制半透明高亮+标签，不渲染真实文本
-          if (comp.type === 'dynamic_text' || comp.type === 'huangli' || comp.type === 'daily_poem' || comp.type === 'one' || comp.type === 'day' || comp.type === 'list' || comp.type === 'rss' || comp.type === 'reading_status' || comp.type === 'weather') {
-          // 半透明高亮（今日诗词用蓝色，列表用绿色，RSS用橙色，天气用天蓝色，普通文本用黄色）
-          if (comp.type === 'daily_poem' || comp.type === 'one' || comp.type === 'day') {
-            ctx.fillStyle = 'rgba(100, 149, 237, 0.3)';  // 蓝色
-          } else if (comp.type === 'list') {
-            ctx.fillStyle = 'rgba(76, 175, 80, 0.3)';  // 绿色
-          } else if (comp.type === 'rss') {
-            ctx.fillStyle = 'rgba(255, 152, 0, 0.3)';  // 橙色
-          } else if (comp.type === 'weather') {
-            ctx.fillStyle = 'rgba(33, 150, 243, 0.3)';  // 天蓝色
-          } else {
-            ctx.fillStyle = 'rgba(251, 192, 45, 0.3)';  // 黄色
-          }
-          ctx.fillRect(x, y, w, h);
-          
-          // 在左上角显示标签（使用添加序号，与组件列表一致）
-          const typeLabel = getComponentTypeLabel(comp.type);
-          const addIndexPreview = idToIndexPreview.get(comp.id) || (idx + 1);
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-          ctx.font = '14px Arial, sans-serif';
-          ctx.textAlign = 'left';
-          ctx.textBaseline = 'top';
-          ctx.fillText(`组件${addIndexPreview}-${typeLabel}`, x + 4, y + 4);
-          return;  // 跳过后续的旋转渲染
-        }
-        
-        // 绘制分割线或预渲染文本组件（支持旋转）
+
+        if (!isBackgroundType(comp.type)) return;
+
         const cx = x + w / 2;
         const cy = y + h / 2;
         const angle = (comp.rotation || 0) * Math.PI / 180;
@@ -1078,51 +1053,48 @@
         ctx.translate(cx, cy);
         ctx.rotate(angle);
 
-        // 分割线预览
+        // 分割线作为背景元素
         if (comp.type === 'divider') {
           const lineGray = (comp.lineColor || 0) * 17;
           ctx.strokeStyle = `rgb(${lineGray}, ${lineGray}, ${lineGray})`;
-          ctx.lineWidth = 2 * (canvas.width / 540);  // 按比例缩放线宽
-          
-          // 设置线条样式
+          ctx.lineWidth = 2 * (canvas.width / 540);
           const lineStyle = comp.lineStyle || 'solid';
           const dashScale = canvas.width / 540;
-          if (lineStyle === 'dashed') {
-            ctx.setLineDash([10 * dashScale, 5 * dashScale]);
-          } else if (lineStyle === 'dotted') {
-            ctx.setLineDash([2 * dashScale, 3 * dashScale]);
-          } else if (lineStyle === 'double') {
-            ctx.setLineDash([]);
+          if (lineStyle === 'dashed') ctx.setLineDash([10 * dashScale, 5 * dashScale]);
+          else if (lineStyle === 'dotted') ctx.setLineDash([2 * dashScale, 3 * dashScale]);
+          else ctx.setLineDash([]);
+
+          if (lineStyle === 'double') {
             const offset = 2 * dashScale;
-            // 绘制双线
-            ctx.beginPath();
-            ctx.moveTo(-w/2, -offset);
-            ctx.lineTo(w/2, -offset);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(-w/2, offset);
-            ctx.lineTo(w/2, offset);
-            ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(-w/2, -offset); ctx.lineTo(w/2, -offset); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(-w/2, offset); ctx.lineTo(w/2, offset); ctx.stroke();
           } else {
-            ctx.setLineDash([]);
-          }
-          
-          // 绘制单线（非double样式）
-          if (lineStyle !== 'double') {
-            ctx.beginPath();
-            ctx.moveTo(-w/2, 0);
-            ctx.lineTo(w/2, 0);
-            ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(-w/2, 0); ctx.lineTo(w/2, 0); ctx.stroke();
           }
         }
-        // 方块预览：在指定区域按灰度与透明度填充
+
+        // 方块背景
         else if (comp.type === 'block') {
-          const blockGray = (comp.blockColor || 0) * 17;
-          const opacity = (comp.opacity !== undefined) ? comp.opacity : 0.5;
-          ctx.fillStyle = `rgba(${blockGray}, ${blockGray}, ${blockGray}, ${opacity})`;
+          // 兼容多种来源的值，保证 blockColor 为 0..15 的整数，opacity 为 0..1 的浮点数
+          let blockIdx = comp.blockColor;
+          if (blockIdx === undefined && comp.config && comp.config.blockColor !== undefined) blockIdx = comp.config.blockColor;
+          blockIdx = parseInt(blockIdx);
+          if (isNaN(blockIdx)) blockIdx = 0;
+          blockIdx = Math.max(0, Math.min(15, blockIdx));
+          const blockGray = blockIdx * 17;
+
+          let alpha = comp.opacity;
+          if (alpha === undefined && comp.config && comp.config.opacity !== undefined) alpha = comp.config.opacity;
+          if (alpha === undefined) alpha = 1; // 默认不透明
+          alpha = parseFloat(alpha);
+          if (isNaN(alpha)) alpha = 1;
+          alpha = Math.max(0, Math.min(1, alpha));
+
+          ctx.fillStyle = `rgba(${blockGray}, ${blockGray}, ${blockGray}, ${alpha})`;
           ctx.fillRect(-w/2, -h/2, w, h);
         }
-        // 预渲染文本内容背景色
+
+        // 预渲染文本背景
         else if (comp.text && comp.type === 'text') {
           if (comp.bgColor !== 'transparent' && comp.bgColor !== undefined) {
             const bgGray = (comp.bgColor || 0) * 17;
@@ -1130,7 +1102,7 @@
             ctx.fillRect(-w/2, -h/2, w, h);
           }
 
-          // 文本
+          // 渲染文本（与之前逻辑一致）
           const textGray = (comp.textColor || 0) * 17;
           ctx.fillStyle = `rgb(${textGray}, ${textGray}, ${textGray})`;
           const fontSize = (comp.fontSize || 24) * (canvas.width / 540);
@@ -1149,7 +1121,6 @@
               currentLine = '';
             }
           }
-
           const lineHeight = fontSize * 1.2;
           const startYLocal = -(lines.length - 1) * lineHeight / 2;
           lines.forEach((line, idx) => {
@@ -1158,6 +1129,43 @@
         }
 
         ctx.restore();
+      });
+
+      // 第二遍：绘制所有组件的半透明高亮与标签（置于顶层）
+      components.forEach((comp, idx) => {
+        const x = comp.col * cellWidth + (comp.xOffset || 0) * offsetScaleX;
+        const y = comp.row * cellHeight + (comp.yOffset || 0) * offsetScaleY;
+        const w = comp.width * cellWidth;
+        const h = comp.height * cellHeight;
+
+        // 高亮颜色策略：动态文本使用原来的颜色，其他组件使用浅灰色半透明
+        if (comp.type === 'daily_poem' || comp.type === 'one' || comp.type === 'day') {
+          ctx.fillStyle = 'rgba(100, 149, 237, 0.25)';
+        } else if (comp.type === 'list') {
+          ctx.fillStyle = 'rgba(76, 175, 80, 0.25)';
+        } else if (comp.type === 'rss') {
+          ctx.fillStyle = 'rgba(255, 152, 0, 0.25)';
+        } else if (comp.type === 'weather') {
+          ctx.fillStyle = 'rgba(33, 150, 243, 0.25)';
+        } else if (comp.type === 'dynamic_text' || comp.type === 'huangli' ) {
+          ctx.fillStyle = 'rgba(251, 192, 45, 0.25)';
+        } else {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+        }
+
+        // 绘制半透明高亮（不带旋转，始终与网格对齐）
+        ctx.fillRect(x, y, w, h);
+
+        // 对于动态文本等，绘制标签
+        if (comp.type === 'dynamic_text' || comp.type === 'huangli' || comp.type === 'daily_poem' || comp.type === 'one' || comp.type === 'day' || comp.type === 'list' || comp.type === 'rss' || comp.type === 'reading_status' || comp.type === 'weather') {
+          const typeLabel = getComponentTypeLabel(comp.type);
+          const addIndexPreview = idToIndexPreview.get(comp.id) || (idx + 1);
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+          ctx.font = '14px Arial, sans-serif';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'top';
+          ctx.fillText(`组件${addIndexPreview}-${typeLabel}`, x + 4, y + 4);
+        }
       });
     };
     
@@ -3804,6 +3812,13 @@
           updateComponentOpacity(id, e.target.value);
         }
       }
+      // 处理字体大小变化（数字输入）
+      if (e.target.tagName === 'INPUT' && e.target.type === 'number' && e.target.classList.contains('component-fontsize-input')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          updateComponentFontSize(id, e.target.value);
+        }
+      }
       // 处理旋转角度输入变化
       if (e.target.tagName === 'INPUT' && e.target.type === 'number' && e.target.classList.contains('component-rotation-input')) {
         const id = parseInt(e.target.dataset.componentId);
@@ -3900,6 +3915,20 @@
         const id = parseInt(e.target.dataset.componentId);
         if (id && !isNaN(id)) {
           updateComponentLineWidth(id, e.target.value);
+        }
+      }
+      // 处理方块颜色变化
+      if (e.target.tagName === 'SELECT' && e.target.classList.contains('component-blockcolor-input')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          updateComponentBlockColor(id, e.target.value);
+        }
+      }
+      // 处理方块透明度变化
+      if (e.target.tagName === 'INPUT' && e.target.type === 'number' && e.target.classList.contains('component-opacity-input')) {
+        const id = parseInt(e.target.dataset.componentId);
+        if (id && !isNaN(id)) {
+          updateComponentOpacity(id, e.target.value);
         }
       }
     });
