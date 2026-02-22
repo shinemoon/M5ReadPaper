@@ -1236,8 +1236,8 @@
     const minCol = selectedCell.col;
 
     const type = document.getElementById('componentType')?.value || 'text';
-    let width = parseInt(document.getElementById('componentWidth')?.value || 3);
-    let height = parseInt(document.getElementById('componentHeight')?.value || 2);
+    let width = parseFloat(document.getElementById('componentWidth')?.value || 3);
+    let height = parseFloat(document.getElementById('componentHeight')?.value || 2);
 
     // 对于黄历类型：最小高度为3，宽度限定为9
     if (type === 'huangli') {
@@ -1536,23 +1536,25 @@
       widthHeightField.className = 'field';
       
       const widthLabel = document.createElement('label');
-      widthLabel.textContent = '宽度 (1-' + SCREEN_COLS + ')';
+      widthLabel.textContent = '宽度 (0.1-' + SCREEN_COLS + ')';
       
       const widthInput = document.createElement('input');
       widthInput.type = 'number';
-      widthInput.min = 1;
+      widthInput.min = 0.1;
       widthInput.max = SCREEN_COLS;
+      widthInput.step = 'any';
       widthInput.value = comp.width || 3;
       widthInput.dataset.componentId = comp.id;
       widthInput.className = 'component-width-input';
       
       const heightLabel = document.createElement('label');
-      heightLabel.textContent = '高度 (1-' + SCREEN_ROWS + ')';
+      heightLabel.textContent = '高度 (0.1-' + SCREEN_ROWS + ')';
       
       const heightInput = document.createElement('input');
       heightInput.type = 'number';
-      heightInput.min = 1;
+      heightInput.min = 0.1;
       heightInput.max = SCREEN_ROWS;
+      heightInput.step = 'any';
       heightInput.value = comp.height || 2;
       heightInput.dataset.componentId = comp.id;
       heightInput.className = 'component-height-input';
@@ -2196,7 +2198,7 @@
       if (comp.type === 'huangli') {
         comp.width = 9;
       } else {
-        comp.width = Math.max(1, Math.min(SCREEN_COLS, parseInt(width) || 3));
+        comp.width = Math.max(1, Math.min(SCREEN_COLS, parseFloat(width) || 3));
       }
       updateScreenPreview();
       updateComponentList();
@@ -2210,9 +2212,9 @@
     if (comp) {
       // 黄历高度最低为3
       if (comp.type === 'huangli') {
-        comp.height = Math.max(3, Math.min(SCREEN_ROWS, parseInt(height) || 3));
+        comp.height = Math.max(3, Math.min(SCREEN_ROWS, parseFloat(height) || 3));
       } else {
-        comp.height = Math.max(1, Math.min(SCREEN_ROWS, parseInt(height) || 2));
+        comp.height = Math.max(1, Math.min(SCREEN_ROWS, parseFloat(height) || 2));
       }
       updateScreenPreview();
       updateComponentList();

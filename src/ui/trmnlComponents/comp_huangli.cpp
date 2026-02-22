@@ -41,8 +41,8 @@ void render_huangli_component(JsonObject component)
         pos_y = position["y"] | 0;
     }
     JsonObject areaSize = component["size"].as<JsonObject>();
-    a_w = areaSize["width"] | 1;
-    a_h = areaSize["height"] | 1;
+    float cell_w = areaSize["width"].as<float>(); if (cell_w < 0.01f) cell_w = 1.0f;
+    float cell_h = areaSize["height"].as<float>(); if (cell_h < 0.01f) cell_h = 1.0f;
 
     int fontSize = 24, textColor = 0, xOffset = 0, yOffset = 0;
     const char *alignStr = "left";
@@ -64,8 +64,8 @@ void render_huangli_component(JsonObject component)
     const int CELL_WIDTH = 60, CELL_HEIGHT = 60;
     int16_t x = pos_x * CELL_WIDTH + 60 + xOffset;
     int16_t y = pos_y * CELL_HEIGHT + yOffset;
-    a_w = a_w * CELL_WIDTH - 60;
-    a_h = a_h * CELL_HEIGHT;
+    a_w = (int)(cell_w * CELL_WIDTH) - 60;
+    a_h = (int)(cell_h * CELL_HEIGHT);
 
     String JiStr;
     String XiongStr;
