@@ -13,6 +13,7 @@ typedef enum {
     STATE_READING,
     STATE_READING_QUICK_MENU,
     STATE_HELP,
+    STATE_WEBDAV,
     STATE_INDEX_DISPLAY,
     STATE_TOC_DISPLAY,
     STATE_MENU,
@@ -90,6 +91,7 @@ private:
     static void handleDebugState(const SystemMessage_t* msg);
     static void handleReadingQuickMenuState(const SystemMessage_t* msg);
     static void handleHelpState(const SystemMessage_t* msg);
+    static void handleWebDavState(const SystemMessage_t* msg);
     static void handleIndexDisplayState(const SystemMessage_t* msg);
     static void handleTocDisplayState(const SystemMessage_t* msg);
     static void handleMenuState(const SystemMessage_t* msg);

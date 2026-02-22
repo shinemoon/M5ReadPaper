@@ -16,11 +16,12 @@
 #define DBG_STATE_MACHINE_TASK 0
 #define DBG_UI_DISPLAY 0
 #define DBG_BIN_FONT_PRINT 0
+#define DBG_TRMNL_SHOW 0
 
-/*
+
 // Override the debug
 #define ZH_CONV_DEBUG 0
-#define DBG_TEXT_HANDLE 1  // ← 打开 text_handle.cpp 调试日志
+#define DBG_TEXT_HANDLE 0  // text_handle.cpp 调试日志
 #define DBG_BOOK_HANDLE 0
 #define DBG_BOOKMARK 0
 #define DBG_UI_IMAGE 0
@@ -28,12 +29,11 @@
 #define DBG_DEVICE_INTERRUPT_TASK 0
 #define DBG_MAIN 0
 #define DBG_SETUP 0
-#define DBG_WIFI_HOTSPOT 0
+#define DBG_WIFI_HOTSPOT 1
 #define DBG_FILE_MANAGER 0
 #define DBG_POWERMGT 0
 #define  DBG_CHUNKED_FONT_CACHE 0
 #define DBG_CONFIG_MANAGER 0
-*/
 
 
 // Default helper: if DBG_xxx not defined, default to 0
@@ -202,5 +202,13 @@
 #define DBG_SCREENSHOT 1
 #else
 #define DBG_SCREENSHOT 0
+#endif
+#endif
+
+#ifndef DBG_TRMNL_SHOW
+#if DEBUGON
+#define DBG_TRMNL_SHOW 1
+#else
+#define DBG_TRMNL_SHOW 0
 #endif
 #endif

@@ -80,6 +80,28 @@ public:
      */
     bool isUploadInProgress() const;
 
+    /**
+     * @brief 从token.json文件读取WiFi AP配置并尝试连接
+     * @return true 连接成功，false 连接失败或配置文件不存在
+     */
+    bool connectToWiFiFromToken();
+
+    /**
+     * @brief 断开WiFi STA连接
+     */
+    void disconnectWiFi();
+
+    /**
+     * @brief 延迟断开WiFi STA连接，避免网络栈在忙时崩溃
+     */
+    void disconnectWiFiDeferred(uint32_t delay_ms = 200);
+
+    /**
+     * @brief 检查并确保 WebDAV /readpaper 目录存在
+     * @return true 可用且目录存在/已创建，false 不可用
+     */
+    bool ensureWebdavReadpaperDir();
+
     // 允许 API 路由器访问私有处理函数进行路由绑定
     friend class ApiRouter;
 
@@ -104,6 +126,14 @@ private:
     void handleNotFound();
     void handleFileUploadPost();
     void handleReadingRecords();
+    void handleWebdavConfigGet();
+    void handleWebdavConfigUpdate();
+    void handleWifiConfigGet();
+    void handleWifiConfigUpdate();
+    void handleUpdateDisplay();
+    void handleUpdateDisplayStart();
+    void handleUpdateDisplayChunk();
+    void handleUpdateDisplayCommit();
 
     // 辅助函数
     String formatFileSize(size_t bytes);

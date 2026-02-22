@@ -1,0 +1,1158 @@
+#include "trmnl_show.h"
+#include "readpaper.h"
+#include "text/bin_font_print.h"
+#include "device/ui_display.h"
+#include "device/wifi_hotspot_manager.h"
+#include "globals.h"
+#include "config/config_manager.h"
+#include "test/per_file_debug.h"
+#include "SD/SDWrapper.h"
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <esp_http_client.h>
+#include <esp_crt_bundle.h>
+#include <mbedtls/base64.h>
+#include "ui/ui_canvas_image.h"
+#include <ArduinoJson.h>
+#include <lwip/netdb.h>
+#include <lwip/sockets.h>
+// TOC helpers (find_toc_entry_for_position, get_toc_title_for_index)
+#include "ui/toc_display.h"
+
+extern M5Canvas *g_canvas;
+extern WiFiHotspotManager *g_wifi_hotspot;
+extern bool g_wifi_sta_connected;
+extern GlobalConfig g_config;
+
+// 组件模块头文件
+#include "ui/trmnlComponents/comp_daily_poem.h"
+#include "ui/trmnlComponents/comp_huangli.h"
+#include "ui/trmnlComponents/comp_one.h"
+#include "ui/trmnlComponents/comp_day.h"
+#include "ui/trmnlComponents/comp_weather.h"
+#include "ui/trmnlComponents/comp_list.h"
+#include "ui/trmnlComponents/comp_rss.h"
+#include "ui/trmnlComponents/comp_reading_status.h"
+#include "ui/trmnlComponents/comp_history_cache.h"
+
+// 前向声明（本文件保留的内部函数）
+static bool extract_rdt_timestamp(const String &content, String &out_timestamp);
+
+// 从 WebDAV 读取 readpaper.rdt 文件内容
+static bool fetch_webdav_rdt_config(String &out_content)
+{
+    // 检查 WebDAV 配置（优先检查配置，避免无意义的WiFi检查）
+    if (strlen(g_config.webdav_url) == 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] WebDAV 未配置，跳过配置读取");
+#endif
+        return false;
+    }
+
+    Serial.println("[TRMNL] 打开 HTTP 连接...");
+    // 检查 WiFi 连接
+    if (!g_wifi_sta_connected)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] WiFi 未连接，无法读取 WebDAV 配置");
+#endif
+        return false;
+    }
+
+    // 构建目标 URL
+    String base_url = String(g_config.webdav_url);
+    if (!base_url.endsWith("/"))
+    {
+        base_url += "/";
+    }
+    String target_url = base_url + "readpaper/readpaper.rdt";
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] 尝试读取: %s\n", target_url.c_str());
+#endif
+
+    // 准备认证
+    String webdav_user = String(g_config.webdav_user);
+    String webdav_pass = String(g_config.webdav_pass);
+    bool has_auth = (webdav_user.length() > 0 || webdav_pass.length() > 0);
+
+    String auth_header;
+    if (has_auth)
+    {
+        char auth_raw[160];
+        snprintf(auth_raw, sizeof(auth_raw), "%s:%s", webdav_user.c_str(), webdav_pass.c_str());
+
+        unsigned char b64[256] = {0};
+        size_t out_len = 0;
+        if (mbedtls_base64_encode(b64, sizeof(b64) - 1, &out_len,
+                                  reinterpret_cast<const unsigned char *>(auth_raw),
+                                  strlen(auth_raw)) == 0)
+        {
+            b64[out_len] = '\0';
+            auth_header = String("Basic ") + reinterpret_cast<const char *>(b64);
+        }
+    }
+
+    // 配置 HTTP 客户端
+    esp_http_client_config_t cfg = {};
+    cfg.url = target_url.c_str();
+    cfg.method = HTTP_METHOD_GET;
+    cfg.timeout_ms = 10000;
+    cfg.buffer_size = 4096;
+    cfg.buffer_size_tx = 1024;
+    cfg.crt_bundle_attach = esp_crt_bundle_attach; // 启用证书验证
+    cfg.disable_auto_redirect = false;
+
+    if (has_auth)
+    {
+        cfg.auth_type = HTTP_AUTH_TYPE_BASIC;
+        cfg.username = g_config.webdav_user;
+        cfg.password = g_config.webdav_pass;
+    }
+
+    esp_http_client_handle_t client = esp_http_client_init(&cfg);
+    if (!client)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] HTTP 客户端初始化失败");
+#endif
+        return false;
+    }
+
+    esp_http_client_set_header(client, "User-Agent", "ReadPaper-TRMNL");
+    if (auth_header.length() > 0)
+    {
+        esp_http_client_set_header(client, "Authorization", auth_header.c_str());
+    }
+
+    // 发送请求
+    esp_err_t err = esp_http_client_open(client, 0);
+    if (err != ESP_OK)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] HTTP 打开失败: %s\n", esp_err_to_name(err));
+#endif
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    err = esp_http_client_fetch_headers(client);
+    if (err < 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] HTTP 读取头失败: %s\n", esp_err_to_name(err));
+#endif
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    int status_code = esp_http_client_get_status_code(client);
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] HTTP 状态码: %d\n", status_code);
+#endif
+
+    if (status_code != 200)
+    {
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    // 读取响应内容
+    char buffer[2048];
+    int content_length = esp_http_client_get_content_length(client);
+    int read_len = 0;
+    out_content = "";
+
+    while (read_len < content_length || content_length == -1)
+    {
+        int data_read = esp_http_client_read(client, buffer, sizeof(buffer) - 1);
+        if (data_read <= 0)
+        {
+            break;
+        }
+        buffer[data_read] = '\0';
+        out_content += String(buffer);
+        read_len += data_read;
+
+        // 限制最大读取大小
+        if (read_len >= 8192)
+        {
+            break;
+        }
+    }
+
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] 读取成功，长度: %d\n", out_content.length());
+#endif
+
+    return out_content.length() > 0;
+}
+
+// 从 SD 卡读取 RDT 文件内容
+static bool read_sdcard_rdt(String &out_content)
+{
+    const char *rdt_path = "/rdt/readpaper.rdt";
+
+    if (!SDW::SD.exists(rdt_path))
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] SD 卡文件不存在: %s\n", rdt_path);
+#endif
+        return false;
+    }
+
+    File file = SDW::SD.open(rdt_path, "r");
+    if (!file)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] 无法打开 SD 卡文件: %s\n", rdt_path);
+#endif
+        return false;
+    }
+
+    out_content = "";
+    while (file.available())
+    {
+        char c = file.read();
+        out_content += c;
+
+        // 限制最大读取大小
+        if (out_content.length() >= 8192)
+        {
+            break;
+        }
+    }
+    file.close();
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] 从 SD 卡读取成功，长度: %d\n", out_content.length());
+#endif
+
+    return out_content.length() > 0;
+}
+
+// 从 WebDAV 获取 RDT 文件的时间戳（通过读取 RDT 内容并解析 timestamp 字段）
+static bool fetch_webdav_rdt_timestamp(String &out_timestamp)
+{
+    // 检查 WebDAV 配置（优先检查配置，避免无意义的WiFi检查）
+    if (strlen(g_config.webdav_url) == 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] WebDAV 未配置，跳过时间戳检查");
+#endif
+        return false;
+    }
+
+    // 检查 WiFi 连接
+    if (!g_wifi_sta_connected)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] WiFi 未连接，无法读取 WebDAV 时间戳");
+#endif
+        return false;
+    }
+
+    // 构建目标 URL
+    String base_url = String(g_config.webdav_url);
+    if (!base_url.endsWith("/"))
+    {
+        base_url += "/";
+    }
+    String target_url = base_url + "readpaper/readpaper.rdt";
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] 获取 WebDAV RDT 时间戳: %s\n", target_url.c_str());
+#endif
+
+    // 配置 HTTP 客户端（使用 GET 请求获取内容）
+    esp_http_client_config_t cfg = {};
+    cfg.url = target_url.c_str();
+    cfg.method = HTTP_METHOD_GET;
+    cfg.timeout_ms = 10000;
+    cfg.buffer_size = 4096; // 增加到4KB
+    cfg.buffer_size_tx = 512;
+    cfg.crt_bundle_attach = esp_crt_bundle_attach;
+
+    if (strlen(g_config.webdav_user) > 0 || strlen(g_config.webdav_pass) > 0)
+    {
+        cfg.auth_type = HTTP_AUTH_TYPE_BASIC;
+        cfg.username = g_config.webdav_user;
+        cfg.password = g_config.webdav_pass;
+    }
+
+    esp_http_client_handle_t client = esp_http_client_init(&cfg);
+    if (!client)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] HTTP 客户端初始化失败");
+#endif
+        return false;
+    }
+
+    esp_http_client_set_header(client, "User-Agent", "ReadPaper-TRMNL");
+
+    esp_err_t err = esp_http_client_open(client, 0);
+    if (err != ESP_OK)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] HTTP 打开失败: %s\n", esp_err_to_name(err));
+#endif
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    err = esp_http_client_fetch_headers(client);
+    if (err < 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] HTTP 读取头失败: %s\n", esp_err_to_name(err));
+
+#endif
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    int status_code = esp_http_client_get_status_code(client);
+    if (status_code != 200)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] HTTP 状态码: %d\n", status_code);
+#endif
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    // 读取 RDT 内容（限制最大 8KB）
+    char buffer[4096];
+    int content_length = esp_http_client_get_content_length(client);
+    int read_len = 0;
+    String rdt_content = "";
+    rdt_content.reserve(8192); // 预分配避免多次重新分配
+
+    while (read_len < content_length || content_length == -1)
+    {
+        int data_read = esp_http_client_read(client, buffer, sizeof(buffer) - 1);
+        if (data_read <= 0)
+        {
+            break;
+        }
+        buffer[data_read] = '\0';
+        rdt_content += String(buffer);
+        read_len += data_read;
+
+        // 限制最大读取 8KB（RDT 文件通常较小）
+        if (read_len >= 8192)
+        {
+#if DBG_TRMNL_SHOW
+            Serial.println("[TRMNL] 警告：RDT 文件超过8KB，已截断");
+#endif
+            break;
+        }
+    }
+
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);
+
+    if (rdt_content.length() == 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] WebDAV RDT 内容为空");
+#endif
+        return false;
+    }
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] WebDAV RDT 内容长度: %d\n", rdt_content.length());
+#endif
+
+    // 解析 timestamp 字段
+    return extract_rdt_timestamp(rdt_content, out_timestamp);
+}
+
+// 从本地 RDT 文件内容提取 timestamp 字段
+static bool extract_rdt_timestamp(const String &content, String &out_timestamp)
+{
+    DynamicJsonDocument doc(8192);
+    DeserializationError error = deserializeJson(doc, content);
+
+    if (error)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] JSON 解析失败: %s\n", error.c_str());
+#endif
+        return false;
+    }
+
+    if (doc.containsKey("timestamp"))
+    {
+        const char *ts = doc["timestamp"];
+        out_timestamp = String(ts);
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] 本地时间戳: %s\n", out_timestamp.c_str());
+#endif
+        return true;
+    }
+
+#if DBG_TRMNL_SHOW
+    Serial.println("[TRMNL] 本地 RDT 中未找到时间戳字段");
+#endif
+    return false;
+}
+
+// --- fetch_daily_poem, fetch_huangli_title, fetch_one_sentence, fetch_day_info,
+//     render_list_items, extract_next_rss_item, fetch_rss_feed
+//     均已迁移至 ui/trmnlComponents/ 各对应组件文件。
+
+// 下载文件到 SD 卡
+static bool download_file_to_sdcard(const String &url, const String &local_path, const String &auth_header)
+{
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] 下载文件: %s -> %s\n", url.c_str(), local_path.c_str());
+#endif
+
+    // 配置 HTTP 客户端
+    esp_http_client_config_t cfg = {};
+    cfg.url = url.c_str();
+    cfg.method = HTTP_METHOD_GET;
+    cfg.timeout_ms = 15000;
+    cfg.buffer_size = 4096;
+    cfg.buffer_size_tx = 1024;
+    cfg.crt_bundle_attach = esp_crt_bundle_attach;
+    cfg.disable_auto_redirect = false;
+
+    if (strlen(g_config.webdav_user) > 0 || strlen(g_config.webdav_pass) > 0)
+    {
+        cfg.auth_type = HTTP_AUTH_TYPE_BASIC;
+        cfg.username = g_config.webdav_user;
+        cfg.password = g_config.webdav_pass;
+    }
+
+    esp_http_client_handle_t client = esp_http_client_init(&cfg);
+    if (!client)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] HTTP 客户端初始化失败");
+#endif
+        return false;
+    }
+
+    esp_http_client_set_header(client, "User-Agent", "ReadPaper-TRMNL");
+    if (auth_header.length() > 0)
+    {
+        esp_http_client_set_header(client, "Authorization", auth_header.c_str());
+    }
+
+    esp_err_t err = esp_http_client_open(client, 0);
+    if (err != ESP_OK)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] HTTP 打开失败: %s\n", esp_err_to_name(err));
+#endif
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    err = esp_http_client_fetch_headers(client);
+    if (err < 0)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] HTTP 读取头失败: %s\n", esp_err_to_name(err));
+#endif
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    int status_code = esp_http_client_get_status_code(client);
+    if (status_code != 200)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] HTTP 状态码: %d\n", status_code);
+#endif
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    // 确保目录存在
+    // 提取目录路径
+    String dir_path = local_path.substring(0, local_path.lastIndexOf('/'));
+    if (!SDW::SD.exists(dir_path.c_str()))
+    {
+        SDW::SD.mkdir(dir_path.c_str());
+    }
+
+    // 删除已存在的文件
+    if (SDW::SD.exists(local_path.c_str()))
+    {
+        SDW::SD.remove(local_path.c_str());
+    }
+
+    // 写入文件
+    File file = SDW::SD.open(local_path.c_str(), "w");
+    if (!file)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] 无法创建文件: %s\n", local_path.c_str());
+#endif
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        return false;
+    }
+
+    char buffer[2048];
+    int total_read = 0;
+    while (true)
+    {
+        int data_read = esp_http_client_read(client, buffer, sizeof(buffer));
+        if (data_read <= 0)
+        {
+            break;
+        }
+        file.write((uint8_t *)buffer, data_read);
+        total_read += data_read;
+    }
+
+    file.close();
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);
+
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] 文件下载成功，大小: %d 字节\n", total_read);
+#endif
+
+    return total_read > 0;
+}
+
+// 解析并显示 RDT 配置
+static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
+{
+    // 解析 JSON
+    DynamicJsonDocument doc(8192);
+    DeserializationError error = deserializeJson(doc, content);
+
+    if (error)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] JSON 解析失败: %s\n", error.c_str());
+#endif
+        return false;
+    }
+
+    // 检查版本
+    const char *version = doc["version"] | "unknown";
+#if DBG_TRMNL_SHOW
+    Serial.printf("[TRMNL] RDT 版本: %s\n", version);
+#endif
+
+    // 读取 refreshPeriod（分钟），兼容老格式：若缺失则使用默认 30
+    {
+        int rp = doc["refreshPeriod"] | 30;
+        if (rp < 10)
+            rp = 10;
+        if (rp > 1440)
+            rp = 1440;
+        refreshPeriod = rp;
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] 设置 refreshPeriod=%d 分钟\n", refreshPeriod);
+#endif
+    }
+
+    // 检查是否有背景图
+    bool has_bgpic = doc["bgpic"] | false;
+
+    // 清空画布
+    bin_font_clear_canvas();
+
+    // 加载背景图（如果存在）
+    if (has_bgpic)
+    {
+        const char *bg_path = "/rdt/readpaper.png";
+        if (SDW::SD.exists(bg_path))
+        {
+#if DBG_TRMNL_SHOW
+            Serial.printf("[TRMNL] 加载背景图: %s\n", bg_path);
+#endif
+            // 使用 ui_push_image_to_canvas 加载背景图
+            ui_push_image_to_canvas(bg_path, 0, 0);
+        }
+        else
+        {
+#if DBG_TRMNL_SHOW
+            Serial.printf("[TRMNL] 背景图不存在: %s\n", bg_path);
+#endif
+        }
+    }
+
+    // 解析组件
+    JsonArray components = doc["components"];
+    if (components)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.printf("[TRMNL] 组件数量: %d\n", components.size());
+#endif
+
+        // 按 zIndex 升序排列组件（低 zIndex 先渲染，位于底层）；老格式无 zIndex 则保持数组顺序
+        std::vector<JsonObject> compList;
+        compList.reserve(components.size());
+        for (JsonObject c : components) compList.push_back(c);
+        bool hasZIndex = false;
+        for (auto &c : compList) { if ((c["zIndex"] | 0) > 0) { hasZIndex = true; break; } }
+        if (hasZIndex)
+        {
+            std::sort(compList.begin(), compList.end(), [](const JsonObject &a, const JsonObject &b)
+                      { return (a["zIndex"] | 9999) < (b["zIndex"] | 9999); });
+        }
+
+        for (JsonObject component : compList)
+        {
+            // 获取 dynamic 标志
+            bool is_dynamic = component["dynamic"] | true;
+
+            // 跳过静态组件（已预渲染到 PNG）
+            if (!is_dynamic)
+            {
+#if DBG_TRMNL_SHOW
+                Serial.println("[TRMNL] 跳过静态组件（已预渲染）");
+#endif
+                continue;
+            }
+
+            // 获取组件类型
+            const char *type = component["type"] | "unknown";
+
+#if DBG_TRMNL_SHOW
+            Serial.printf("[TRMNL] 处理动态组件: %s\n", type);
+#endif
+
+            // 处理普通文本组件（dynamic_text）
+            if (strcmp(type, "dynamic_text") == 0)
+            {
+                // 从嵌套结构读取属性
+                // position: {x, y}
+                int pos_x = 0;
+                int pos_y = 0;
+                int a_w = 0;
+                int a_h = 0;
+                if (component.containsKey("position"))
+                {
+                    JsonObject position = component["position"].as<JsonObject>();
+                    pos_x = position["x"] | 0;
+                    pos_y = position["y"] | 0;
+                }
+                JsonObject areaSize = component["size"].as<JsonObject>();
+                float cell_w = areaSize["width"].as<float>(); if (cell_w < 0.01f) cell_w = 1.0f;
+                float cell_h = areaSize["height"].as<float>(); if (cell_h < 0.01f) cell_h = 1.0f;
+
+                // config: {text, fontSize, textColor, align, xOffset, yOffset, ...}
+                const char *text = "文本";
+                int fontSize = 24;
+                int textColor = 0;
+                const char *alignStr = "left";
+                uint8_t align = 0; // 默认左对齐
+                int xOffset = 0;   // x偏移量
+                int yOffset = 0;   // y偏移量
+
+                if (component.containsKey("config"))
+                {
+                    JsonObject config = component["config"].as<JsonObject>();
+                    text = config["text"] | "文本";
+                    fontSize = config["fontSize"] | 24;
+                    textColor = config["textColor"] | 0; // 0-15 灰度
+                    alignStr = config["align"] | "left";
+                    xOffset = config["xOffset"] | 0;
+                    yOffset = config["yOffset"] | 0;
+
+                    // 映射对齐方式字符串到数字
+                    if (strcmp(alignStr, "center") == 0)
+                    {
+                        align = 1;
+                    }
+                    else if (strcmp(alignStr, "right") == 0)
+                    {
+                        align = 2;
+                    }
+                }
+
+                // 计算打印起点（单元格坐标转像素）
+                // 540/9=60, 960/16=60，每个cell是60x60像素
+                const int CELL_WIDTH = 60;
+                const int CELL_HEIGHT = 60;
+                int16_t x = pos_x * CELL_WIDTH + 20 + xOffset;
+                int16_t y = pos_y * CELL_HEIGHT + yOffset;
+                a_w = (int)(cell_w * CELL_WIDTH) - 40;
+                a_h = (int)(cell_h * CELL_HEIGHT);
+
+#if DBG_TRMNL_SHOW
+                Serial.printf("[TRMNL] 渲染普通文本: '%s' 单元格(%d, %d) 像素(%d, %d) 字号%d 颜色%d 宽度%d 高度%d 对齐%s\n",
+                              text, pos_x, pos_y, x, y, fontSize, textColor, a_w, a_h, alignStr);
+#endif
+
+                // 使用 display_print_wrapped 进行自动换行打印
+                display_print_wrapped(
+                    text,      // text
+                    x,         // x (起点)
+                    y,         // y (起点)
+                    a_w,       // area_width (可用宽度)
+                    a_h,       // area_height (可用高度)
+                    fontSize,  // font_size
+                    textColor, // color (0-15 灰度)
+                    15,        // bg_color (15=白色 #ffffff)
+                    align,     // align (0=左，1=中，2=右)
+                    false,     // vertical
+                    false      // skip (不跳过繁简转换)
+                );
+            }
+            // 处理今日诗词组件（daily_poem）- 已迁移至 comp_daily_poem
+            else if (strcmp(type, "daily_poem") == 0)
+            {
+                render_daily_poem_component(component);
+            }
+            // 处理 ONE 一言 组件（one）- 已迁移至 comp_one
+            else if (strcmp(type, "one") == 0)
+            {
+                render_one_component(component);
+            }
+            // 处理黄历组件（huangli）- 已迁移至 comp_huangli
+            else if (strcmp(type, "huangli") == 0)
+            {
+                render_huangli_component(component);
+            }
+            // 处理日历组件（day）- 已迁移至 comp_day
+            else if (strcmp(type, "day") == 0)
+            {
+                render_day_component(component);
+            }
+            // 处理阅读状态组件（reading_status）- 已迁移至 comp_reading_status
+            else if (strcmp(type, "reading_status") == 0)
+            {
+                render_reading_status_component(component);
+            }
+            // 处理天气查询组件（weather）- 已迁移至 comp_weather
+            else if (strcmp(type, "weather") == 0)
+            {
+                render_weather_component(component);
+            }
+            // 处理列表组件（list）- 已迁移至 comp_list
+            else if (strcmp(type, "list") == 0)
+            {
+                render_list_component(component);
+            }
+            // 处理RSS组件（rss）- 已迁移至 comp_rss
+            else if (strcmp(type, "rss") == 0)
+            {
+                render_rss_component(component);
+            }
+            // TODO: 后续扩展其他动态组件的渲染（clock, barcode等）
+        }
+    }
+
+    return true;
+}
+
+// RAII 守卫：构造时将 g_wifi_http_active 置为 true，析构时自动清除
+// 保证所有退出路径（含异常/提前return）都能正确清除标志
+struct HttpActiveGuard {
+    HttpActiveGuard()  { g_wifi_http_active = true; }
+    ~HttpActiveGuard() { g_wifi_http_active = false; }
+};
+
+bool trmnl_display(M5Canvas *canvas)
+{
+    if (canvas == nullptr)
+    {
+        canvas = g_canvas;
+    }
+
+    // 步骤1: 先尝试读取本地 SD 卡的 RDT 文件（纯 SD，无 WiFi，在守卫之前完成）
+    String rdt_content;
+    String local_timestamp;
+    bool has_local_rdt = read_sdcard_rdt(rdt_content);
+    if (has_local_rdt)
+    {
+        extract_rdt_timestamp(rdt_content, local_timestamp);
+    }
+
+    // 步骤1.5: 进入 HTTP 区域前置守卫——此后所有 HTTP/TLS 调用期间
+    // MainTask 的后台 SDMMC 索引暂停，避免两路 DMA 并发冲突
+    HttpActiveGuard _http_guard;
+
+#if DBG_TRMNL_SHOW
+    if (has_local_rdt)
+    {
+        Serial.printf("[TRMNL] 本地 RDT 存在，时间戳: %s\n", local_timestamp.length() > 0 ? local_timestamp.c_str() : "(无)");
+    }
+    else
+    {
+        Serial.println("[TRMNL] 本地 SD 卡无 RDT 文件");
+    }
+#endif
+
+    // 步骤2: 检查是否需要从 WebDAV 更新（只有配置了WebDAV时才检查）
+    bool need_update_from_webdav = false;
+    bool has_webdav_config = (strlen(g_config.webdav_url) > 0);
+
+#if DBG_TRMNL_SHOW
+    if (has_webdav_config)
+    {
+        Serial.println("[TRMNL] 检测到 WebDAV 配置，将检查是否需要更新");
+    }
+    else
+    {
+        Serial.println("[TRMNL] 未配置 WebDAV，跳过云端更新检查");
+    }
+#endif
+
+    if (has_local_rdt && has_webdav_config)
+    {
+        // 本地有RDT且配置了WebDAV，检查是否需要更新
+        String webdav_timestamp;
+        if (fetch_webdav_rdt_timestamp(webdav_timestamp))
+        {
+            // 比较时间戳
+            if (local_timestamp != webdav_timestamp)
+            {
+#if DBG_TRMNL_SHOW
+                Serial.printf("[TRMNL] 时间戳不一致 (本地: %s, WebDAV: %s)，需要更新\n",
+                              local_timestamp.c_str(), webdav_timestamp.c_str());
+#endif
+                need_update_from_webdav = true;
+            }
+            else
+            {
+#if DBG_TRMNL_SHOW
+                Serial.println("[TRMNL] 时间戳一致，跳过 WebDAV 下载，使用本地 RDT");
+#endif
+            }
+        }
+        else
+        {
+#if DBG_TRMNL_SHOW
+            Serial.println("[TRMNL] 无法获取 WebDAV 时间戳，使用本地 RDT");
+#endif
+        }
+    }
+    else if (!has_local_rdt && has_webdav_config)
+    {
+        // 本地没有 RDT 但配置了 WebDAV，尝试从 WebDAV 下载
+        need_update_from_webdav = true;
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] 本地无 RDT，将尝试从 WebDAV 下载");
+#endif
+    }
+    else if (!has_local_rdt && !has_webdav_config)
+    {
+        // 本地没有 RDT 且未配置 WebDAV，无法获取配置
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] 本地无 RDT 且未配置 WebDAV，将显示默认界面");
+#endif
+    }
+
+    // 步骤3: 如果需要更新，从 WebDAV 下载最新的 RDT 和 PNG
+    if (need_update_from_webdav)
+    {
+        if (fetch_webdav_rdt_config(rdt_content))
+        {
+#if DBG_TRMNL_SHOW
+            Serial.println("[TRMNL] WebDAV 下载成功");
+#endif
+            // 准备认证头
+            String webdav_user = String(g_config.webdav_user);
+            String webdav_pass = String(g_config.webdav_pass);
+            bool has_auth = (webdav_user.length() > 0 || webdav_pass.length() > 0);
+
+            String auth_header;
+            if (has_auth)
+            {
+                char auth_raw[160];
+                snprintf(auth_raw, sizeof(auth_raw), "%s:%s", webdav_user.c_str(), webdav_pass.c_str());
+
+                unsigned char b64[256] = {0};
+                size_t out_len = 0;
+                if (mbedtls_base64_encode(b64, sizeof(b64) - 1, &out_len,
+                                          reinterpret_cast<const unsigned char *>(auth_raw),
+                                          strlen(auth_raw)) == 0)
+                {
+                    b64[out_len] = '\0';
+                    auth_header = String("Basic ") + reinterpret_cast<const char *>(b64);
+                }
+            }
+
+            // 构建 WebDAV URL
+            String base_url = String(g_config.webdav_url);
+            if (!base_url.endsWith("/"))
+            {
+                base_url += "/";
+            }
+
+            // 确保 SD 卡目录存在
+            if (!SDW::SD.exists("/rdt"))
+            {
+                SDW::SD.mkdir("/rdt");
+            }
+
+            // 保存 RDT 文件到 SD 卡
+            const char *rdt_sd_path = "/rdt/readpaper.rdt";
+            if (SDW::SD.exists(rdt_sd_path))
+            {
+                SDW::SD.remove(rdt_sd_path);
+            }
+
+            File file = SDW::SD.open(rdt_sd_path, "w");
+            if (file)
+            {
+                file.print(rdt_content);
+                file.close();
+                // RDT 文件已更新，清空组件历史缓存
+                cache_clear_history();
+#if DBG_TRMNL_SHOW
+                Serial.printf("[TRMNL] RDT 已保存到 SD 卡: %s\n", rdt_sd_path);
+#endif
+            }
+
+            // 下载 PNG 文件（但不下载背景图 readpaper_0.png）
+            String png_url = base_url + "readpaper/readpaper.png";
+            String png_sd_path = "/rdt/readpaper.png";
+            download_file_to_sdcard(png_url, png_sd_path, auth_header);
+        }
+        else
+        {
+#if DBG_TRMNL_SHOW
+            Serial.println("[TRMNL] WebDAV 下载失败");
+#endif
+            // 如果 WebDAV 下载失败且本地没有 RDT，显示默认界面
+            if (!has_local_rdt)
+            {
+#if DBG_TRMNL_SHOW
+                Serial.println("[TRMNL] WebDAV 和本地 SD 卡都没有 RDT，使用默认显示");
+#endif
+                return show_default_trmnl(canvas);
+            }
+            // 否则继续使用本地 RDT（已在 rdt_content 中）
+        }
+    }
+
+    // 步骤3.5: 在渲染RDT之前，确保WiFi已连接（为动态联网组件提供网络支持）
+    // 无论是否配置了WebDAV，WiFi都应保持到RDT渲染完成
+#if DBG_TRMNL_SHOW
+    Serial.println("[TRMNL] ===== 准备渲染RDT，检查WiFi连接状态 =====");
+#endif
+
+    if (!g_wifi_sta_connected && g_wifi_hotspot)
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] WiFi当前未连接，尝试连接WiFi以支持动态组件（天气、RSS等）...");
+#endif
+        g_wifi_hotspot->connectToWiFiFromToken();
+
+        // 不论连接成功或失败，都继续后续处理
+#if DBG_TRMNL_SHOW
+        if (g_wifi_sta_connected)
+        {
+            Serial.println("[TRMNL] ✓ WiFi连接成功，动态组件可正常工作");
+        }
+        else
+        {
+            Serial.println("[TRMNL] ✗ WiFi连接失败，动态组件可能无法工作");
+        }
+#endif
+    }
+#if DBG_TRMNL_SHOW
+    else if (g_wifi_sta_connected)
+    {
+        Serial.println("[TRMNL] ✓ WiFi已连接，动态组件可正常工作");
+    }
+    else
+    {
+        Serial.println("[TRMNL] ⚠ 没有WiFi管理器，动态组件可能无法工作");
+    }
+
+    Serial.println("[TRMNL] ===== 开始渲染RDT配置 =====");
+#endif
+
+    // 步骤4: 解析并显示 SD 卡的 RDT 配置
+    if (parse_and_display_rdt(canvas, rdt_content))
+    {
+#if DBG_TRMNL_SHOW
+        Serial.println("[TRMNL] RDT 配置显示成功");
+#endif
+        return true;
+    }
+
+    // 解析失败，使用默认显示
+#if DBG_TRMNL_SHOW
+    Serial.println("[TRMNL] RDT 解析失败，使用默认显示");
+#endif
+    return show_default_trmnl(canvas);
+}
+
+bool show_default_trmnl(M5Canvas *canvas)
+{
+    if (canvas == nullptr)
+    {
+        canvas = g_canvas;
+    }
+
+    if (!canvas || !g_wifi_hotspot)
+    {
+        return false;
+    }
+
+    // 清空画布
+    bin_font_clear_canvas();
+
+    ui_push_image_to_canvas("/spiffs/screenlow.png", 0, 0);
+    // 标题区域
+    const int16_t title_y = 60;
+    const int16_t content_start_y = 80;
+    const int16_t line_height = 50;
+
+    // 显示标题
+    bin_font_print("无线连接状态", 36, TFT_BLACK, PAPER_S3_WIDTH, 30, title_y, false, canvas, TEXT_ALIGN_LEFT);
+
+    // 分隔线
+    canvas->drawWideLine(0, title_y + 45, PAPER_S3_WIDTH - 80, title_y + 45, 1.2f, TFT_BLACK);
+
+    int16_t current_y = content_start_y;
+
+    // 根据连接状态显示不同信息
+    if (g_wifi_sta_connected)
+    {
+        // 检查是否配置了 WebDAV（通过 webdav_url 判断）
+        bool has_webdav = (strlen(g_config.webdav_url) > 0);
+
+        if (has_webdav)
+        {
+            // ===== WebDAV 云同步模式 =====
+            current_y += line_height;
+
+            // 显示连接的 WiFi SSID（显示最近成功连接的，或第一个非空的）
+            int wifi_idx = g_config.wifi_last_success_idx >= 0 ? g_config.wifi_last_success_idx : 0;
+            for (int i = 0; i < 3; i++)
+            {
+                int check_idx = (wifi_idx + i) % 3;
+                if (strlen(g_config.wifi_ssid[check_idx]) > 0)
+                {
+                    std::string wifi_text = "WiFi: ";
+                    wifi_text += g_config.wifi_ssid[check_idx];
+                    if (check_idx == g_config.wifi_last_success_idx)
+                    {
+                        wifi_text += "";
+                    }
+                    bin_font_print(wifi_text, 28, TFT_BLACK,
+                                   PAPER_S3_WIDTH - 160, 30, current_y, false, canvas, TEXT_ALIGN_LEFT);
+                    current_y += line_height;
+                    break;
+                }
+            }
+
+            // 显示 IP 地址
+            std::string ip_text = "IP地址: ";
+            ip_text += g_wifi_hotspot->getIPAddress().c_str();
+            bin_font_print(ip_text, 28, TFT_BLACK,
+                           PAPER_S3_WIDTH - 160, 30, current_y, false, canvas, TEXT_ALIGN_LEFT);
+            current_y += line_height;
+
+            // 显示标题
+            //            bin_font_print("WebDaV状态", 36, TFT_BLACK, PAPER_S3_WIDTH - 30, 0, current_y, false, canvas, TEXT_ALIGN_RIGHT);
+            // 分隔线
+            // canvas->drawLine(50, current_y + 45, PAPER_S3_WIDTH - 80, current_y + 45, TFT_BLACK);
+
+            // 显示 WebDAV 服务器地址
+            current_y += 320;
+            bin_font_print("WebDAV 服务器:", 24, TFT_BLACK,
+                           PAPER_S3_WIDTH - 30, 0, current_y, false, canvas, TEXT_ALIGN_RIGHT);
+            current_y += 35;
+            canvas->drawLine(50, current_y, PAPER_S3_WIDTH, current_y, TFT_BLACK);
+            canvas->drawWideLine(270, current_y, PAPER_S3_WIDTH, current_y, 1.2f, TFT_BLACK);
+            current_y += 24;
+            bin_font_print(g_config.webdav_url, 24, TFT_BLACK,
+                           PAPER_S3_WIDTH - 30, 0, current_y, false, canvas, TEXT_ALIGN_RIGHT);
+            current_y += 40;
+
+            // 显示用户名
+            if (strlen(g_config.webdav_user) > 0)
+            {
+                std::string user_text = "用户: ";
+                user_text += g_config.webdav_user;
+                bin_font_print(user_text, 24, TFT_BLACK,
+                               PAPER_S3_WIDTH - 30, 0, current_y, false, canvas, TEXT_ALIGN_RIGHT);
+                current_y += line_height;
+            }
+            canvas->drawLine(0, 760, PAPER_S3_WIDTH - 60, 760, TFT_BLACK);
+            canvas->drawWideLine(0, 760, PAPER_S3_WIDTH - 360, 760, 1.2f, TFT_BLACK);
+            // 同步状态提示
+            bin_font_print("设置就绪，请通过扩展配置显示。", 24, TFT_BLACK,
+                           PAPER_S3_WIDTH - 30, 30, 780, false, canvas, TEXT_ALIGN_LEFT);
+        }
+        else
+        {
+            // ===== WebDAV 云同步模式 =====
+            current_y += line_height;
+
+            // 显示连接的 WiFi SSID（显示最近成功连接的，或第一个非空的）
+            int wifi_idx = g_config.wifi_last_success_idx >= 0 ? g_config.wifi_last_success_idx : 0;
+            for (int i = 0; i < 3; i++)
+            {
+                int check_idx = (wifi_idx + i) % 3;
+                if (strlen(g_config.wifi_ssid[check_idx]) > 0)
+                {
+                    std::string wifi_text = "WiFi: ";
+                    wifi_text += g_config.wifi_ssid[check_idx];
+                    if (check_idx == g_config.wifi_last_success_idx)
+                    {
+                        wifi_text += "";
+                    }
+                    bin_font_print(wifi_text, 28, TFT_BLACK,
+                                   PAPER_S3_WIDTH - 160, 30, current_y, false, canvas, TEXT_ALIGN_LEFT);
+                    current_y += line_height;
+                    break;
+                }
+            }
+
+            // 显示 IP 地址
+            std::string ip_text = "IP地址: ";
+            ip_text += g_wifi_hotspot->getIPAddress().c_str();
+            bin_font_print(ip_text, 28, TFT_BLACK,
+                           PAPER_S3_WIDTH - 160, 30, current_y, false, canvas, TEXT_ALIGN_LEFT);
+            current_y += line_height;
+
+            // 显示 WebDAV 服务器地址
+            current_y += 320;
+            bin_font_print("WebDAV 服务器:", 24, TFT_BLACK,
+                           PAPER_S3_WIDTH - 30, 0, current_y, false, canvas, TEXT_ALIGN_RIGHT);
+            current_y += 35;
+            canvas->drawLine(50, current_y, PAPER_S3_WIDTH, current_y, TFT_BLACK);
+            canvas->drawWideLine(270, current_y, PAPER_S3_WIDTH, current_y, 1.2f, TFT_BLACK);
+            current_y += 24;
+            bin_font_print("没有有效WebDAV配置", 24, TFT_BLACK,
+                           PAPER_S3_WIDTH - 30, 0, current_y, false, canvas, TEXT_ALIGN_RIGHT);
+            current_y += 40;
+        }
+    }
+    else
+    {
+        // ===== WebDAV 云同步模式 =====
+        current_y += line_height;
+        bin_font_print("WiFi 未连接", 28, TFT_BLACK,
+                       PAPER_S3_WIDTH - 160, 30, current_y, false, canvas, TEXT_ALIGN_LEFT);
+        current_y += line_height;
+    }
+    // 操作提示
+    bin_font_print("点击屏幕返回菜单", 24, TFT_BLACK,
+                   PAPER_S3_WIDTH, 0, PAPER_S3_HEIGHT - 80, false, canvas, TEXT_ALIGN_CENTER);
+    canvas->drawLine(120, PAPER_S3_HEIGHT - 50, PAPER_S3_WIDTH - 120, PAPER_S3_HEIGHT - 50, TFT_BLACK);
+
+    return true;
+}
+
+// fetch_weather 已迁移至 ui/trmnlComponents/comp_weather.cpp

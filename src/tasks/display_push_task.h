@@ -31,6 +31,9 @@ void resetDisplayPushCount();
 // 获取当前pushSprite计数
 uint32_t getDisplayPushCount();
 
+// 等待显示推送队列与屏幕刷新完成
+bool waitDisplayPushIdle(uint32_t timeout_ms = 2000);
+
 // 常量：推送消息类型
 static const uint8_t DISPLAY_PUSH_MSG_TYPE_FLUSH = 1;
 static const uint8_t DISPLAY_PUSH_MSG_TYPE_FLUSH_TRANS = 2;

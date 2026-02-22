@@ -81,7 +81,8 @@ void ui_push_image_to_canvas(const char *img_path, int16_t x, int16_t y, M5Canva
 #if DBG_UI_IMAGE
         Serial.printf("[UI_IMAGE] 路径前缀不支持: %s\n", img_path);
 #endif
-        return;
+        imgFile = SDW::SD.open(img_path, "r"); // 默认是SD卡的图
+        // return;
     }
     if (!imgFile)
     {

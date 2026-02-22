@@ -34,6 +34,9 @@ float font_size = SYSFONTSIZE;
 // timing globals
 unsigned long idleTime = 0; // 最后一次非idle时间
 
+// Wakeup cause from last boot/sleep (initialized in setup())
+esp_sleep_wakeup_cause_t g_wake_cause = ESP_SLEEP_WAKEUP_UNDEFINED;
+
 // 全局Canvas
 M5Canvas *g_canvas = nullptr;
 
@@ -135,7 +138,8 @@ extern "C"
                 // 动态冷却时间：强制重建挂起时更积极推进
                 const uint32_t NOTIFY_COOLDOWN_MS = isForceReindexPending() ? 200 : 500;
                 // 若需要重建或可继续索引，且堆内存充足，则在此同步执行一个索引工作周期
-                if ((isForceReindexPending() || (main_bh && main_bh->canContinueIndexing())) &&
+                if (!g_wifi_http_active &&
+                    (isForceReindexPending() || (main_bh && main_bh->canContinueIndexing())) &&
                     esp_get_free_heap_size() > (320 * 1024))
                 {
                     uint32_t now = millis();

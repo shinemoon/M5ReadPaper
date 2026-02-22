@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>联线待机 - ReadPaper</title>
+  <link rel="stylesheet" href="../vendors/chota.css">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="icon" href="../assets/favicon.png">
+  <style>
+    .upload-progress-banner {
+      margin-top: 15px;
+      padding: 15px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 8px;
+      color: white;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      animation: slideDown 0.3s ease-out;
+    }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .progress-content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .progress-icon {
+      flex-shrink: 0;
+    }
+    .spinner {
+      width: 24px;
+      height: 24px;
+      animation: rotate 1s linear infinite;
+    }
+    @keyframes rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .spinner circle {
+      animation: dash 1.5s ease-in-out infinite;
+    }
+    @keyframes dash {
+      0% { stroke-dashoffset: 63; }
+      50% { stroke-dashoffset: 15.75; }
+      100% { stroke-dashoffset: 63; }
+    }
+    .progress-text {
+      flex: 1;
+      min-width: 0;
+    }
+    .progress-title {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+    .progress-detail {
+      font-size: 12px;
+      opacity: 0.9;
+    }
+    .progress-bar-container {
+      width: 120px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 3px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: white;
+      border-radius: 3px;
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+    .upload-progress-banner.success {
+      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+      animation: pulse 0.5s ease-out;
+    }
+    .upload-progress-banner.error {
+      background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+    }
+  </style>
+</head>
+<body id="webdav-page">
+  <div data-include="partials/header.html"></div>
+
+  <main class="container">
+    <h4 class="bg-light">配置中心</h4>
+      <div id="device-info" class="muted"></div>
+
+    <div class="config-tabs">
+      <button class="tab-btn is-active" type="button" data-tab="wifi">WIFI 配置</button>
+      <button class="tab-btn" type="button" data-tab="webdav">WebDAV 配置</button>
+      <button class="tab-btn" type="button" data-tab="display">展示配置</button>
+    </div>
+
+    <div class="tab-panel is-active" data-tab="wifi">
+      <div class="row">
+        <div class="col-8 panel webdav-card">
+          <h5 class="bg-light">WiFi 配置（最多3组）</h5>
+          
+          <!-- WiFi 配置组 1 -->
+          <div class="wifi-config-group">
+            <h6 class="wifi-group-title">WiFi 配置 1</h6>
+            <div class="field">
+              <label for="wifiSsid0">SSID</label>
+              <input id="wifiSsid0" type="text" placeholder="WiFi 名称" />
+            </div>
+            <div class="field">
+              <label for="wifiPassword0">密码</label>
+              <div class="flex-row gap-small align-center">
+                <input id="wifiPassword0" type="password" placeholder="WiFi 密码" />
+                <button class="toggle-wifi-password button is-small outline icon-button" type="button" data-target="wifiPassword0" aria-label="显示密码">
+                  <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5c5.5 0 9.6 4.1 11 6.9-.2.4-1.1 2-2.8 3.6C18.5 17.2 15.7 19 12 19s-6.5-1.8-8.2-3.5C2.1 13.9 1.2 12.3 1 11.9 2.4 9.1 6.5 5 12 5zm0 2c-3.7 0-6.9 2.3-8.7 4.9 1.8 2.6 5 4.9 8.7 4.9s6.9-2.3 8.7-4.9C18.9 9.3 15.7 7 12 7zm0 2.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- WiFi 配置组 2 -->
+          <div class="wifi-config-group">
+            <h6 class="wifi-group-title">WiFi 配置 2</h6>
+            <div class="field">
+              <label for="wifiSsid1">SSID</label>
+              <input id="wifiSsid1" type="text" placeholder="WiFi 名称" />
+            </div>
+            <div class="field">
+              <label for="wifiPassword1">密码</label>
+              <div class="flex-row gap-small align-center">
+                <input id="wifiPassword1" type="password" placeholder="WiFi 密码" />
+                <button class="toggle-wifi-password button is-small outline icon-button" type="button" data-target="wifiPassword1" aria-label="显示密码">
+                  <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5c5.5 0 9.6 4.1 11 6.9-.2.4-1.1 2-2.8 3.6C18.5 17.2 15.7 19 12 19s-6.5-1.8-8.2-3.5C2.1 13.9 1.2 12.3 1 11.9 2.4 9.1 6.5 5 12 5zm0 2c-3.7 0-6.9 2.3-8.7 4.9 1.8 2.6 5 4.9 8.7 4.9s6.9-2.3 8.7-4.9C18.9 9.3 15.7 7 12 7zm0 2.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- WiFi 配置组 3 -->
+          <div class="wifi-config-group">
+            <h6 class="wifi-group-title">WiFi 配置 3</h6>
+            <div class="field">
+              <label for="wifiSsid2">SSID</label>
+              <input id="wifiSsid2" type="text" placeholder="WiFi 名称" />
+            </div>
+            <div class="field">
+              <label for="wifiPassword2">密码</label>
+              <div class="flex-row gap-small align-center">
+                <input id="wifiPassword2" type="password" placeholder="WiFi 密码" />
+                <button class="toggle-wifi-password button is-small outline icon-button" type="button" data-target="wifiPassword2" aria-label="显示密码">
+                  <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5c5.5 0 9.6 4.1 11 6.9-.2.4-1.1 2-2.8 3.6C18.5 17.2 15.7 19 12 19s-6.5-1.8-8.2-3.5C2.1 13.9 1.2 12.3 1 11.9 2.4 9.1 6.5 5 12 5zm0 2c-3.7 0-6.9 2.3-8.7 4.9 1.8 2.6 5 4.9 8.7 4.9s6.9-2.3 8.7-4.9C18.9 9.3 15.7 7 12 7zm0 2.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="field webdav-actions">
+            <button id="btnWifiReload" class="button is-small outline" type="button">重新读取</button>
+            <button id="btnWifiSave" class="button primary" type="button">保存到设备</button>
+          </div>
+        </div>
+
+        <div class="col-4 panel webdav-note">
+          <h5 class="bg-light">说明</h5>
+          <ul class="webdav-help">
+            <li>支持配置3组WiFi网络</li>
+            <li>连接时会自动轮询尝试</li>
+            <li>优先尝试最近连接成功的WiFi</li>
+            <li>SSID 为空的配置将被忽略</li>
+            <li>保存后需手动触发连接</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-panel hidden" data-tab="webdav">
+      <div class="row">
+        <div class="col-6 panel webdav-card">
+          <h5 class="bg-light">连接信息</h5>
+          <div class="field">
+            <label for="webdavUrl">地址</label>
+            <input id="webdavUrl" type="text" placeholder="https://example.com/webdav/" />
+            <small class="muted">留空表示关闭 WebDAV, 推荐坚果云</small>
+          </div>
+
+          <div class="field">
+            <label for="webdavUser">用户名</label>
+            <input id="webdavUser" type="text" placeholder="可留空" />
+          </div>
+
+          <div class="field">
+            <label for="webdavPassword">密码</label>
+            <div class="flex-row gap-small align-center">
+              <input id="webdavPassword" type="password" placeholder="可留空" />
+              <button id="togglePassword" class="eye-button is-small outline icon-button" type="button" aria-label="显示密码">
+                <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5c5.5 0 9.6 4.1 11 6.9-.2.4-1.1 2-2.8 3.6C18.5 17.2 15.7 19 12 19s-6.5-1.8-8.2-3.5C2.1 13.9 1.2 12.3 1 11.9 2.4 9.1 6.5 5 12 5zm0 2c-3.7 0-6.9 2.3-8.7 4.9 1.8 2.6 5 4.9 8.7 4.9s6.9-2.3 8.7-4.9C18.9 9.3 15.7 7 12 7zm0 2.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="field webdav-actions">
+            <button id="btnReload" class="button is-small outline" type="button">重新读取</button>
+            <button id="btnSave" class="button primary" type="button">保存到设备</button>
+            <button id="btnSaveWebDAVSettings" class="button is-success primary" type="button" title="申请访问权限并保存 WebDAV 配置到扩展存储">保存设置</button>
+          </div>
+        </div>
+
+        <div class="col-6 panel webdav-note">
+          <h5 class="bg-light">说明</h5>
+          <ul class="webdav-help">
+            <li>地址支持 http/https，建议以 / 结尾;</li>
+            <li>用户名和密码可为空，具体取决于你的 WebDAV 服务;</li>
+            <li>目前不支持<b>自签名的HTTPS证书</b>的WebDAV 服务,所以自建的话建议HTTP;</li>
+            <li class="text-primary">配置更新后，请务必点击‘保存设置’并且确认相应权限授予;</li>
+            <li class="text-primary">保存到设备需要热点连接到设备，写入设备配置文件后，断电后仍保留;</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-panel hidden" data-tab="display">
+      <div class="row" style="margin-top: 20px;">
+        <div class="col-12">
+          <div class="field webdav-actions">
+            <button id="btnUploadToWebdav" class="button primary" type="button">更新云</button>
+            <button id="btnPushToDevice" class="button " type="button" disabled>更新设备</button>
+            <button id="btnSaveLocal" class="button outline" type="button">保存本地</button>
+            <label style="margin-left: 10px; display:none;">
+              <input type="checkbox" id="chkIncludeBgPic" checked />
+              包含背景图
+            </label>
+          </div>
+          <!-- 上传进度横幅 -->
+          <div id="uploadProgressBanner" class="upload-progress-banner" style="display:none;">
+            <div class="progress-content">
+              <div class="progress-icon">
+                <svg class="spinner" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="63" stroke-dashoffset="0" />
+                </svg>
+              </div>
+              <div class="progress-text">
+                <div id="uploadProgressTitle" class="progress-title">上传中...</div>
+                <div id="uploadProgressDetail" class="progress-detail"></div>
+              </div>
+              <div id="uploadProgressBar" class="progress-bar-container">
+                <div id="uploadProgressBarFill" class="progress-bar-fill"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-6 panel webdav-card">
+          <h5 class="bg-light">展示设置</h5>
+          <div class="field">
+            <label>屏幕布局预览 (9x16)</label>
+            <div class="display-actions" style="margin-bottom: 10px;">
+              <button id="btnLoadCurrent" class="button is-small outline" type="button">读取云端</button>
+              <button id="btnLoadLocal" class="button is-small outline" type="button">本地导入</button>
+              <button id="btnChangeBg" class="button is-small outline" type="button">修改背景</button>
+              <input id="bgImageInput" type="file" accept="image/png,image/jpeg,image/jpg" style="display:none" />
+              <input id="rdtFileInput" type="file" accept=".rdt" style="display:none" />
+            </div>
+            <div id="screenPreviewContainer" class="screen-preview-container">
+              <canvas id="bgCanvas" class="screen-bg-canvas"></canvas>
+              <div id="screenPreview" class="screen-preview"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-6 panel webdav-note">
+          <h5 class="bg-light">组件配置</h5>
+          <div class="field" style="margin-bottom: 10px;">
+            <button id="btnResetConfig" class="button is-small outline" type="button" style="width: 100%;">复位配置</button>
+          </div>
+          <div class="field">
+            <label for="refreshPeriod">刷新周期（分钟，10-1440）</label>
+            <input id="refreshPeriod" type="number" min="10" max="1440" value="30" />
+            <small class="muted">控制设备自动唤醒刷新展示配置的间隔，单位为分钟</small>
+          </div>
+          <div class="field">
+            <label for="componentType">组件类型</label>
+            <select id="componentType">
+              <option value="text">预渲染文本</option>
+              <option value="dynamic_text">普通文本</option>
+              <option value="huangli">黄历</option>
+              <option value="reading_status">阅读状态</option>
+              <option value="daily_poem">今日诗词</option>
+              <option value="one">ONE一言</option>
+              <option value="day">日历</option>
+              <option value="weather">天气查询</option>
+              <option value="list">列表</option>
+              <option value="rss">RSS订阅</option>
+              <option value="divider">分割线</option>
+              <option value="block">方块</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="componentWidth">宽度 (0.1-9)</label>
+            <input id="componentWidth" type="number" min="0.1" max="9" step="any" value="3" />
+          </div>
+          <div class="field">
+            <label for="componentHeight">高度 (0.1-16)</label>
+            <input id="componentHeight" type="number" min="0.1" max="16" step="any" value="2" />
+          </div>
+          <div class="field">
+            <button id="btnAddComponent" class="button primary" type="button">
+              <svg style="width:16px;height:16px;vertical-align:middle;margin-right:4px" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
+              </svg>
+              添加组件
+            </button>
+          </div>
+          
+          <div id="componentList" class="component-list">
+            <h6>已添加组件</h6>
+            <!-- 组件列表将动态生成 -->
+          </div>
+        </div>
+      </div>
+      
+      <!-- webdav-actions 行已移至展示设置上方 -->
+    </div>
+  </main>
+
+  <div data-include="partials/footer.html"></div>
+
+  <script src="include-partials.js"></script>
+  <script src="webdav.js"></script>
+</body>
+</html>

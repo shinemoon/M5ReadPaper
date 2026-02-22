@@ -1,52 +1,32 @@
 {
-    "version": "1.6.11",
-    "latestFirmware": "ReadPaper V1.6.10.4",
+    "version": "1.7.1",
+    "latestFirmware": "ReadPaper V1.7.2",
     "sections": [
         {
             "icon": "📖",
-            "title": "ReadPaper V1.6.10.4 固件更新",
+            "title": "ReadPaper V1.7.2 固件更新",
             "updates": [
                 {
-                    "category": "功能增强",
-                    "description": "竖排标点持续补足修正"
+                    "category": "功能更新",
+                    "description": "联线待机新增万年历/黄历/ONE一言/Block组件"
                 },
                 {
-                    "category": "显示优化",
-                    "description": "锁屏细节调整"
-                }
-            ]
-        },
-        {
-            "icon": "📖",
-            "title": "ReadPaper V1.6.10.3 固件更新",
-            "updates": [
-               {
-                    "category": "问题修正",
-                    "description": "一些显示问题修正"
-                }
-            ]
-        },
-        {
-            "icon": "📖",
-            "title": "ReadPaper V1.6.10.2 固件更新",
-            "updates": [
-                {
-                    "category": "功能增强",
-                    "description": "截屏功能优化，增加书籍信息标签(通过锁屏配置控制)"
+                    "category": "优化",
+                    "description": "重构了部分代码结构便于将来组件可扩展性"
                 },
                 {
-                    "category": "增加功能",
-                    "description": "手动全刷，通过阅读快捷菜单或者双击中部区域触发)"
+                    "category": "修正",
+                    "description": "修正部分联线待机的逻辑问题"
                 }
             ]
         },
         {
             "icon": "🌐",
-            "title": "ReadPaper Utils V1.6.11 扩展更新",
+            "title": "ReadPaper Utils V1.7.1 扩展更新",
             "updates": [
                 {
                     "category": "功能更新",
-                    "description": "增加数据中心页面，用来保存显示和管理阅读记录信息。"
+                    "description": "配合固件1.7.2新增联机组件和部分增强。"
                 }
             ]
         }

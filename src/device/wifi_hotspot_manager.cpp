@@ -17,6 +17,12 @@
 #include <set>
 #include <map>
 #include "ui/ui_lock_screen.h"
+#include <ArduinoJson.h>
+#include <HTTPClient.h>
+#include <esp_http_client.h>
+#include <esp_crt_bundle.h>
+#include <mbedtls/base64.h>
+#include "ui/trmnlComponents/comp_history_cache.h"
 
 extern GlobalConfig g_config;
 
@@ -263,8 +269,14 @@ const char* WiFiHotspotManager::getPassword() const {
 }
 
 String WiFiHotspotManager::getIPAddress() const {
+    // 优先返回热点模式的IP
     if (running) {
         return WiFi.softAPIP().toString();
+    }
+    // 如果是STA模式连接成功，返回STA模式的IP
+    extern bool g_wifi_sta_connected;
+    if (g_wifi_sta_connected && WiFi.status() == WL_CONNECTED) {
+        return WiFi.localIP().toString();
     }
     return "0.0.0.0";
 }
@@ -1145,6 +1157,177 @@ void WiFiHotspotManager::handleReadingRecords() {
 #endif
 }
 
+void WiFiHotspotManager::handleWebdavConfigGet() {
+    if (!webServer) {
+        return;
+    }
+
+    JsonDocument doc;
+    doc["ok"] = true;
+    JsonObject cfg = doc["config"].to<JsonObject>();
+    cfg["url"] = g_config.webdav_url;
+    cfg["username"] = g_config.webdav_user;
+    cfg["password"] = g_config.webdav_pass;
+
+    String payload;
+    serializeJson(doc, payload);
+    webServer->send(200, "application/json", payload);
+}
+
+void WiFiHotspotManager::handleWebdavConfigUpdate() {
+    if (!webServer) {
+        return;
+    }
+
+    String body = webServer->arg("plain");
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, body);
+    if (err) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"invalid json\"}");
+        return;
+    }
+
+    JsonObject cfg = doc["config"].is<JsonObject>() ? doc["config"].as<JsonObject>() : JsonObject();
+
+    auto apply_string = [](char *dest, size_t cap, const char *value) {
+        if (!dest || cap == 0 || !value) {
+            return;
+        }
+        strncpy(dest, value, cap - 1);
+        dest[cap - 1] = '\0';
+    };
+
+    const char *url = nullptr;
+    const char *user = nullptr;
+    const char *pass = nullptr;
+
+    if (!cfg.isNull()) {
+        if (cfg["url"].is<const char*>()) url = cfg["url"].as<const char*>();
+        if (cfg["username"].is<const char*>()) user = cfg["username"].as<const char*>();
+        if (cfg["password"].is<const char*>()) pass = cfg["password"].as<const char*>();
+    }
+    if (doc["url"].is<const char*>()) url = doc["url"].as<const char*>();
+    if (doc["username"].is<const char*>()) user = doc["username"].as<const char*>();
+    if (doc["password"].is<const char*>()) pass = doc["password"].as<const char*>();
+
+    if (url) apply_string(g_config.webdav_url, sizeof(g_config.webdav_url), url);
+    if (user) apply_string(g_config.webdav_user, sizeof(g_config.webdav_user), user);
+    if (pass) apply_string(g_config.webdav_pass, sizeof(g_config.webdav_pass), pass);
+
+    bool saved = config_save();
+
+    JsonDocument resp;
+    resp["ok"] = saved;
+    if (!saved) {
+        resp["message"] = "save failed";
+    }
+    JsonObject outCfg = resp["config"].to<JsonObject>();
+    outCfg["url"] = g_config.webdav_url;
+    outCfg["username"] = g_config.webdav_user;
+    outCfg["password"] = g_config.webdav_pass;
+
+    String payload;
+    serializeJson(resp, payload);
+    webServer->send(saved ? 200 : 500, "application/json", payload);
+}
+
+void WiFiHotspotManager::handleWifiConfigGet() {
+    if (!webServer) {
+        return;
+    }
+
+    JsonDocument doc;
+    doc["ok"] = true;
+    JsonArray configs = doc["configs"].to<JsonArray>();
+    
+    for (int i = 0; i < 3; i++) {
+        JsonObject cfg = configs.add<JsonObject>();
+        cfg["ssid"] = g_config.wifi_ssid[i];
+        cfg["password"] = g_config.wifi_pass[i];
+    }
+    
+    doc["last_success_idx"] = g_config.wifi_last_success_idx;
+
+    String payload;
+    serializeJson(doc, payload);
+    webServer->send(200, "application/json", payload);
+}
+
+void WiFiHotspotManager::handleWifiConfigUpdate() {
+    if (!webServer) {
+        return;
+    }
+
+    String body = webServer->arg("plain");
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, body);
+    if (err) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"invalid json\"}");
+        return;
+    }
+
+    auto apply_string = [](char *dest, size_t cap, const char *value) {
+        if (!dest || cap == 0 || !value) {
+            return;
+        }
+        strncpy(dest, value, cap - 1);
+        dest[cap - 1] = '\0';
+    };
+
+    // 支持新格式（configs数组）
+    if (doc["configs"].is<JsonArray>()) {
+        JsonArray configs = doc["configs"].as<JsonArray>();
+        int idx = 0;
+        for (JsonVariant v : configs) {
+            if (idx >= 3) break;
+            if (v.is<JsonObject>()) {
+                JsonObject cfg = v.as<JsonObject>();
+                if (cfg["ssid"].is<const char*>()) {
+                    apply_string(g_config.wifi_ssid[idx], sizeof(g_config.wifi_ssid[idx]), cfg["ssid"].as<const char*>());
+                }
+                if (cfg["password"].is<const char*>()) {
+                    apply_string(g_config.wifi_pass[idx], sizeof(g_config.wifi_pass[idx]), cfg["password"].as<const char*>());
+                }
+            }
+            idx++;
+        }
+    }
+    
+    // 兼容旧格式（单组ssid/password）
+    JsonObject cfg = doc["config"].is<JsonObject>() ? doc["config"].as<JsonObject>() : JsonObject();
+    const char *ssid = nullptr;
+    const char *pass = nullptr;
+
+    if (!cfg.isNull()) {
+        if (cfg["ssid"].is<const char*>()) ssid = cfg["ssid"].as<const char*>();
+        if (cfg["password"].is<const char*>()) pass = cfg["password"].as<const char*>();
+    }
+    if (doc["ssid"].is<const char*>()) ssid = doc["ssid"].as<const char*>();
+    if (doc["password"].is<const char*>()) pass = doc["password"].as<const char*>();
+
+    if (ssid) apply_string(g_config.wifi_ssid[0], sizeof(g_config.wifi_ssid[0]), ssid);
+    if (pass) apply_string(g_config.wifi_pass[0], sizeof(g_config.wifi_pass[0]), pass);
+
+    bool saved = config_save();
+
+    JsonDocument resp;
+    resp["ok"] = saved;
+    if (!saved) {
+        resp["message"] = "save failed";
+    }
+    JsonArray outConfigs = resp["configs"].to<JsonArray>();
+    for (int i = 0; i < 3; i++) {
+        JsonObject outCfg = outConfigs.add<JsonObject>();
+        outCfg["ssid"] = g_config.wifi_ssid[i];
+        outCfg["password"] = g_config.wifi_pass[i];
+    }
+    resp["last_success_idx"] = g_config.wifi_last_success_idx;
+
+    String payload;
+    serializeJson(resp, payload);
+    webServer->send(saved ? 200 : 500, "application/json", payload);
+}
+
 void WiFiHotspotManager::handleNotFound() {
     String message = "File Not Found\n\n";
     message += "URI: " + webServer->uri() + "\n";
@@ -1736,4 +1919,896 @@ void wifi_hotspot_cleanup() {
         delete g_wifi_hotspot;
         g_wifi_hotspot = nullptr;
     }
+}
+
+bool WiFiHotspotManager::connectToWiFiFromToken() {
+#if DBG_WIFI_HOTSPOT
+    Serial.println("[WIFI_HOTSPOT] 尝试从配置连接WiFi...");
+#endif
+
+    // 确保NVS已初始化（STA连接需要WiFi/NVS就绪）
+    esp_err_t nvs_ret = nvs_flash_init();
+    if (nvs_ret == ESP_ERR_NVS_NO_FREE_PAGES || nvs_ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+#if DBG_WIFI_HOTSPOT
+        Serial.println("[WIFI_HOTSPOT] NVS分区满或版本不匹配，正在擦除并重新初始化...");
+#endif
+        nvs_flash_erase();
+        nvs_ret = nvs_flash_init();
+    }
+#if DBG_WIFI_HOTSPOT
+    if (nvs_ret != ESP_OK) {
+        Serial.printf("[WIFI_HOTSPOT] 错误: NVS初始化失败 (%s)\n", esp_err_to_name(nvs_ret));
+    }
+#endif
+
+    // 重置连接状态
+    extern bool g_wifi_sta_connected;
+    g_wifi_sta_connected = false;
+
+    // 停止热点模式（如果正在运行）
+    if (running) {
+        stop();
+        delay(500);
+    }
+
+    // 切换到STA模式
+    WiFi.mode(WIFI_STA);
+    delay(500);
+
+    // 构建尝试顺序：优先尝试最近成功的WiFi
+    int try_order[3];
+    int try_count = 0;
+    
+    // 先添加最近成功的索引
+    if (g_config.wifi_last_success_idx >= 0 && g_config.wifi_last_success_idx < 3) {
+        String ssid = String(g_config.wifi_ssid[g_config.wifi_last_success_idx]).c_str();
+        ssid.trim();
+        if (ssid.length() > 0) {
+            try_order[try_count++] = g_config.wifi_last_success_idx;
+        }
+    }
+    
+    // 再添加其他配置
+    for (int i = 0; i < 3; i++) {
+        if (i == g_config.wifi_last_success_idx) {
+            continue; // 跳过已添加的
+        }
+        String ssid = String(g_config.wifi_ssid[i]).c_str();
+        ssid.trim();
+        if (ssid.length() > 0) {
+            try_order[try_count++] = i;
+        }
+    }
+
+    if (try_count == 0) {
+#if DBG_WIFI_HOTSPOT
+        Serial.println("[WIFI_HOTSPOT] 错误: 没有配置任何WiFi");
+#endif
+        WiFi.mode(WIFI_OFF);
+        return false;
+    }
+
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] 找到 %d 组WiFi配置\n", try_count);
+#endif
+
+    // 逐个尝试连接
+    for (int attempt = 0; attempt < try_count; attempt++) {
+        int idx = try_order[attempt];
+        String ssid = String(g_config.wifi_ssid[idx]).c_str();
+        String password = String(g_config.wifi_pass[idx]).c_str();
+        ssid.trim();
+        password.trim();
+
+#if DBG_WIFI_HOTSPOT
+        Serial.printf("[WIFI_HOTSPOT] [%d/%d] 尝试连接: '%s'\n", 
+                      attempt + 1, try_count, ssid.c_str());
+#endif
+
+        // 开始连接
+        WiFi.begin(ssid.c_str(), password.c_str());
+
+        // 等待连接，最多5秒
+        int timeout = 10; // 10 * 500ms = 5秒
+        while (WiFi.status() != WL_CONNECTED && timeout > 0) {
+            delay(500);
+            timeout--;
+#if DBG_WIFI_HOTSPOT
+            Serial.print(".");
+#endif
+        }
+
+#if DBG_WIFI_HOTSPOT
+        Serial.println();
+#endif
+
+        if (WiFi.status() == WL_CONNECTED) {
+#if DBG_WIFI_HOTSPOT
+            Serial.printf("[WIFI_HOTSPOT] ✅ WiFi连接成功: %s\n", ssid.c_str());
+            Serial.printf("[WIFI_HOTSPOT] IP地址: %s\n", WiFi.localIP().toString().c_str());
+#endif
+            // 更新最近成功的索引
+            if (g_config.wifi_last_success_idx != idx) {
+                g_config.wifi_last_success_idx = idx;
+                config_save(); // 保存配置
+#if DBG_WIFI_HOTSPOT
+                Serial.printf("[WIFI_HOTSPOT] 更新最近成功WiFi索引: %d\n", idx);
+#endif
+            }
+            
+            g_wifi_sta_connected = true;
+            
+            // 同步网络时间（HTTPS证书验证需要正确的系统时间）
+#if DBG_WIFI_HOTSPOT
+            Serial.println("[WIFI_HOTSPOT] 正在同步网络时间...");
+#endif
+            configTime(8 * 3600, 0, "ntp.aliyun.com", "cn.pool.ntp.org", "pool.ntp.org");
+            
+            // 等待时间同步（最多3秒）
+            int retry = 0;
+            struct tm timeinfo;
+            while (!getLocalTime(&timeinfo) && retry < 6) {
+                delay(500);
+                retry++;
+            }
+            
+            if (getLocalTime(&timeinfo)) {
+#if DBG_WIFI_HOTSPOT
+                Serial.printf("[WIFI_HOTSPOT] ✅ 时间同步成功: %04d-%02d-%02d %02d:%02d:%02d\n",
+                             timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+                             timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+#endif
+            } else {
+#if DBG_WIFI_HOTSPOT
+                Serial.println("[WIFI_HOTSPOT] ⚠️ 时间同步超时，HTTPS请求可能失败");
+#endif
+            }
+            
+            return true;
+        } else {
+#if DBG_WIFI_HOTSPOT
+            Serial.printf("[WIFI_HOTSPOT] ❌ 连接失败: %s\n", ssid.c_str());
+#endif
+            WiFi.disconnect();
+            delay(1000); // 等待1秒后尝试下一个
+        }
+    }
+
+    // 所有WiFi都尝试失败
+#if DBG_WIFI_HOTSPOT
+    Serial.println("[WIFI_HOTSPOT] ❌ 所有WiFi配置都连接失败");
+#endif
+    WiFi.disconnect();
+    WiFi.mode(WIFI_OFF);
+    g_wifi_sta_connected = false;
+    return false;
+}
+
+void WiFiHotspotManager::disconnectWiFi() {
+#if DBG_WIFI_HOTSPOT
+    Serial.println("[WIFI_HOTSPOT] 断开WiFi连接...");
+#endif
+
+    // 分阶段安全关闭WiFi，给lwIP/TCP协议栈足够时间清理资源
+    // 1. 先断开WiFi连接（不立即关闭模式）
+    WiFi.disconnect(true, false);  // disconnect(wifioff=true, eraseap=false)
+    
+    // 2. 等待100ms让lwIP处理断开事件和清理活跃连接
+    vTaskDelay(pdMS_TO_TICKS(100));
+    
+    // 3. 再关闭WiFi模式
+    WiFi.mode(WIFI_OFF);
+    
+    extern bool g_wifi_sta_connected;
+    g_wifi_sta_connected = false;
+
+#if DBG_WIFI_HOTSPOT
+    Serial.println("[WIFI_HOTSPOT] WiFi已断开");
+#endif
+}
+
+static void wifi_disconnect_task(void *param) {
+    uint32_t delay_ms = param ? *static_cast<uint32_t *>(param) : 0;
+    if (param) {
+        delete static_cast<uint32_t *>(param);
+    }
+    if (delay_ms > 0) {
+        vTaskDelay(pdMS_TO_TICKS(delay_ms));
+    }
+    if (g_wifi_hotspot) {
+        g_wifi_hotspot->disconnectWiFi();
+    }
+    vTaskDelete(nullptr);
+}
+
+void WiFiHotspotManager::disconnectWiFiDeferred(uint32_t delay_ms) {
+    uint32_t *payload = new uint32_t(delay_ms);
+    // 增加堆栈到4096字节，优先级提高到2，固定在核心1上执行
+    if (xTaskCreatePinnedToCore(wifi_disconnect_task, "WiFiDisc", 4096, payload, 2, nullptr, 1) != pdPASS) {
+        delete payload;
+        disconnectWiFi();
+    }
+}
+
+bool WiFiHotspotManager::ensureWebdavReadpaperDir() {
+    if (g_config.webdav_url[0] == '\0') {
+#if DBG_WIFI_HOTSPOT
+        Serial.println("[WIFI_HOTSPOT] WebDAV 未配置，跳过连接");
+#endif
+        return false;
+    }
+
+        String base = String(g_config.webdav_url);
+    base.trim();
+            if (!(base.startsWith("http://") || base.startsWith("https://"))) {
+#if DBG_WIFI_HOTSPOT
+        Serial.printf("[WIFI_HOTSPOT] WebDAV 地址无效: %s\n", base.c_str());
+#endif
+        return false;
+    }
+
+    if (!base.endsWith("/")) {
+        base += "/";
+    }
+    String base_url = base;
+    String target = base + "readpaper/";
+
+    String webdav_user = String(g_config.webdav_user);
+    String webdav_pass = String(g_config.webdav_pass);
+    webdav_user.trim();
+    webdav_pass.trim();
+    bool has_auth = (webdav_user.length() > 0 || webdav_pass.length() > 0);
+
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] WebDAV Base: %s\n", base_url.c_str());
+    Serial.printf("[WIFI_HOTSPOT] WebDAV Target: %s\n", target.c_str());
+    Serial.printf("[WIFI_HOTSPOT] WebDAV User: %s\n", webdav_user.c_str());
+    Serial.printf("[WIFI_HOTSPOT] WebDAV Pass: %s\n", webdav_pass.c_str());
+    Serial.printf("[WIFI_HOTSPOT] WebDAV Auth: %s\n", has_auth ? "on" : "off");
+#endif
+
+    auto build_absolute_url = [](const String &base_url, const String &location) -> String {
+        if (location.startsWith("http://") || location.startsWith("https://")) {
+            return location;
+        }
+        String base = base_url;
+        int scheme_pos = base.indexOf("://");
+        if (scheme_pos < 0) {
+            return location;
+        }
+        int host_start = scheme_pos + 3;
+        int host_end = base.indexOf('/', host_start);
+        String origin = (host_end > 0) ? base.substring(0, host_end) : base;
+        if (location.startsWith("/")) {
+            return origin + location;
+        }
+        if (!origin.endsWith("/")) {
+            origin += "/";
+        }
+        return origin + location;
+    };
+
+    auto send_request = [&](const String &url, esp_http_client_method_t method, bool add_depth, int &outCode) -> bool {
+        String current_url = url;
+        const int max_redirects = 5;
+
+        auto do_request = [&](const String &req_url, esp_http_client_auth_type_t auth_type, bool add_basic_header, int &code_out, String &redirect_out) -> bool {
+            esp_http_client_config_t cfg = {};
+            cfg.url = req_url.c_str();
+            cfg.timeout_ms = 8000;
+            cfg.crt_bundle_attach = esp_crt_bundle_attach;
+            cfg.disable_auto_redirect = true;
+            cfg.method = method;
+
+            if (auth_type != HTTP_AUTH_TYPE_NONE && has_auth) {
+                cfg.auth_type = auth_type;
+                cfg.username = webdav_user.c_str();
+                cfg.password = webdav_pass.c_str();
+            }
+
+            esp_http_client_handle_t client = esp_http_client_init(&cfg);
+            if (!client) {
+                return false;
+            }
+
+            esp_http_client_set_method(client, method);
+            if (add_depth) {
+                esp_http_client_set_header(client, "Depth", "0");
+            }
+            esp_http_client_set_header(client, "User-Agent", "ReadPaper-WebDAV");
+
+            if (add_basic_header && has_auth) {
+                char auth_raw[160] = {0};
+                snprintf(auth_raw, sizeof(auth_raw), "%s:%s", webdav_user.c_str(), webdav_pass.c_str());
+                unsigned char b64[256] = {0};
+                size_t out_len = 0;
+                if (mbedtls_base64_encode(b64, sizeof(b64) - 1, &out_len,
+                                          reinterpret_cast<const unsigned char *>(auth_raw),
+                                          strlen(auth_raw)) == 0) {
+                    b64[out_len] = '\0';
+                    String auth_header = String("Basic ") + reinterpret_cast<const char *>(b64);
+                    esp_http_client_set_header(client, "Authorization", auth_header.c_str());
+#if DBG_WIFI_HOTSPOT
+                    // Log first few chars to verify encoding occurred
+                    Serial.printf("[WIFI_HOTSPOT] Gen Auth Header: Basic %.5s... (Len: %d)\n", (char*)b64, out_len);
+#endif
+                }
+            }
+
+            if (method == HTTP_METHOD_MKCOL) {
+                esp_http_client_set_post_field(client, "", 0);
+            }
+
+            esp_err_t err = esp_http_client_open(client, 0);
+            if (err != ESP_OK) {
+                esp_http_client_cleanup(client);
+                return false;
+            }
+
+            err = esp_http_client_fetch_headers(client);
+            if (err < 0) {
+                esp_http_client_close(client);
+                esp_http_client_cleanup(client);
+                return false;
+            }
+
+            code_out = esp_http_client_get_status_code(client);
+            if (code_out == 401) {
+#if DBG_WIFI_HOTSPOT
+                char body[256] = {0};
+                int n = esp_http_client_read_response(client, body, sizeof(body) - 1);
+                if (n > 0) {
+                    body[n] = '\0';
+                    Serial.printf("[WIFI_HOTSPOT] WebDAV 401 body: %s\n", body);
+                }
+                char *auth_hdr = nullptr;
+                if (esp_http_client_get_header(client, "WWW-Authenticate", &auth_hdr) == ESP_OK && auth_hdr) {
+                    Serial.printf("[WIFI_HOTSPOT] WebDAV 401 WWW-Authenticate: %s\n", auth_hdr);
+                } else if (esp_http_client_get_header(client, "www-authenticate", &auth_hdr) == ESP_OK && auth_hdr) {
+                    Serial.printf("[WIFI_HOTSPOT] WebDAV 401 www-authenticate: %s\n", auth_hdr);
+                } else {
+                    Serial.println("[WIFI_HOTSPOT] WebDAV 401 (no WWW-Authenticate header)");
+                }
+#endif
+            }
+            redirect_out = "";
+            if (code_out >= 300 && code_out < 400) {
+                char *loc = nullptr;
+                if (esp_http_client_get_header(client, "Location", &loc) == ESP_OK && loc) {
+                    redirect_out = String(loc);
+                }
+            }
+
+            esp_http_client_close(client);
+            esp_http_client_cleanup(client);
+            return true;
+        };
+
+        for (int i = 0; i <= max_redirects; ++i) {
+            String redirect;
+            if (!do_request(current_url, HTTP_AUTH_TYPE_NONE, has_auth, outCode, redirect)) {
+                return false;
+            }
+
+            if (outCode == 401 && has_auth) {
+                if (!do_request(current_url, HTTP_AUTH_TYPE_DIGEST, false, outCode, redirect)) {
+                    return false;
+                }
+            }
+
+            if (outCode >= 300 && outCode < 400) {
+                if (redirect.length() == 0) {
+                    return false;
+                }
+                current_url = build_absolute_url(current_url, redirect);
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    };
+
+    int mkCode = 0;
+    int optCode = 0;
+    int propCode = 0;
+    // OPTIONS to get auth challenge
+    if (!send_request(base_url, HTTP_METHOD_OPTIONS, false, optCode)) {
+#if DBG_WIFI_HOTSPOT
+        Serial.println("[WIFI_HOTSPOT] WebDAV OPTIONS 请求失败");
+#endif
+        return false;
+    }
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] WebDAV OPTIONS 返回: %d\n", optCode);
+#endif
+    if (optCode == 401 && !has_auth) {
+        return false;
+    }
+
+    // PROPFIND to verify path and challenge response
+    if (!send_request(base_url, HTTP_METHOD_PROPFIND, true, propCode)) {
+#if DBG_WIFI_HOTSPOT
+        Serial.println("[WIFI_HOTSPOT] WebDAV PROPFIND 请求失败");
+#endif
+        return false;
+    }
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] WebDAV PROPFIND 返回: %d\n", propCode);
+#endif
+    if (propCode == 401 && !has_auth) {
+        return false;
+    }
+
+    if (!send_request(target, HTTP_METHOD_MKCOL, false, mkCode)) {
+#if DBG_WIFI_HOTSPOT
+        Serial.println("[WIFI_HOTSPOT] WebDAV MKCOL 请求失败");
+#endif
+        return false;
+    }
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] WebDAV MKCOL 返回: %d\n", mkCode);
+#endif
+    if (mkCode == 200 || mkCode == 201 || mkCode == 204 || mkCode == 405) {
+        return true;
+    }
+    return false;
+}
+
+// 将前端发送的 rdt 和 png_base64 保存到 SD 卡的 /rdt 目录
+void WiFiHotspotManager::handleUpdateDisplay() {
+    // CORS headers
+    webServer->sendHeader("Access-Control-Allow-Origin", "*");
+    webServer->sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, DELETE");
+    webServer->sendHeader("Access-Control-Allow-Headers", "Content-Type, X-Requested-With");
+
+    String body = webServer->arg("plain");
+    if (body.length() == 0) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Empty body\"}");
+        return;
+    }
+
+    // 手工从 body 中提取大字段，避免为完整 JSON 分配大量堆内存（导致 NoMemory）
+    auto extractJsonString = [](const String &src, const char* key, String &out)->bool{
+        String pattern = String("\"") + String(key) + String("\"");
+        int idx = src.indexOf(pattern);
+        if (idx < 0) return false;
+        int col = src.indexOf(':', idx + pattern.length());
+        if (col < 0) return false;
+        int i = col + 1;
+        // skip spaces
+        while (i < src.length() && (src[i] == ' ' || src[i] == '\n' || src[i] == '\r' || src[i] == '\t')) i++;
+        // expect starting quote
+        if (i >= src.length() || src[i] != '"') return false;
+        i++; // move past opening quote
+        String acc;
+        bool escape = false;
+        for (; i < src.length(); i++) {
+            char c = src[i];
+            if (escape) {
+                // handle common escapes
+                if (c == '"') acc += '"';
+                else if (c == '\\') acc += '\\';
+                else if (c == '/') acc += '/';
+                else if (c == 'b') acc += '\b';
+                else if (c == 'f') acc += '\f';
+                else if (c == 'n') acc += '\n';
+                else if (c == 'r') acc += '\r';
+                else if (c == 't') acc += '\t';
+                else {
+                    // unknown escape, copy as-is
+                    acc += c;
+                }
+                escape = false;
+            } else {
+                if (c == '\\') {
+                    escape = true;
+                } else if (c == '"') {
+                    out = acc;
+                    return true;
+                } else {
+                    acc += c;
+                }
+            }
+        }
+        return false;
+    };
+
+    String rdtStr;
+    String png_b64_str;
+
+    if (!extractJsonString(body, "png_base64", png_b64_str)) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Missing png_base64\"}");
+        return;
+    }
+
+    if (!extractJsonString(body, "rdt", rdtStr)) {
+        // rdt 可以为空或缺失视为错误
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Missing rdt\"}");
+        return;
+    }
+
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] Extracted rdt len=%d, png_b64 len=%d\n", rdtStr.length(), png_b64_str.length());
+    if (png_b64_str.length() > 0) {
+        Serial.printf("[WIFI_HOTSPOT] png_b64 first 60 chars: %.60s\n", png_b64_str.c_str());
+    }
+#endif
+
+    // 清理 base64 字符串：移除所有空白和非 base64 字符
+    String cleaned_b64;
+    cleaned_b64.reserve(png_b64_str.length());
+    for (int i = 0; i < png_b64_str.length(); i++) {
+        char c = png_b64_str[i];
+        if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+            (c >= '0' && c <= '9') || c == '+' || c == '/' || c == '=') {
+            cleaned_b64 += c;
+        }
+        // 忽略其他字符（空白、换行等）
+    }
+    png_b64_str = cleaned_b64;
+
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] Cleaned png_b64 len=%d\n", png_b64_str.length());
+#endif
+
+    // 确保 /rdt 目录存在
+    if (!SDW::SD.exists("/rdt")) {
+        SDW::SD.mkdir("/rdt");
+    }
+
+    // RDT 将在处理完 PNG 后以原子方式保存（见函数后部）
+    const char* rdt_path = "/rdt/readpaper.rdt";
+    const char* rdt_tmp = "/rdt/readpaper.rdt.tmp";
+    if (SDW::SD.exists(rdt_tmp)) SDW::SD.remove(rdt_tmp);
+
+    // 解码 PNG base64 并写入文件
+    const char* png_path = "/rdt/readpaper.png";
+    const char* png_tmp = "/rdt/readpaper.png.tmp";
+    if (SDW::SD.exists(png_tmp)) SDW::SD.remove(png_tmp);
+
+    size_t b64len = (size_t)png_b64_str.length();
+    // 防护：拒绝过大的上传（例如超过 1.5MB base64，约 1.1MB 二进制）
+    const size_t MAX_B64 = 1500 * 1024; // 1.5MB
+    if (b64len == 0 || b64len > MAX_B64) {
+        webServer->send(413, "application/json", "{\"ok\":false,\"message\":\"png_base64 too large\"}");
+        return;
+    }
+    size_t out_len = (b64len * 3) / 4 + 16;
+    uint8_t* outbuf = (uint8_t*)malloc(out_len);
+    if (!outbuf) {
+        webServer->send(500, "application/json", "{\"ok\":false,\"message\":\"Out of memory\"}");
+        return;
+    }
+    size_t dec_len = 0;
+    int decode_ret = mbedtls_base64_decode(outbuf, out_len, &dec_len, (const unsigned char*)png_b64_str.c_str(), b64len);
+    if (decode_ret != 0) {
+        free(outbuf);
+#if DBG_WIFI_HOTSPOT
+        Serial.printf("[WIFI_HOTSPOT] Base64 decode failed: ret=%d, b64len=%d, out_len=%d\n", decode_ret, b64len, out_len);
+#endif
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Base64 decode failed\"}");
+        return;
+    }
+
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] Base64 decoded %d bytes -> %d bytes\n", b64len, dec_len);
+#endif
+
+    File pf = SDW::SD.open(png_tmp, "w");
+    if (!pf) {
+        free(outbuf);
+        webServer->send(500, "application/json", "{\"ok\":false,\"message\":\"Failed to open png tmp\"}");
+        return;
+    }
+    pf.write(outbuf, dec_len);
+    pf.close();
+    free(outbuf);
+
+    if (SDW::SD.exists(png_path)) SDW::SD.remove(png_path);
+    SDW::SD.rename(png_tmp, png_path);
+
+    // 保存 rdt
+    if (SDW::SD.exists(rdt_tmp)) SDW::SD.remove(rdt_tmp);
+    File rf2 = SDW::SD.open(rdt_tmp, "w");
+    if (!rf2) {
+        webServer->send(500, "application/json", "{\"ok\":false,\"message\":\"Failed to open rdt tmp\"}");
+        return;
+    }
+    rf2.print(rdtStr);
+    rf2.close();
+    if (SDW::SD.exists(rdt_path)) SDW::SD.remove(rdt_path);
+    SDW::SD.rename(rdt_tmp, rdt_path);
+
+    webServer->send(200, "application/json", "{\"ok\":true,\"message\":\"Saved\"}");
+}
+
+// 分块上传：开始会话，清空临时文件
+void WiFiHotspotManager::handleUpdateDisplayStart() {
+    webServer->sendHeader("Access-Control-Allow-Origin", "*");
+    webServer->sendHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    webServer->sendHeader("Access-Control-Allow-Headers", "Content-Type");
+
+    String body = webServer->arg("plain");
+    if (body.length() == 0) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Empty body\"}");
+        return;
+    }
+
+    // 手工解析 type 字段
+    int idx = body.indexOf("\"type\"");
+    if (idx < 0) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Missing type\"}");
+        return;
+    }
+    int col = body.indexOf(':', idx);
+    if (col < 0) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Invalid json\"}");
+        return;
+    }
+    int i = col + 1;
+    while (i < body.length() && (body[i] == ' ' || body[i] == '\t' || body[i] == '\n' || body[i] == '\r')) i++;
+    if (i >= body.length() || body[i] != '"') {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Invalid type format\"}");
+        return;
+    }
+    i++;
+    String type;
+    while (i < body.length() && body[i] != '"') {
+        type += body[i];
+        i++;
+    }
+
+    if (!SDW::SD.exists("/rdt")) SDW::SD.mkdir("/rdt");
+
+    const char* upload_path = nullptr;
+    if (type == "rdt") {
+        upload_path = "/rdt/readpaper.rdt.upload";
+    } else if (type == "png") {
+        upload_path = "/rdt/readpaper.png.upload";
+    } else {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Invalid type\"}");
+        return;
+    }
+
+    // 清空或创建上传临时文件
+    if (SDW::SD.exists(upload_path)) SDW::SD.remove(upload_path);
+    File uf = SDW::SD.open(upload_path, "w");
+    if (!uf) {
+        webServer->send(500, "application/json", "{\"ok\":false,\"message\":\"Failed to create upload file\"}");
+        return;
+    }
+    uf.close();
+
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] Upload started for type=%s, path=%s\n", type.c_str(), upload_path);
+#endif
+
+    webServer->send(200, "application/json", "{\"ok\":true}");
+}
+
+// 分块上传：接收一块数据
+void WiFiHotspotManager::handleUpdateDisplayChunk() {
+    webServer->sendHeader("Access-Control-Allow-Origin", "*");
+    webServer->sendHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    webServer->sendHeader("Access-Control-Allow-Headers", "Content-Type");
+
+    String body = webServer->arg("plain");
+    if (body.length() == 0) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Empty body\"}");
+        return;
+    }
+
+    // 手工解析 type 和 data 字段（复用 extractJsonString lambda）
+    auto extractJsonString = [](const String &src, const char* key, String &out)->bool{
+        String pattern = String("\"") + String(key) + String("\"");
+        int idx = src.indexOf(pattern);
+        if (idx < 0) return false;
+        int col = src.indexOf(':', idx + pattern.length());
+        if (col < 0) return false;
+        int i = col + 1;
+        while (i < src.length() && (src[i] == ' ' || src[i] == '\n' || src[i] == '\r' || src[i] == '\t')) i++;
+        if (i >= src.length() || src[i] != '"') return false;
+        i++;
+        String acc;
+        bool escape = false;
+        for (; i < src.length(); i++) {
+            char c = src[i];
+            if (escape) {
+                if (c == '"') acc += '"';
+                else if (c == '\\') acc += '\\';
+                else if (c == '/') acc += '/';
+                else if (c == 'b') acc += '\b';
+                else if (c == 'f') acc += '\f';
+                else if (c == 'n') acc += '\n';
+                else if (c == 'r') acc += '\r';
+                else if (c == 't') acc += '\t';
+                else acc += c;
+                escape = false;
+            } else {
+                if (c == '\\') escape = true;
+                else if (c == '"') { out = acc; return true; }
+                else acc += c;
+            }
+        }
+        return false;
+    };
+
+    String type, data;
+    if (!extractJsonString(body, "type", type)) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Missing type\"}");
+        return;
+    }
+    if (!extractJsonString(body, "data", data)) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Missing data\"}");
+        return;
+    }
+
+    const char* upload_path = nullptr;
+    if (type == "rdt") {
+        upload_path = "/rdt/readpaper.rdt.upload";
+    } else if (type == "png") {
+        upload_path = "/rdt/readpaper.png.upload";
+    } else {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Invalid type\"}");
+        return;
+    }
+
+    // 检查大小限制（单块最大 16KB）
+    if (data.length() > 16384) {
+        webServer->send(413, "application/json", "{\"ok\":false,\"message\":\"Chunk too large\"}");
+        return;
+    }
+
+    File uf = SDW::SD.open(upload_path, "a");
+    if (!uf) {
+        webServer->send(500, "application/json", "{\"ok\":false,\"message\":\"Failed to open upload file\"}");
+        return;
+    }
+
+    if (type == "rdt") {
+        // RDT 直接追加文本
+        uf.print(data);
+        uf.close();
+    } else if (type == "png") {
+        // PNG 需要先 base64 解码再追加
+        // 清理 base64 字符串
+        String cleaned;
+        cleaned.reserve(data.length());
+        for (int j = 0; j < data.length(); j++) {
+            char c = data[j];
+            if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                (c >= '0' && c <= '9') || c == '+' || c == '/' || c == '=') {
+                cleaned += c;
+            }
+        }
+
+        size_t b64len = cleaned.length();
+        size_t out_len = (b64len * 3) / 4 + 16;
+        uint8_t* outbuf = (uint8_t*)malloc(out_len);
+        if (!outbuf) {
+            uf.close();
+            webServer->send(500, "application/json", "{\"ok\":false,\"message\":\"Out of memory\"}");
+            return;
+        }
+
+        size_t dec_len = 0;
+        int ret = mbedtls_base64_decode(outbuf, out_len, &dec_len, (const unsigned char*)cleaned.c_str(), b64len);
+        if (ret != 0) {
+            free(outbuf);
+            uf.close();
+#if DBG_WIFI_HOTSPOT
+            Serial.printf("[WIFI_HOTSPOT] Chunk base64 decode failed: ret=%d\n", ret);
+#endif
+            webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Base64 decode failed\"}");
+            return;
+        }
+
+#if DBG_WIFI_HOTSPOT
+        Serial.printf("[WIFI_HOTSPOT] PNG chunk: b64_len=%d, decoded_len=%d\n", b64len, dec_len);
+#endif
+
+        size_t written = uf.write(outbuf, dec_len);
+        if (written != dec_len) {
+#if DBG_WIFI_HOTSPOT
+            Serial.printf("[WIFI_HOTSPOT] Write incomplete! Expected=%d, Written=%d\n", dec_len, written);
+#endif
+            free(outbuf);
+            uf.close();
+            webServer->send(500, "application/json", "{\"ok\":false,\"message\":\"Write failed\"}");
+            return;
+        }
+        
+        uf.flush();  // 显式刷新缓冲区到 SD 卡
+        uf.close();
+        free(outbuf);
+    }
+
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] Chunk appended: type=%s, data_len=%d\n", type.c_str(), data.length());
+#endif
+
+    webServer->send(200, "application/json", "{\"ok\":true}");
+}
+
+// 分块上传：完成上传，重命名临时文件
+void WiFiHotspotManager::handleUpdateDisplayCommit() {
+    webServer->sendHeader("Access-Control-Allow-Origin", "*");
+    webServer->sendHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    webServer->sendHeader("Access-Control-Allow-Headers", "Content-Type");
+
+    String body = webServer->arg("plain");
+    if (body.length() == 0) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Empty body\"}");
+        return;
+    }
+
+    // 手工解析 type 字段
+    int idx = body.indexOf("\"type\"");
+    if (idx < 0) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Missing type\"}");
+        return;
+    }
+    int col = body.indexOf(':', idx);
+    if (col < 0) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Invalid json\"}");
+        return;
+    }
+    int i = col + 1;
+    while (i < body.length() && (body[i] == ' ' || body[i] == '\t' || body[i] == '\n' || body[i] == '\r')) i++;
+    if (i >= body.length() || body[i] != '"') {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Invalid type format\"}");
+        return;
+    }
+    i++;
+    String type;
+    while (i < body.length() && body[i] != '"') {
+        type += body[i];
+        i++;
+    }
+
+    const char* upload_path = nullptr;
+    const char* final_path = nullptr;
+    if (type == "rdt") {
+        upload_path = "/rdt/readpaper.rdt.upload";
+        final_path = "/rdt/readpaper.rdt";
+    } else if (type == "png") {
+        upload_path = "/rdt/readpaper.png.upload";
+        final_path = "/rdt/readpaper.png";
+    } else {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Invalid type\"}");
+        return;
+    }
+
+    // 检查上传文件是否存在
+    if (!SDW::SD.exists(upload_path)) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Upload file not found\"}");
+        return;
+    }
+
+    // 替换最终文件
+    if (SDW::SD.exists(final_path)) SDW::SD.remove(final_path);
+    if (!SDW::SD.rename(upload_path, final_path)) {
+        webServer->send(500, "application/json", "{\"ok\":false,\"message\":\"Rename failed\"}");
+        return;
+    }
+    // RDT 文件已更新，清空历史缓存以与新布局保持同步
+    if (type == "rdt") {
+        cache_clear_history();
+    }
+
+#if DBG_WIFI_HOTSPOT
+    // 检查最终文件大小
+    File check_file = SDW::SD.open(final_path, "r");
+    if (check_file) {
+        size_t file_size = check_file.size();
+        check_file.close();
+        Serial.printf("[WIFI_HOTSPOT] Upload committed: type=%s -> %s (size=%d bytes)\n", type.c_str(), final_path, file_size);
+    } else {
+        Serial.printf("[WIFI_HOTSPOT] Upload committed: type=%s -> %s (unable to check size)\n", type.c_str(), final_path);
+    }
+#endif
+
+    webServer->send(200, "application/json", "{\"ok\":true,\"message\":\"Saved\"}");
 }

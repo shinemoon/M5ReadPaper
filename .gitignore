@@ -14,3 +14,5 @@ tools/__pycache__/*
 webapp/extension/*.zip
 *.swp
 *.*.swp
+token
+data/token.json
