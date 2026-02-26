@@ -533,26 +533,51 @@
         username: normalizeField(userEl ? userEl.value : ''),
         password: normalizeField(passEl ? passEl.value : '')
       };
-      const r = await fetch(`${API_BASE}/api/webdav_config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const j = await r.json();
-      if (!r.ok || !j || j.ok !== true) {
-        throw new Error(j && j.message ? j.message : `HTTP ${r.status}`);
-      }
-      setStatus('已保存到设备', 'success', 'webdav');
 
-      // 同步保存到扩展本地存储
+      // 无论设备是否可达，始终先保存到扩展本地存储
+      let localSaved = false;
       try {
         if (chrome && chrome.storage && chrome.storage.local) {
-          chrome.storage.local.set({ webdav_config: { url: normalizeField(payload.url), username: normalizeField(payload.username), password: normalizeField(payload.password) } });
+          await new Promise((resolve) => {
+            chrome.storage.local.set(
+              { webdav_config: { url: payload.url, username: payload.username, password: payload.password } },
+              resolve
+            );
+          });
+          localSaved = true;
         }
       } catch (e) {
         // ignore
       }
-      
+
+      // 尝试同步到设备（不可达时静默降级）
+      let deviceSaved = false;
+      let deviceError = '';
+      try {
+        const r = await fetch(`${API_BASE}/api/webdav_config`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const j = await r.json();
+        if (r.ok && j && j.ok === true) {
+          deviceSaved = true;
+        } else {
+          deviceError = j && j.message ? j.message : `HTTP ${r.status}`;
+        }
+      } catch (e) {
+        // 网络不通或设备未连接，不报错，降级为本地保存
+        deviceError = e.message;
+      }
+
+      if (deviceSaved) {
+        setStatus('已保存到设备' + (localSaved ? '及本地' : ''), 'success', 'webdav');
+      } else if (localSaved) {
+        setStatus('已保存到本地（设备未连接，下次连接热点后可点击「保存到设备」同步）', 'success', 'webdav');
+      } else {
+        setStatus('保存失败' + (deviceError ? `: ${deviceError}` : ''), 'error', 'webdav');
+      }
+
       // 更新按钮状态
       updateLoadCurrentButtonState();
       updateUploadButtonState();
@@ -3464,13 +3489,14 @@
         
         console.log('[saveWebDAVSettings] 权限已授予:', origin);
         
-        // 保存到扩展存储
+        // 保存到扩展存储（同时写入 webdav_config 对象 key，与 loadConfig 保持一致）
         if (chrome.storage && chrome.storage.local) {
           chrome.storage.local.set({
             webdav_url: url,
             webdav_username: username,
             webdav_password: password,
-            webdav_permission_granted: true
+            webdav_permission_granted: true,
+            webdav_config: { url: url, username: username, password: password }
           }, function() {
             if (chrome.runtime.lastError) {
               setStatus('保存失败: ' + chrome.runtime.lastError.message, 'error', 'webdav');
