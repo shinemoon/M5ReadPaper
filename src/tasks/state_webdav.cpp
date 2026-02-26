@@ -16,8 +16,6 @@
 #include "device/powermgt.h"
 // for screenshot
 #include "ui/screenshot.h"
-#define DEBUGWEBDAV 0
-
 extern M5Canvas *g_canvas;
 extern float font_size;
 // refreshPeriod moved to globals.h/globals.cpp
@@ -83,13 +81,19 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
         break;
 
     case MSG_TOUCH_PRESSED:
-#if DEBUGWEBDAV
-        webdavShown = false;
-        show_main_menu(g_canvas, false, 0, 0, false);
-        currentState_ = STATE_MAIN_MENU;
-#endif
-        break;
+        if (refreshPeriod == 42)
+        {
+            /*
+            webdavShown = false;
+            show_main_menu(g_canvas, false, 0, 0, false);
+            currentState_ = STATE_MAIN_MENU;
+            */
 
+            trmnl_display(g_canvas);
+            // show_default_trmnl(g_canvas);
+            bin_font_flush_canvas(false, false, true, RECT);
+        }
+        break;
     case MSG_USER_ACTIVITY:
         break;
 
@@ -104,28 +108,31 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
             trmnl_display(g_canvas);
             // show_default_trmnl(g_canvas);
             bin_font_flush_canvas(false, false, true, RECT);
-#if DEBUGWEBDAV
-#else
-            if (!sleepIssued)
+            if (refreshPeriod == 42) // MAGIC NUMBER!
             {
-                sleepIssued = true;
-                // Ensure display push queue and panel refresh are done before sleep
-                waitDisplayPushIdle(2000);
-                // Sleep for refreshPeriod minutes then wake to refresh
-                int batteryLevel = DeviceInterruptTask::getLastBatteryPercentage(); // Relying on periodly query result
-
-                if (batteryLevel > 15)
-                {
-                    esp_sleep_enable_timer_wakeup((uint64_t)refreshPeriod * 60ULL * 1000000ULL);
-                    esp_deep_sleep_start();
-                }
-                else
-                {
-                    show_shutdown_and_sleep();
-                }
-                return;
             }
-#endif
+            else
+            {
+                if (!sleepIssued)
+                {
+                    sleepIssued = true;
+                    // Ensure display push queue and panel refresh are done before sleep
+                    waitDisplayPushIdle(2000);
+                    // Sleep for refreshPeriod minutes then wake to refresh
+                    int batteryLevel = DeviceInterruptTask::getLastBatteryPercentage(); // Relying on periodly query result
+
+                    if (batteryLevel > 15)
+                    {
+                        esp_sleep_enable_timer_wakeup((uint64_t)refreshPeriod * 60ULL * 1000000ULL);
+                        esp_deep_sleep_start();
+                    }
+                    else
+                    {
+                        show_shutdown_and_sleep();
+                    }
+                    return;
+                }
+            }
         }
         break;
     }
