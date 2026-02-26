@@ -5,6 +5,7 @@
 #include "device/ui_display.h"
 #include "ui/ui_canvas_utils.h"
 #include "ui/ui_lock_screen.h"
+#include "ui/ui_canvas_image.h"
 #include "ui/trmnl_show.h"
 #include "test/per_file_debug.h"
 #include "device/wifi_hotspot_manager.h"
@@ -89,6 +90,7 @@ void StateMachineTask::handleWebDavState(const SystemMessage_t *msg)
             currentState_ = STATE_MAIN_MENU;
             */
 
+            ui_push_image_to_display_direct("/spiffs/wait.png", 240, 450);
             trmnl_display(g_canvas);
             // show_default_trmnl(g_canvas);
             bin_font_flush_canvas(false, false, true, RECT);
