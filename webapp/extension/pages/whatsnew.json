@@ -1,35 +1,35 @@
 {
-    "version": "1.7.1",
-    "latestFirmware": "ReadPaper V1.7.2",
+    "version": "1.7.2",
+    "latestFirmware": "ReadPaper V1.7.2.3",
     "sections": [
         {
             "icon": "📖",
-            "title": "ReadPaper V1.7.2 固件更新",
+            "title": "ReadPaper V1.7.2.3 固件更新",
             "updates": [
                 {
                     "category": "功能更新",
-                    "description": "联线待机新增万年历/黄历/ONE一言/Block组件"
-                },
-                {
-                    "category": "优化",
-                    "description": "重构了部分代码结构便于将来组件可扩展性"
-                },
-                {
-                    "category": "修正",
-                    "description": "修正部分联线待机的逻辑问题"
+                    "description": "联线待机新增股票信息组件"
                 }
             ]
         },
         {
             "icon": "🌐",
-            "title": "ReadPaper Utils V1.7.1 扩展更新",
+            "title": "ReadPaper Utils V1.7.2 扩展更新",
             "updates": [
                 {
                     "category": "功能更新",
-                    "description": "配合固件1.7.2新增联机组件和部分增强。"
+                    "description": "配合固件1.7.2新增联机组件和部分增强: 增加‘股票信息’组件；"
                 }
             ]
         }
     ],
-    "announcement": null
+    "announcement": {
+        "title": "Farewell Meizu",
+        "items": [
+            {
+                "title": "Thanks for this fancy 23 years' journey",
+                "content": "Good Luck! via Meizu 22"
+            }
+        ]
+    }
 }

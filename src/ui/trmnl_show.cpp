@@ -35,6 +35,7 @@ extern GlobalConfig g_config;
 #include "ui/trmnlComponents/comp_rss.h"
 #include "ui/trmnlComponents/comp_reading_status.h"
 #include "ui/trmnlComponents/comp_history_cache.h"
+#include "ui/trmnlComponents/comp_stock.h"
 
 // 前向声明（本文件保留的内部函数）
 static bool extract_rdt_timestamp(const String &content, String &out_timestamp);
@@ -746,6 +747,11 @@ static bool parse_and_display_rdt(M5Canvas *canvas, const String &content)
             else if (strcmp(type, "list") == 0)
             {
                 render_list_component(component);
+            }
+            // 处理股票组件（stock）- 已迁移至 comp_stock
+            else if (strcmp(type, "stock") == 0)
+            {
+                render_stock_component(component);
             }
             // 处理RSS组件（rss）- 已迁移至 comp_rss
             else if (strcmp(type, "rss") == 0)

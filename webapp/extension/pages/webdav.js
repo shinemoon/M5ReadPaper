@@ -1277,6 +1277,11 @@
       height = Math.max(3, height || 3);
       width = 9; // 强制宽度为9
     }
+    // 股票组件：宽度限定为9，最小高度3
+    if (type === 'stock') {
+      height = Math.max(3, height || 3);
+      width = 9; // 强制宽度为9
+    }
 
     // 检查是否超出边界
     if (minCol + width > SCREEN_COLS) {
@@ -1298,12 +1303,12 @@
       col: minCol,
       width: width,
       height: height,
-      text: (type === 'daily_poem' || type === 'one' || type === 'day' || type === 'divider' || type === 'reading_status' || type === 'weather' || type === 'huangli') ? '' : (type === 'list' ? '项目1;项目2;项目3' : (type === 'rss' ? 'https://example.com/feed.xml' : '示例文本')),  // 今日诗词/ONE一言/日历、分割线、阅读状态、天气和黄历不需要文本输入，列表默认示例，RSS默认URL
-      fontSize: (type === 'dynamic_text' || type === 'huangli' || type === 'daily_poem' || type === 'one' || type === 'day' || type === 'list' || type === 'rss' || type === 'reading_status' || type === 'weather') ? 24 : 24,  // 动态文本默认24
-      fontFamily: (type === 'dynamic_text' || type === 'huangli' || type === 'daily_poem' || type === 'one' || type === 'day' || type === 'list' || type === 'rss' || type === 'reading_status' || type === 'weather') ? '' : 'Arial',  // 动态文本、列表、RSS、阅读状态和天气不支持字体选择
+      text: (type === 'daily_poem' || type === 'one' || type === 'day' || type === 'divider' || type === 'reading_status' || type === 'weather' || type === 'huangli') ? '' : (type === 'list' || type === 'stock' ? '000001.SZ;600519.SH' : (type === 'rss' ? 'https://example.com/feed.xml' : '示例文本')),  // 今日诗词/ONE一言/日历、分割线、阅读状态、天气和黄历不需要文本输入，列表/股票默认示例，RSS默认URL
+      fontSize: (type === 'dynamic_text' || type === 'huangli' || type === 'daily_poem' || type === 'one' || type === 'day' || type === 'list' || type === 'rss' || type === 'reading_status' || type === 'weather' || type === 'stock') ? 24 : 24,  // 动态文本默认24
+      fontFamily: (type === 'dynamic_text' || type === 'huangli' || type === 'daily_poem' || type === 'one' || type === 'day' || type === 'list' || type === 'rss' || type === 'reading_status' || type === 'weather' || type === 'stock') ? '' : 'Arial',  // 动态文本、列表、RSS、阅读状态、天气和股票不支持字体选择
       textColor: 0,  // 0-15 灰度级别，0=黑色，15=白色
-      bgColor: (type === 'dynamic_text' || type === 'huangli' || type === 'daily_poem' || type === 'one' || type === 'day' || type === 'reading_status' || type === 'weather') ? 15 : 'transparent',  // 动态文本、今日诗词/ONE一言/日历、阅读状态和天气默认白色背景(15)，列表和RSS透明
-      align: (type === 'dynamic_text' || type === 'huangli' || type === 'daily_poem' || type === 'one' || type === 'day' || type === 'reading_status' || type === 'weather') ? 'left' : undefined,  // 动态文本、今日诗词/ONE一言/日历、阅读状态与天气支持对齐，列表和RSS不支持
+      bgColor: (type === 'dynamic_text' || type === 'huangli' || type === 'daily_poem' || type === 'one' || type === 'day' || type === 'reading_status' || type === 'weather' || type === 'stock') ? 15 : 'transparent',  // 动态文本等默认白色背景(15)，列表/RSS透明
+      align: (type === 'dynamic_text' || type === 'huangli' || type === 'daily_poem' || type === 'one' || type === 'day' || type === 'reading_status' || type === 'weather') ? 'left' : undefined,  // 动态文本、今日诗词/ONE一言/日历、阅读状态与天气支持对齐，列表/RSS/股票不支持
       rotation: (type === 'dynamic_text' || type === 'huangli' || type === 'daily_poem' || type === 'one' || type === 'day' || type === 'reading_status' || type === 'weather' || type === 'divider') ? 0 : 0,  // 动态文本和分割线支持旋转
       xOffset: 0,  // x偏移量（像素）
       yOffset: 0,  // y偏移量（像素）
@@ -1356,6 +1361,8 @@
         return '天气查询';
       case 'list':
         return '列表';
+      case 'stock':
+        return '股票信息';
       case 'rss':
         return 'RSS订阅';
       case 'divider':
@@ -1482,6 +1489,8 @@
       // 根据组件类型设置标签文本
       if (comp.type === 'list') {
         textLabel.textContent = '列表内容（分号分隔）';
+      } else if (comp.type === 'stock') {
+        textLabel.textContent = '股票代码（英文分号分隔）';
       } else if (comp.type === 'rss') {
         textLabel.textContent = 'RSS Feed URL';
       } else {
@@ -1876,27 +1885,7 @@
       detailsContainer.style.display = (typeof expandedComponentId !== 'undefined' && expandedComponentId === comp.id) ? 'block' : 'none';
       detailsContainer.style.marginTop = '10px';
 
-      // 预览容器（按需加载组件模块并渲染预览）
-      const previewContainer = document.createElement('div');
-      previewContainer.className = 'component-preview-container';
-      previewContainer.style.marginBottom = '8px';
-      detailsContainer.appendChild(previewContainer);
-
-      loadComponentModule(comp.type).then(mod => {
-        try {
-          if (mod && typeof mod.renderPreview === 'function') {
-            mod.renderPreview(comp, previewContainer);
-          } else {
-            previewContainer.textContent = '（暂无预览）';
-          }
-        } catch (e) {
-          console.error('renderPreview error', e);
-          previewContainer.textContent = '（预览渲染失败）';
-        }
-      }).catch((err) => {
-        // 静默失败，显示简单占位
-        previewContainer.textContent = '（预览不可用）';
-      });
+      // 组件预览已移除；不创建预览容器以简化编辑界面
       
       // 分割线组件的配置
       if (comp.type === 'divider') {
@@ -1951,6 +1940,16 @@
         detailsContainer.appendChild(textColorField);  // 文本颜色
         detailsContainer.appendChild(marginField);  // 行间距
         // 列表不支持字体选择、旋转、背景色、对齐
+      }
+      // 股票组件的配置（与列表类似，但无行间距）
+      else if (comp.type === 'stock') {
+        detailsContainer.appendChild(field);  // 文本输入（分号分隔）
+        detailsContainer.appendChild(posField);
+        detailsContainer.appendChild(widthHeightField);
+        detailsContainer.appendChild(offsetField);
+        detailsContainer.appendChild(sizeField);  // 字体大小
+        detailsContainer.appendChild(textColorField);  // 文本颜色
+        // 股票不支持字体选择、旋转、背景色、对齐
       }
       // RSS组件的配置（与列表类似）
       else if (comp.type === 'rss') {
@@ -2113,7 +2112,13 @@
   function updateComponentText(id, text) {
     const comp = components.find(c => c.id === id);
     if (comp) {
-      comp.text = text;
+      if (comp.type === 'stock') {
+        // 规范化股票代码输入：分号分隔，最多16个，去除空项并修剪空白
+        const codes = (text || '').split(';').map(s => s.trim()).filter(Boolean).slice(0, 16);
+        comp.text = codes.join(';');
+      } else {
+        comp.text = text;
+      }
       updateBackgroundPreview(); // 实时更新预览
     }
   }
@@ -2221,8 +2226,8 @@
   function updateComponentWidth(id, width) {
     const comp = components.find(c => c.id === id);
     if (comp) {
-      // 黄历宽度固定为9
-      if (comp.type === 'huangli') {
+      // 黄历和股票宽度固定为9
+      if (comp.type === 'huangli' || comp.type === 'stock') {
         comp.width = 9;
       } else {
         comp.width = Math.max(1, Math.min(SCREEN_COLS, parseFloat(width) || 3));
@@ -2237,8 +2242,8 @@
   function updateComponentHeight(id, height) {
     const comp = components.find(c => c.id === id);
     if (comp) {
-      // 黄历高度最低为3
-      if (comp.type === 'huangli') {
+      // 黄历和股票高度最低为3
+      if (comp.type === 'huangli' || comp.type === 'stock') {
         comp.height = Math.max(3, Math.min(SCREEN_ROWS, parseFloat(height) || 3));
       } else {
         comp.height = Math.max(1, Math.min(SCREEN_ROWS, parseFloat(height) || 2));
@@ -3777,7 +3782,7 @@
   const compHeightInput = document.getElementById('componentHeight');
   function handleComponentTypeChange() {
     if (!compTypeSel || !compWidthInput || !compHeightInput) return;
-    if (compTypeSel.value === 'huangli') {
+    if (compTypeSel.value === 'huangli' || compTypeSel.value === 'stock') {
       compWidthInput.value = 9;
       compWidthInput.disabled = true;
       compWidthInput.min = 9;

@@ -1992,7 +1992,8 @@ bool WiFiHotspotManager::connectToWiFiFromToken() {
     Serial.printf("[WIFI_HOTSPOT] 找到 %d 组WiFi配置\n", try_count);
 #endif
 
-    // 逐个尝试连接
+    // 逐个尝试连接；对每个 AP 做有限次重试再轮换，避免卡在单个不可达 AP 上
+    const int per_ap_retries = 3; // 每个 AP 最多重试次数
     for (int attempt = 0; attempt < try_count; attempt++) {
         int idx = try_order[attempt];
         String ssid = String(g_config.wifi_ssid[idx]).c_str();
@@ -2000,78 +2001,92 @@ bool WiFiHotspotManager::connectToWiFiFromToken() {
         ssid.trim();
         password.trim();
 
+        bool connected_for_this_ap = false;
+
+        for (int rep = 0; rep < per_ap_retries; rep++) {
 #if DBG_WIFI_HOTSPOT
-        Serial.printf("[WIFI_HOTSPOT] [%d/%d] 尝试连接: '%s'\n", 
-                      attempt + 1, try_count, ssid.c_str());
+            Serial.printf("[WIFI_HOTSPOT] 尝试连接 (AP %d/%d) 第 %d 次: '%s'\n", 
+                          attempt + 1, try_count, rep + 1, ssid.c_str());
 #endif
 
-        // 开始连接
-        WiFi.begin(ssid.c_str(), password.c_str());
+            // 每次重试前确保已断开并短暂等待以清理状态
+            WiFi.disconnect();
+            delay(200);
 
-        // 等待连接，最多5秒
-        int timeout = 10; // 10 * 500ms = 5秒
-        while (WiFi.status() != WL_CONNECTED && timeout > 0) {
-            delay(500);
-            timeout--;
-#if DBG_WIFI_HOTSPOT
-            Serial.print(".");
-#endif
-        }
+            // 开始连接
+            WiFi.begin(ssid.c_str(), password.c_str());
 
-#if DBG_WIFI_HOTSPOT
-        Serial.println();
-#endif
-
-        if (WiFi.status() == WL_CONNECTED) {
-#if DBG_WIFI_HOTSPOT
-            Serial.printf("[WIFI_HOTSPOT] ✅ WiFi连接成功: %s\n", ssid.c_str());
-            Serial.printf("[WIFI_HOTSPOT] IP地址: %s\n", WiFi.localIP().toString().c_str());
-#endif
-            // 更新最近成功的索引
-            if (g_config.wifi_last_success_idx != idx) {
-                g_config.wifi_last_success_idx = idx;
-                config_save(); // 保存配置
-#if DBG_WIFI_HOTSPOT
-                Serial.printf("[WIFI_HOTSPOT] 更新最近成功WiFi索引: %d\n", idx);
-#endif
-            }
-            
-            g_wifi_sta_connected = true;
-            
-            // 同步网络时间（HTTPS证书验证需要正确的系统时间）
-#if DBG_WIFI_HOTSPOT
-            Serial.println("[WIFI_HOTSPOT] 正在同步网络时间...");
-#endif
-            configTime(8 * 3600, 0, "ntp.aliyun.com", "cn.pool.ntp.org", "pool.ntp.org");
-            
-            // 等待时间同步（最多3秒）
-            int retry = 0;
-            struct tm timeinfo;
-            while (!getLocalTime(&timeinfo) && retry < 6) {
+            // 等待连接，最多5秒（10 * 500ms）
+            int timeout = 10; // 10 * 500ms = 5秒
+            while (WiFi.status() != WL_CONNECTED && timeout > 0) {
                 delay(500);
-                retry++;
-            }
-            
-            if (getLocalTime(&timeinfo)) {
+                timeout--;
 #if DBG_WIFI_HOTSPOT
-                Serial.printf("[WIFI_HOTSPOT] ✅ 时间同步成功: %04d-%02d-%02d %02d:%02d:%02d\n",
-                             timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
-                             timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+                Serial.print(".");
 #endif
+            }
+#if DBG_WIFI_HOTSPOT
+            Serial.println();
+#endif
+
+            if (WiFi.status() == WL_CONNECTED) {
+#if DBG_WIFI_HOTSPOT
+                Serial.printf("[WIFI_HOTSPOT] ✅ WiFi连接成功: %s\n", ssid.c_str());
+                Serial.printf("[WIFI_HOTSPOT] IP地址: %s\n", WiFi.localIP().toString().c_str());
+#endif
+                // 更新最近成功的索引
+                if (g_config.wifi_last_success_idx != idx) {
+                    g_config.wifi_last_success_idx = idx;
+                    config_save(); // 保存配置
+#if DBG_WIFI_HOTSPOT
+                    Serial.printf("[WIFI_HOTSPOT] 更新最近成功WiFi索引: %d\n", idx);
+#endif
+                }
+
+                g_wifi_sta_connected = true;
+
+                // 同步网络时间（HTTPS证书验证需要正确的系统时间）
+#if DBG_WIFI_HOTSPOT
+                Serial.println("[WIFI_HOTSPOT] 正在同步网络时间...");
+#endif
+                configTime(8 * 3600, 0, "ntp.aliyun.com", "cn.pool.ntp.org", "pool.ntp.org");
+
+                // 等待时间同步（最多3秒）
+                int retry = 0;
+                struct tm timeinfo;
+                while (!getLocalTime(&timeinfo) && retry < 6) {
+                    delay(500);
+                    retry++;
+                }
+
+                if (getLocalTime(&timeinfo)) {
+#if DBG_WIFI_HOTSPOT
+                    Serial.printf("[WIFI_HOTSPOT] ✅ 时间同步成功: %04d-%02d-%02d %02d:%02d:%02d\n",
+                                 timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+                                 timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+#endif
+                } else {
+#if DBG_WIFI_HOTSPOT
+                    Serial.println("[WIFI_HOTSPOT] ⚠️ 时间同步超时，HTTPS请求可能失败");
+#endif
+                }
+
+                connected_for_this_ap = true;
+                break; // 跳出 per-ap 重试循环
             } else {
 #if DBG_WIFI_HOTSPOT
-                Serial.println("[WIFI_HOTSPOT] ⚠️ 时间同步超时，HTTPS请求可能失败");
+                Serial.printf("[WIFI_HOTSPOT] ❌ 连接失败 (AP %d 次): %s\n", rep + 1, ssid.c_str());
 #endif
+                WiFi.disconnect();
+                delay(1000); // 重试间隔
             }
-            
-            return true;
-        } else {
-#if DBG_WIFI_HOTSPOT
-            Serial.printf("[WIFI_HOTSPOT] ❌ 连接失败: %s\n", ssid.c_str());
-#endif
-            WiFi.disconnect();
-            delay(1000); // 等待1秒后尝试下一个
+        } // end per-ap retries
+
+        if (connected_for_this_ap) {
+            return true; // 成功连接，返回
         }
+
+        // 否则继续尝试下一个 AP（如果有）
     }
 
     // 所有WiFi都尝试失败

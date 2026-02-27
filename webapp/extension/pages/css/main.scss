@@ -505,6 +505,28 @@ input[type="month"] {
             }
         }
     }
+
+    // 股票组件样式（用于在配置面板展示预览）
+    .component-stock {
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e0e0e0;
+
+        h6 {
+            margin-bottom: 0.75rem;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .stock-preview {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background-color: #f9f9f9;
+            font-family: monospace;
+        }
+    }
 }
 
 @media (max-width: 768px) {

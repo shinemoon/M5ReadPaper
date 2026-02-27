@@ -1,30 +1,29 @@
-// List component helper
+// Stock component helper
 (function(window){
-  const ListComponent = {
+  const StockComponent = {
     getConfigSchema() {
       return {
-        type: 'list',
-        text: '项目1;项目2;项目3',
+        type: 'stock',
+        text: '000001.SZ;600519.SH',
         fontSize: 24,
         fontFamily: '',
         textColor: 0,
         bgColor: 'transparent',
         align: 'left',
-        rotation: 0,
-        margin: 10
+        rotation: 0
       };
     },
     renderPreview(comp, container) {
       if (!container) return;
       container.innerHTML = '';
-      // 简化预览：不渲染详细的 list-render，仅显示占位文本
+      // 简化预览：不渲染详细的 stock-render，仅显示占位文本
       const placeholder = document.createElement('div');
-      placeholder.className = 'component-list-placeholder';
-      placeholder.textContent = '列表组件预览';
+      placeholder.className = 'component-stock-placeholder';
+      placeholder.textContent = '股票组件预览';
       placeholder.style.fontSize = (comp.fontSize || 24) + 'px';
       placeholder.style.color = `rgb(${(comp.textColor||0)*17}, ${(comp.textColor||0)*17}, ${(comp.textColor||0)*17})`;
       container.appendChild(placeholder);
     }
   };
-  window.ListComponent = ListComponent;
+  window.StockComponent = StockComponent;
 })(window);
