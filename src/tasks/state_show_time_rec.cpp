@@ -1,5 +1,6 @@
 #include "readpaper.h"
 #include "state_machine_task.h"
+#include "state_debug.h"
 #include "device/ui_display.h"
 #include "ui/ui_lock_screen.h"
 #include "test/per_file_debug.h"

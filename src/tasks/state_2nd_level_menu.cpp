@@ -546,10 +546,12 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
 
                             if (!has_owner)
                             {
-                                bool removed = SDW::SD.remove(fullPath.c_str());
+                                // 确保传给 SD.remove() 的是完整路径（以 /bookmarks/ 前缀）
+                                std::string removePath = std::string(bmDir2) + "/" + fname;
+                                bool removed = SDW::SD.remove(removePath.c_str());
                                 deletedCount++;
 #if DBG_STATE_MACHINE_TASK
-                                sm_dbg_printf("清理残存: 删除孤立书签 %s - %s\n", fullPath.c_str(), removed ? "成功" : "失败");
+                                sm_dbg_printf("清理残存: 删除孤立书签 %s - %s\n", removePath.c_str(), removed ? "成功" : "失败");
 #else
                                 (void)removed;
 #endif
