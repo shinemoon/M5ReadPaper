@@ -1677,3 +1677,51 @@ body {
 .field {
     margin-top: 20px;
 }
+
+// 纸间书摘导出区块
+.zhijian-section {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e6e6e6;
+
+    h6 {
+        padding: 6px;
+        margin: 0 0 8px 0;
+        font-size: 0.95rem;
+    }
+
+    .button {
+        margin-top: 0.75rem;
+    }
+
+    .field {
+        margin-top: 0.75rem;
+    }
+}
+
+.zhijian-progress {
+    margin-top: 0.6rem;
+
+    progress {
+        height: 6px;
+        border-radius: 3px;
+        overflow: hidden;
+
+        &::-webkit-progress-bar   { background: #eee; border-radius: 3px; }
+        &::-webkit-progress-value { background: var(--color-primary, #f04f0f); border-radius: 3px; }
+        &::-moz-progress-bar      { background: var(--color-primary, #f04f0f); border-radius: 3px; }
+    }
+}
+
+.zhijian-progress-text {
+    font-size: 0.82rem;
+    margin-top: 4px;
+    min-height: 1.1em;
+}
+
+.zhijian-msg {
+    margin-top: 0.5rem;
+    font-size: 0.88rem;
+    min-height: 1.2em;
+    word-break: break-all;
+}

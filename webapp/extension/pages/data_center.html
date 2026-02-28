@@ -48,6 +48,26 @@
             <button id="exportBtn" class="button outline" style="width:100%;">导出 JSON</button>
           </div>
         </div>
+
+        <section class="zhijian-section">
+          <h6 class="bg-light">导出到<a href="https://www.xmnote.com/">纸间书摘</a></h6>
+          <div class="field">
+            <label for="zhijianEndpoint">设备地址（IP:端口）</label>
+            <input id="zhijianEndpoint" type="text" placeholder="例：192.168.1.100:3000" />
+          </div>
+          <div class="field" style="margin-bottom:6px;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.9rem;">
+              <input id="zhijianSendAll" type="checkbox" style="width:auto;margin:0;" />
+              发送全部（否则最多发送最近读过的20本）
+            </label>
+          </div>
+          <button id="zhijianSendBtn" class="button" style="width:100%;">发送阅读记录</button>
+          <div id="zhijianProgress" class="zhijian-progress hidden">
+            <progress id="zhijianProgressBar" class="progress-full" value="0" max="100"></progress>
+            <div id="zhijianProgressText" class="muted zhijian-progress-text"></div>
+          </div>
+          <div id="zhijianMsg" class="zhijian-msg"></div>
+        </section>
       </div>
 
       <div class="col-8 panel">

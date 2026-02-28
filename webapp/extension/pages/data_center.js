@@ -988,6 +988,152 @@
       currentPage = 1; // Reset to first page when search changes
       render();
     });
+
+    const zhijianSendBtn = document.getElementById('zhijianSendBtn');
+    if (zhijianSendBtn) zhijianSendBtn.addEventListener('click', sendToZhijian);
+
+    // 自动保存 / 恢复纸间书摘地址配置
+    const zhijianEndpointInput = document.getElementById('zhijianEndpoint');
+    if (zhijianEndpointInput) {
+      const STORAGE_KEY = 'readpaper_zhijian_endpoint';
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) zhijianEndpointInput.value = saved;
+      zhijianEndpointInput.addEventListener('input', () => {
+        const val = zhijianEndpointInput.value.trim();
+        if (val) {
+          localStorage.setItem(STORAGE_KEY, val);
+        } else {
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      });
+    }
+  }
+
+  // --- 纸间书摘导出 ---
+  function hourKeyToTimestamps(hourKey, minutes) {
+    // hourKey: YYYYMMDDHH (10 chars)
+    const year  = parseInt(hourKey.substring(0, 4), 10);
+    const month = parseInt(hourKey.substring(4, 6), 10) - 1;
+    const day   = parseInt(hourKey.substring(6, 8), 10);
+    const hour  = parseInt(hourKey.substring(8, 10), 10);
+    const startTime = new Date(year, month, day, hour, 0, 0).getTime();
+    const cappedMin = Math.min(Math.max(Number(minutes) || 0, 1), 60);
+    const endTime   = new Date(year, month, day, hour, cappedMin, 0).getTime();
+    return { startTime, endTime };
+  }
+
+  function showZhijianMsg(text, type) {
+    const el = document.getElementById('zhijianMsg');
+    if (!el) return;
+    el.textContent = text;
+    el.className = 'zhijian-msg';
+    if (type === 'success') el.classList.add('text-success');
+    if (type === 'error')   el.classList.add('text-error');
+  }
+
+  async function sendToZhijian() {
+    const endpointInput  = document.getElementById('zhijianEndpoint');
+    const progressDiv    = document.getElementById('zhijianProgress');
+    const progressBar    = document.getElementById('zhijianProgressBar');
+    const progressText   = document.getElementById('zhijianProgressText');
+    const sendBtn        = document.getElementById('zhijianSendBtn');
+
+    const endpoint = (endpointInput ? endpointInput.value : '').trim();
+    if (!endpoint) {
+      showZhijianMsg('请输入设备地址（IP:端口）', 'error');
+      return;
+    }
+
+    const baseUrl = /^https?:\/\//i.test(endpoint)
+      ? endpoint.replace(/\/?$/, '/send')
+      : `http://${endpoint}/send`;
+
+    const allRecords = await loadRecords();
+    if (!allRecords.length) {
+      showZhijianMsg('暂无阅读记录可导出', 'error');
+      return;
+    }
+
+    const sendAllCheckbox = document.getElementById('zhijianSendAll');
+    const sendAll = sendAllCheckbox && sendAllCheckbox.checked;
+
+    let records;
+    if (sendAll) {
+      records = allRecords;
+    } else {
+      // 为每条记录找最晚的 hourKey（YYYYMMDDHH 格式可直接字符串比较），按最近阅读时间降序取前 20
+      const withLatest = allRecords.map(r => {
+        const keys = Object.keys(r.hourly_records || {}).filter(k => k.length >= 10);
+        const latestKey = keys.length ? keys.reduce((a, b) => (a > b ? a : b)) : '';
+        return { record: r, latestKey };
+      });
+      withLatest.sort((a, b) => (a.latestKey > b.latestKey ? -1 : a.latestKey < b.latestKey ? 1 : 0));
+      records = withLatest.slice(0, 20).map(x => x.record);
+    }
+
+    sendBtn.disabled = true;
+    showZhijianMsg('', '');
+    progressDiv.classList.remove('hidden');
+    progressBar.value = 0;
+    progressBar.max   = records.length;
+    progressText.textContent = `准备发送 ${records.length} 条记录…`;
+
+    let success = 0;
+    let failed  = 0;
+
+    for (let i = 0; i < records.length; i++) {
+      const record = records[i];
+      const title = ((record.bookname || record.book_name || '').replace(/\.txt$/i, '')).trim();
+      if (!title) { failed++; progressBar.value = i + 1; continue; }
+
+      const hourlyRecords = record.hourly_records || {};
+      const durations = [];
+
+      for (const [hourKey, minutes] of Object.entries(hourlyRecords)) {
+        if (hourKey.length < 10 || !minutes) continue;
+        const mins = Number(minutes);
+        if (!(mins > 0)) continue;
+        const { startTime, endTime } = hourKeyToTimestamps(hourKey, mins);
+        if (endTime > startTime) durations.push({ startTime, endTime });
+      }
+
+      if (!durations.length) { failed++; progressBar.value = i + 1; continue; }
+
+      const payload = {
+        title,
+        type: 0,
+        locationUnit: 2,
+        source: 'ReadPaper',
+        preciseReadingDurations: durations
+      };
+
+      try {
+        const resp = await fetch(baseUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (resp.ok) {
+          success++;
+        } else {
+          failed++;
+          console.warn(`[zhijian] "${title}" HTTP ${resp.status}`);
+        }
+      } catch (e) {
+        failed++;
+        console.error(`[zhijian] "${title}"`, e);
+      }
+
+      progressBar.value = i + 1;
+      progressText.textContent = `进度 ${i + 1} / ${records.length}  ·  成功 ${success}  ·  失败/跳过 ${failed}`;
+    }
+
+    sendBtn.disabled = false;
+    const isDone = success > 0 || failed > 0;
+    showZhijianMsg(
+      isDone ? `导出完成！成功 ${success} 条，失败/跳过 ${failed} 条` : '无有效数据可发送',
+      success > 0 ? 'success' : 'error'
+    );
   }
 
   // initialize

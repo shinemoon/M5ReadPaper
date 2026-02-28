@@ -1,35 +1,17 @@
 {
-    "version": "1.7.2",
+    "version": "1.7.3",
     "latestFirmware": "ReadPaper V1.7.2.3",
     "sections": [
         {
-            "icon": "📖",
-            "title": "ReadPaper V1.7.2.3 固件更新",
-            "updates": [
-                {
-                    "category": "功能更新",
-                    "description": "联线待机新增股票信息组件"
-                }
-            ]
-        },
-        {
             "icon": "🌐",
-            "title": "ReadPaper Utils V1.7.2 扩展更新",
+            "title": "ReadPaper Utils V1.7.3 扩展更新",
             "updates": [
                 {
-                    "category": "功能更新",
-                    "description": "配合固件1.7.2新增联机组件和部分增强: 增加‘股票信息’组件；"
+                    "category": "新增功能",
+                    "description": "支持数据中心导出阅读记录到'纸间书摘'APP"
                 }
             ]
         }
     ],
-    "announcement": {
-        "title": "Farewell Meizu",
-        "items": [
-            {
-                "title": "Thanks for this fancy 23 years' journey",
-                "content": "Good Luck! via Meizu 22"
-            }
-        ]
-    }
+    "announcement": null
 }
