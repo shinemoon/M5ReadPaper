@@ -282,8 +282,9 @@ bool usb_msc_start()
                   g_card->csd.capacity);
 
     // Initialize USB MSC
-    USB.begin();
-    
+    // ⚠️ 关键顺序：必须在 USB.begin() 之前完成所有 MSC 类配置。
+    // USB.begin() 会立即拉高 D+，触发主机枚举；若此时描述符尚未包含 MSC 接口，
+    // Windows 枚举失败后按指数退避重试，导致出现 U 盘需要长达 2 分钟的问题。
     msc.vendorID("M5Stack");
     msc.productID("Paper S3");
     msc.productRevision("1.0");
@@ -292,6 +293,9 @@ bool usb_msc_start()
     msc.onStartStop(onStartStop);
     msc.mediaPresent(true);
     msc.begin(g_card->csd.capacity, g_card->csd.sector_size);
+
+    // 所有类已注册完毕，D+ 上拉，主机此时可以读到完整的复合设备描述符
+    USB.begin();
 
     g_active = true;
     
