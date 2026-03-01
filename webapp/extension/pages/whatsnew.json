@@ -1,10 +1,28 @@
 {
-    "version": "1.7.3",
-    "latestFirmware": "ReadPaper V1.7.2.3",
+    "version": "TBD: 1.7.3",
+    "latestFirmware": "ReadPaper V1.7.2.4",
     "sections": [
+     {
+            "icon": "📖",
+            "title": "ReadPaper V1.7.2.4 固件更新",
+            "updates": [
+                {
+                    "category": "修正",
+                    "description": "部分残存清理逻辑"
+                },
+                {
+                    "category": "优化",
+                    "description": "快刷模式微调"
+                },
+                {
+                    "category": "增强",
+                    "description": "整理优化USBMSC连接速度"
+                }
+            ]
+        },
         {
             "icon": "🌐",
-            "title": "ReadPaper Utils V1.7.3 扩展更新",
+            "title": "TBD: ReadPaper Utils V1.7.3 扩展更新",
             "updates": [
                 {
                     "category": "新增功能",
