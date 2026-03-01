@@ -72,8 +72,10 @@ namespace SDW
         bool initialized_;
         
         // DMA缓冲区池，避免频繁分配
-        static constexpr size_t DMA_POOL_SIZE = 2;
-        static constexpr size_t DMA_BUFFER_SIZE = 4096; // 8个扇区
+        // 3个槽 × 8192字节(16扇区) = 24KB 内部SRAM，覆盖绝大多数随机读场景
+        // 注意：MALLOC_CAP_DMA 强制使用内部SRAM，不走PSRAM，须控制总量
+        static constexpr size_t DMA_POOL_SIZE = 3;
+        static constexpr size_t DMA_BUFFER_SIZE = 8192; // 16个扇区
         uint8_t* dma_pool_[DMA_POOL_SIZE];
         bool dma_pool_in_use_[DMA_POOL_SIZE];
         
