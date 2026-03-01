@@ -116,6 +116,17 @@ namespace SDW
                 if (ok)
                 {
                     initialized_ = true;
+                    // 预分配全部DMA池槽位，消除首次读取时的heap_caps_malloc延迟
+                    // 分配后立即标记为空闲，后续直接复用已分配内存
+                    uint8_t* slots[DMA_POOL_SIZE];
+                    for (size_t i = 0; i < DMA_POOL_SIZE; i++)
+                        slots[i] = allocate_dma_buffer();  // 触发实际分配
+                    for (size_t i = 0; i < DMA_POOL_SIZE; i++)
+                        if (slots[i]) free_dma_buffer(slots[i]);  // 标记为可用
+#if DBG_FILE_MANAGER
+                    Serial.printf("[SDW] DMA pool pre-allocated: %u slots x %u bytes\n",
+                                  (unsigned)DMA_POOL_SIZE, (unsigned)DMA_BUFFER_SIZE);
+#endif
                     return true;
                 }
             }
@@ -318,7 +329,7 @@ namespace SDW
             size_t sectors_needed = (bytes_needed + SECTOR - 1) / SECTOR;
             
             // 优先使用固定大小的DMA缓冲池（避免频繁分配）
-            if (sectors_needed <= 8)  // DMA_BUFFER_SIZE = 4096 = 8扇区
+            if (sectors_needed <= (DMA_BUFFER_SIZE / SECTOR))  // 最多 DMA_BUFFER_SIZE 字节
             {
                 uint8_t* dma_buf = allocate_dma_buffer();
                 if (dma_buf)
@@ -357,8 +368,8 @@ namespace SDW
                 }
             }
             
-            // 如果DMA池不可用或扇区数太多，尝试动态分配（保留原有逻辑作为fallback）
-            if (sectors_needed > 8)
+            // 如果DMA池不可用或扇区数超出池容量，尝试动态分配（保留原有逻辑作为fallback）
+            if (sectors_needed > (DMA_BUFFER_SIZE / SECTOR))
             {
                 size_t aligned_size = sectors_needed * SECTOR;
 #if defined(ESP_PLATFORM) || defined(ESP32)

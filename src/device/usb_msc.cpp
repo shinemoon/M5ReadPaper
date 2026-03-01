@@ -12,6 +12,7 @@
 #include "driver/sdmmc_host.h"
 #include "sdmmc_cmd.h"
 #include "esp_err.h"
+#include "esp_mac.h"          // MAC 地址读取，用于动态生成 USB 序列号
 #include "tasks/background_index_task.h"
 #include "globals.h"
 
@@ -293,6 +294,19 @@ bool usb_msc_start()
     msc.onStartStop(onStartStop);
     msc.mediaPresent(true);
     msc.begin(g_card->csd.capacity, g_card->csd.sector_size);
+
+    // 基于芯片 MAC 地址生成唯一 USB 序列号（12位十六进制 ASCII）。
+    // Windows 会将 VID+PID+序列号三元组缓存为设备标识；若序列号固定（如 "123456"），
+    // 同一台 PC 换接口或重新枚举时可能复用旧驱动缓存导致识别失败或盘符混乱。
+    {
+        uint8_t mac[6] = {0};
+        esp_read_mac(mac, ESP_MAC_WIFI_STA);
+        char serial[13];
+        snprintf(serial, sizeof(serial), "%02X%02X%02X%02X%02X%02X",
+                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+        USB.serialNumber(serial);
+        Serial.printf("[USB_MSC] USB serial number: %s\n", serial);
+    }
 
     // 所有类已注册完毕，D+ 上拉，主机此时可以读到完整的复合设备描述符
     USB.begin();

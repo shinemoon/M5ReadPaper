@@ -1528,19 +1528,13 @@ bool show_usb_connect(M5Canvas *canvas, bool refresh)
 
     target->fillScreen(TFT_WHITE);
     bin_font_print("USB 模式 *", 36, 0, 540, 0, 60, true, target, TEXT_ALIGN_CENTER, 540);
-    bin_font_print("* 实验特性，调试或临时应急使用", 26, 0, 540, 0, 120, true, target, TEXT_ALIGN_CENTER, 540);
-
     g_canvas->drawWideLine(0, 206, 540, 206, 1.5, TFT_BLACK);
 
     int info_y = 260;
 
     bin_font_print("* 尽量避免在当前书籍索引过程中使用", 28, 0, 540, 20, info_y, true, target, TEXT_ALIGN_LEFT, 540);
     info_y += 50;
-    bin_font_print("* 已知限制，初始耗时较长（~2分钟）", 28, 0, 540, 20, info_y, true, target, TEXT_ALIGN_LEFT, 540);
-    info_y += 50;
     bin_font_print("* 设备连接到电脑后，耐心等待", 28, 0, 540, 20, info_y, true, target, TEXT_ALIGN_LEFT, 540);
-    info_y += 50;
-    bin_font_print("* 用于调试目的，读写速度也低于无线", 28, 0, 540, 20, info_y, true, target, TEXT_ALIGN_LEFT, 540);
     info_y += 50;
     bin_font_print("* 选择'弹出'后,设备自动重启", 28, 0, 540, 20, info_y, true, target, TEXT_ALIGN_LEFT, 540);
 
