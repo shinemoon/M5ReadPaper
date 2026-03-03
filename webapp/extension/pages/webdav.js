@@ -400,9 +400,12 @@
   // 检查并确保目标 WebDAV 上存在 /readpaper/ 目录，若缺失则尝试创建
   async function ensureReadpaperDir(url, username, password, skipPermissionRequest = false) {
     if (!url) return;
+    // 自动检测当前激活的 tab，让状态消息出现在正确的面板（webdav / display）
+    const msgTab = document.querySelector('.tab-panel.is-active')?.getAttribute('data-tab') || 'webdav';
+
     let base = url.trim();
     if (!(base.startsWith('http://') || base.startsWith('https://'))) {
-      setNote('WebDAV 地址无效（需 http/https）', 'error');
+      setNote('WebDAV 地址无效（需 http/https）', 'error', msgTab);
       return false;
     }
     if (!base.endsWith('/')) base += '/';
@@ -426,22 +429,10 @@
     };
 
     try {
-      setStatus('检测 WebDAV /readpaper...', 'info', 'webdav');
+      setStatus('检测 WebDAV /readpaper 目录...', 'info', msgTab);
       const headers = makeHeaders();
-      const hasAuth = !!(headers && headers['Authorization']);
-      // 在右侧说明区显示当前操作
-      setNote('正在检测 WebDAV 可用性...', 'info', 'webdav');
+      setNote('正在检测 WebDAV 可用性...', 'info', msgTab);
 
-      if (!authUser && !authPass) {
-        // 未保存凭据，直接提示并返回（不弹窗）
-        setNote('未检测到本地保存的 WebDAV 凭据，已跳过自动登录。', 'error', 'webdav');
-        return false;
-      }
-
-      if (!headers || !headers['Authorization']) {
-        setNote('本地凭据编码失败，已跳过自动登录。', 'error', 'webdav');
-        return false;
-      }
       // 先尝试 OPTIONS/PROPFIND 基址（参考设备侧逻辑）
       const opt = await backgroundFetch(base, {
         method: 'OPTIONS',
@@ -452,8 +443,8 @@
       }, skipPermissionRequest);
       const optAuth = opt.headers ? opt.headers.get('www-authenticate') : '';
       if (opt.status === 401) {
-        setStatus('WebDAV 鉴权失败（401）', 'error', 'webdav');
-        setNote(`WebDAV 鉴权失败（401）。${optAuth ? 'Auth: ' + optAuth : ''}`, 'error', 'webdav');
+        setStatus('WebDAV 鉴权失败（401）：用户名或密码有误', 'error', msgTab);
+        setNote(`WebDAV 鉴权失败（401）：用户名或密码有误。${optAuth ? '（服务器要求: ' + optAuth + '）' : ''}`, 'error', msgTab);
         return false;
       }
 
@@ -466,8 +457,8 @@
       }, skipPermissionRequest);
       const propBaseAuth = propBase.headers ? propBase.headers.get('www-authenticate') : '';
       if (propBase.status === 401) {
-        setStatus('WebDAV 鉴权失败（401）', 'error', 'webdav');
-        setNote(`WebDAV 鉴权失败（401）。${propBaseAuth ? 'Auth: ' + propBaseAuth : ''}`, 'error', 'webdav');
+        setStatus('WebDAV 鉴权失败（401）：用户名或密码有误', 'error', msgTab);
+        setNote(`WebDAV 鉴权失败（401）：用户名或密码有误。${propBaseAuth ? '（服务器要求: ' + propBaseAuth + '）' : ''}`, 'error', msgTab);
         return false;
       }
 
@@ -481,18 +472,18 @@
       }, skipPermissionRequest);
       const propAuth = prop.headers ? prop.headers.get('www-authenticate') : '';
       if (prop.status === 207 || prop.status === 200) {
-        setStatus('/readpaper 已存在', 'success', 'webdav');
-        setNote('/readpaper 已存在', 'success', 'webdav');
+        setStatus('/readpaper 目录已存在', 'success', msgTab);
+        setNote('/readpaper 目录已存在', 'success', msgTab);
         return true;
       }
       if (prop.status === 401) {
-        setStatus('WebDAV 鉴权失败（401）', 'error', 'webdav');
-        setNote(`WebDAV 鉴权失败（401）。${propAuth ? 'Auth: ' + propAuth : ''}`, 'error', 'webdav');
+        setStatus('WebDAV 鉴权失败（401）：用户名或密码有误', 'error', msgTab);
+        setNote(`WebDAV 鉴权失败（401）：用户名或密码有误。${propAuth ? '（服务器要求: ' + propAuth + '）' : ''}`, 'error', msgTab);
         return false;
       }
       // 若返回 404 或 405 等，尝试创建
       if (prop.status === 404 || prop.status === 405 || prop.status === 0) {
-        setStatus('尝试创建 /readpaper...', 'info', 'webdav');
+        setStatus('尝试创建 /readpaper 目录...', 'info', msgTab);
         const mk = await backgroundFetch(target, {
           method: 'MKCOL',
           headers: headers,
@@ -501,25 +492,25 @@
           cache: 'no-store'
         }, skipPermissionRequest);
         if (mk.status === 201 || mk.status === 200) {
-          setStatus('/readpaper 创建成功', 'success', 'webdav');
-          setNote('/readpaper 创建成功', 'success', 'webdav');
+          setStatus('/readpaper 目录创建成功', 'success', msgTab);
+          setNote('/readpaper 目录创建成功', 'success', msgTab);
           return true;
         }
         if (mk.status === 401) {
-          setStatus('创建失败：鉴权失败（401）', 'error', 'webdav');
-          setNote('创建 /readpaper 失败：鉴权失败（401）。请确认扩展本地保存的用户名/应用密码是否正确。', 'error', 'webdav');
+          setStatus('创建 /readpaper 失败（401）：用户名或密码有误', 'error', msgTab);
+          setNote('创建 /readpaper 失败（401）：用户名或密码有误，请重新输入并点击「保存设置」。', 'error', msgTab);
           return false;
         }
-        setStatus(`创建失败（HTTP ${mk.status}）`, 'error', 'webdav');
-        setNote(`创建 /readpaper 失败（HTTP ${mk.status}）`, 'error', 'webdav');
+        setStatus(`创建 /readpaper 失败（HTTP ${mk.status}）`, 'error', msgTab);
+        setNote(`创建 /readpaper 失败（HTTP ${mk.status}）`, 'error', msgTab);
         return false;
       }
 
       // 其他情况，报告状态码
-      setStatus(`检查失败（HTTP ${prop.status}）`, 'error', 'webdav');
+      setStatus(`/readpaper 检查异常（HTTP ${prop.status}）`, 'error', msgTab);
       return false;
     } catch (err) {
-      setStatus(`访问 WebDAV 失败: ${err.message}`, 'error', 'webdav');
+      setStatus(`访问 WebDAV 失败: ${err.message}`, 'error', msgTab);
       return false;
     }
   }
@@ -3272,6 +3263,7 @@
   }
 
   // 检查 WebDAV 上是否存在 readpaper.rdt
+  // 返回 HTTP 状态码；0 表示网络/权限错误或未配置 URL
   async function checkWebDAVRDT() {
     try {
       const url = urlEl ? urlEl.value.trim() : '';
@@ -3279,7 +3271,7 @@
       const password = passEl ? passEl.value : '';
       
       if (!url) {
-        return false;
+        return 0;
       }
 
       let base = url;
@@ -3302,9 +3294,9 @@
         cache: 'no-store'
       }, true); // 跳过权限申请，仅检查已有权限
 
-      return response.ok;
+      return response.status;
     } catch (e) {
-      return false;
+      return 0;
     }
   }
 
@@ -3413,33 +3405,41 @@
     const btnLoadCurrent = document.getElementById('btnLoadCurrent');
     if (!btnLoadCurrent) return;
 
-    const exists = await checkWebDAVRDT();
-    btnLoadCurrent.disabled = !exists;
-    
-    if (!exists) {
-      btnLoadCurrent.title = 'WebDAV 上不存在 readpaper.rdt 文件';
-    } else {
+    const status = await checkWebDAVRDT();
+    if (status === 200) {
+      btnLoadCurrent.disabled = false;
       btnLoadCurrent.title = '从 WebDAV 读取配置';
+    } else if (status === 401) {
+      btnLoadCurrent.disabled = true;
+      btnLoadCurrent.title = 'WebDAV 鉴权失败（401）：请检查用户名和密码，并重新点击「保存设置」';
+      setStatus('WebDAV 鉴权失败（401）：请检查用户名和密码', 'error', 'display');
+    } else if (status === 404) {
+      btnLoadCurrent.disabled = true;
+      btnLoadCurrent.title = 'WebDAV 上尚无 readpaper.rdt，请先点击「更新云」上传';
+    } else if (status > 0) {
+      btnLoadCurrent.disabled = true;
+      btnLoadCurrent.title = `WebDAV 返回 HTTP ${status}，请检查服务器配置`;
+    } else {
+      // 0：未配置 URL、权限未授予或网络错误
+      btnLoadCurrent.disabled = true;
+      btnLoadCurrent.title = '无法连接 WebDAV，请确认已填写地址并点击「保存设置」授权';
     }
   }
 
   // 更新上传按钮状态
-  async function updateUploadButtonState() {
+  // 设计原则：只要填写了 WebDAV 地址就启用按钮；
+  // 目录创建和鉴权错误由实际上传流程（ensureReadpaperDir）处理并给出清晰提示
+  function updateUploadButtonState() {
     const btn = document.getElementById('btnUploadToWebdav');
     if (!btn) return;
-    try {
-      const reachable = await checkWebDAVReachable();
-      btn.disabled = !reachable;
-      if (!reachable) {
-        btn.title = '无法连接到 WebDAV，请先点击「保存设置」授权或检查地址凭据';
-      } else {
-        btn.title = '上传配置到 WebDAV';
-      }
-    } catch (err) {
-      // 权限检查失败（未授权）
+
+    const url = urlEl ? urlEl.value.trim() : '';
+    if (!url) {
       btn.disabled = true;
-      btn.title = '请先点击「保存设置」按钮授权访问 WebDAV';
-      console.log('[updateUploadButtonState] 权限检查失败:', err.message);
+      btn.title = '请先在「WebDAV 配置」中填写地址并点击「保存设置」';
+    } else {
+      btn.disabled = false;
+      btn.title = '上传配置到 WebDAV（若 /readpaper 目录不存在将自动创建）';
     }
   }
 
@@ -3508,12 +3508,23 @@
               return;
             }
             
-            setStatus('WebDAV 设置已保存，权限已授予', 'success', 'webdav');
+            setStatus('WebDAV 设置已保存，权限已授予，正在验证 /readpaper 目录...', 'success', 'webdav');
             console.log('[saveWebDAVSettings] 设置已保存:', { url, username: username ? '***' : '' });
-            
-            // 更新按钮状态
-            updateUploadButtonState();
-            updateLoadCurrentButtonState();
+
+            // 权限已获取，立刻尝试确保 /readpaper 目录存在；成功才更新为最终成功状态
+            ensureReadpaperDir(url, username, password, false).then(dirReady => {
+              if (dirReady) {
+                setStatus('WebDAV 设置已保存，/readpaper 目录就绪', 'success', 'webdav');
+              } else {
+                setStatus('WebDAV 设置已保存，但无法访问或创建 /readpaper 目录，请检查凭据', 'error', 'webdav');
+              }
+              updateUploadButtonState();
+              updateLoadCurrentButtonState();
+            }).catch(err => {
+              console.warn('[saveWebDAVSettings] /readpaper 目录检查失败:', err.message);
+              updateUploadButtonState();
+              updateLoadCurrentButtonState();
+            });
           });
         } else {
           setStatus('浏览器不支持扩展存储', 'error', 'webdav');
