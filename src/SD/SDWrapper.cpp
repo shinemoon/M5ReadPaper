@@ -165,7 +165,7 @@ namespace SDW
         if (iface_ == IF_SDMMC)
         {
 #if DBG_FILE_MANAGER
-            Serial.printf("[SDW] exists() called with: %s (SDMMC mode)\n", path);
+  //          Serial.printf("[SDW] exists() called with: %s (SDMMC mode)\n", path);
 #endif
             bool result = ::SD_MMC.exists(path);
 #if DBG_FILE_MANAGER
