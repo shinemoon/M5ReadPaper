@@ -1,6 +1,6 @@
 Component: Converted IPA Font
 Original License: IPA Font License Agreement v1.0
-Copyright: Information-technology Promotion Agency, Japan (IPA)
+Copyright: Information-Technology Promotion Agency, Japan (IPA)
 Source: https://moji.or.jp/ipafont/
 
 NOTE: The IPA Font License permits redistribution of derived works (including
