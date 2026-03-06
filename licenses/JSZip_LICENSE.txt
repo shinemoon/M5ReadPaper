@@ -1,0 +1,6 @@
+Component: JSZip v3.10.1
+Original License: MIT License (dual-licensed MIT / GPLv3; this project uses the MIT variant)
+Copyright: 2009-2016 Stuart Knightley
+Source: https://github.com/Stuk/jszip
+
+请在此处粘贴上游的完整许可证文本（来自上游仓库/发布）。

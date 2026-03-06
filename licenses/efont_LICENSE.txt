@@ -1,0 +1,10 @@
+Component: efont
+Original License: BSD License (verify exact terms with upstream)
+Copyright: Electronic Font Open Laboratory (efont project)
+Source: http://openlab.ring.gr.jp/efont/
+
+NOTE: efont contains CJK glyphs under a BSD-style license. Embedded/binary
+distribution of subsets requires retaining the copyright notice.
+Please review and confirm before redistribution.
+
+请在此处粘贴上游的完整许可证文本（来自上游仓库/发布）。

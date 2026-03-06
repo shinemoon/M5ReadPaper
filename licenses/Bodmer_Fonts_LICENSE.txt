@@ -1,0 +1,11 @@
+Component: Font 2 / Font 4 / Font 6 / Font 7 / Font 8 (Bodmer / TFT_eSPI)
+Original License: MIT License (some included fonts may carry GNU FreeFont or
+  other notices — verify each font's origin)
+Copyright: Bodmer (https://github.com/Bodmer)
+Source: https://github.com/Bodmer/TFT_eSPI
+
+NOTE: Some fonts bundled with TFT_eSPI originate from the GNU FreeFont project
+or other sources with their own license terms. Confirm the specific origin of
+each embedded font and include all required notices when redistributing firmware.
+
+请在此处粘贴上游的完整许可证文本（来自上游仓库/发布）。

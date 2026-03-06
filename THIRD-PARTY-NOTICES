@@ -1,0 +1,155 @@
+# THIRD-PARTY NOTICES
+
+This project (M5ReadPaper) incorporates components from third-party open source
+projects. The following notices are provided in compliance with the respective
+license requirements. Full license texts are located in the `licenses/`
+directory of this repository.
+
+When distributing firmware binaries, compiled images, or browser-extension
+packages derived from this project, you **must** include the relevant license
+texts listed below.
+
+---
+
+## Firmware / Embedded Components
+
+### 1. M5GFX
+- **License**: MIT License
+- **Copyright**: M5Stack Technology Co., Ltd.
+- **Source**: https://github.com/m5stack/M5GFX
+- **License file**: `licenses/M5GFX_LICENSE.txt`
+
+### 2. LovyanGFX
+- **License**: MIT License
+- **Copyright**: lovyan03 (https://github.com/lovyan03)
+- **Source**: https://github.com/lovyan03/LovyanGFX
+- **License file**: `licenses/LovyanGFX_LICENSE.txt`
+- **Note**: M5GFX is built on top of LovyanGFX; verify whether the LovyanGFX
+  license text is already reproduced inside M5GFX's own license notice.
+
+### 3. TJpgDec — Tiny JPEG Decompressor
+- **License**: BSD-style (see license file for exact terms)
+- **Copyright**: ChaN, 2019
+- **Source**: http://elm-chan.org/fsw/tjpgd/
+- **License file**: `licenses/TJpgDec_LICENSE.txt`
+
+### 4. Pngle — PNG Loader
+- **License**: MIT License
+- **Copyright**: Koji Takahashi
+- **Source**: https://github.com/kikuchan/pngle
+- **License file**: `licenses/Pngle_LICENSE.txt`
+
+### 5. QRCode — QR Code Generator
+- **License**: MIT License
+- **Copyright**: Richard Moore / nayuki
+- **Source**: https://github.com/ricmoo/qrcode  (or https://github.com/nayuki/QR-Code-generator)
+- **License file**: `licenses/QRCode_LICENSE.txt`
+
+### 6. result — C++ Result/Expected Utility
+- **License**: MIT License (verify with upstream source)
+- **Copyright**: (see upstream repository)
+- **License file**: `licenses/result_LICENSE.txt`
+
+### 7. GFX Font and GLCD Font (Adafruit GFX Library)
+- **License**: BSD License
+- **Copyright**: Adafruit Industries
+- **Source**: https://github.com/adafruit/Adafruit-GFX-Library
+- **License file**: `licenses/GFX_GLCD_FONT_LICENSE.txt`
+- **⚠ Font License Notice**: These fonts are embedded in binary form in the
+  firmware. When distributing compiled firmware, the BSD license text must be
+  included in the distribution. Subset or modification of the font bitmaps may
+  impose additional restrictions — **please verify with the upstream license
+  before redistribution**.
+
+### 8. Font 2 / Font 4 / Font 6 / Font 7 / Font 8 (Bodmer / TFT_eSPI)
+- **License**: MIT License (FreeFonts portion may carry additional Free Font
+  / FreeType-related notices — verify upstream)
+- **Copyright**: Bodmer (https://github.com/Bodmer)
+- **Source**: https://github.com/Bodmer/TFT_eSPI
+- **License file**: `licenses/Bodmer_Fonts_LICENSE.txt`
+- **⚠ Font License Notice**: Some fonts bundled with TFT_eSPI originate from
+  the GNU FreeFont project or other sources with their own license terms.
+  Confirm the specific origin of each embedded font and include all required
+  notices when redistributing firmware.
+
+### 9. Converted IPA Font
+- **License**: IPA Font License Agreement v1.0
+- **Copyright**: Information-technology Promotion Agency, Japan (IPA)
+- **Source**: https://moji.or.jp/ipafont/
+- **License file**: `licenses/IPA_Font_LICENSE.txt`
+- **⚠ Font License Notice**: The IPA Font License permits redistribution of
+  derived works (including subsets / converted forms) provided that:
+  (a) the IPA Font License is distributed alongside the font, and
+  (b) the name of the derived font is not the same as an original IPA font
+  name unless the entire original font is included unmodified. **Verify
+  compliance before releasing any firmware or package that embeds this font
+  in binary/subset form.**
+
+### 10. efont
+- **License**: BSD License (verify exact terms with upstream)
+- **Copyright**: Electronic Font Open Laboratory (efont project)
+- **Source**: http://openlab.ring.gr.jp/efont/
+- **License file**: `licenses/efont_LICENSE.txt`
+- **⚠ Font License Notice**: efont contains CJK glyphs with a BSD-style
+  license. Embedded/binary distribution of subsets may require retaining the
+  copyright notice. **Please review and confirm before redistribution.**
+
+### 11. TomThumb Font
+- **License**: MIT-style / Custom permissive (see license file)
+- **Copyright**: Robey Pointer (original Tiny Font), adapted by various contributors
+- **Source**: https://robey.lag.net/2010/01/23/tiny-monospace-font.html
+- **License file**: `licenses/TomThumb_FONT_LICENSE.txt`
+
+### 12. M5Unified
+- **License**: MIT License
+- **Copyright**: M5Stack Technology Co., Ltd.
+- **Source**: https://github.com/m5stack/M5Unified
+- **License file**: `licenses/M5Unified_LICENSE.txt`
+
+### 13. ArduinoJson
+- **License**: MIT License
+- **Copyright**: Benoit Blanchon
+- **Source**: https://github.com/bblanchon/ArduinoJson
+- **License file**: `licenses/ArduinoJson_LICENSE.txt`
+
+---
+
+## Browser Extension / Web App Components (`webapp/extension/vendors/`)
+
+### 14. JSZip v3.10.1
+- **License**: MIT License (dual-licensed MIT / GPLv3; this project uses the
+  MIT variant)
+- **Copyright**: 2009-2016 Stuart Knightley
+- **Source**: https://github.com/Stuk/jszip
+- **License file**: `licenses/JSZip_LICENSE.txt`
+
+### 15. html2canvas v1.4.1
+- **License**: MIT License
+- **Copyright**: 2022 Niklas von Hertzen
+- **Source**: https://github.com/niklasvh/html2canvas
+- **License file**: `licenses/html2canvas_LICENSE.txt`
+
+### 16. opentype.js
+- **License**: MIT License
+- **Copyright**: Frederik De Bleser and contributors
+- **Source**: https://github.com/opentypejs/opentype.js
+- **License file**: `licenses/opentype_LICENSE.txt`
+
+### 17. chota.css v0.9.2
+- **License**: MIT License
+- **Copyright**: Jenil Gogari
+- **Source**: https://github.com/jenil/chota
+- **License file**: `licenses/chota_LICENSE.txt`
+
+---
+
+## General Notes
+
+- All license texts in the `licenses/` directory currently contain **placeholder
+  text**. Before any public or commercial release, replace each placeholder with
+  the complete, verbatim license text obtained from the respective upstream
+  repository or release package.
+- For fonts distributed in embedded/binary form inside a firmware image or
+  browser extension, **subsetting and binary embedding restrictions vary by
+  license**. Review the IPA Font License, Adafruit GFX BSD license, and efont
+  BSD license carefully before redistribution.

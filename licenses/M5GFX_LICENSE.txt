@@ -1,0 +1,6 @@
+Component: M5GFX
+Original License: MIT License
+Copyright: M5Stack Technology Co., Ltd.
+Source: https://github.com/m5stack/M5GFX
+
+请在此处粘贴上游的完整许可证文本（来自上游仓库/发布）。

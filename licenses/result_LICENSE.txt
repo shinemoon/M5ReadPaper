@@ -1,0 +1,6 @@
+Component: result — C++ Result/Expected Utility
+Original License: MIT License (verify with upstream source)
+Copyright: (see upstream repository)
+Source: (verify with upstream repository)
+
+请在此处粘贴上游的完整许可证文本（来自上游仓库/发布）。

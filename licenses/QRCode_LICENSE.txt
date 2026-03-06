@@ -1,0 +1,6 @@
+Component: QRCode — QR Code Generator
+Original License: MIT License
+Copyright: Richard Moore / nayuki contributors
+Source: https://github.com/ricmoo/qrcode  (or https://github.com/nayuki/QR-Code-generator)
+
+请在此处粘贴上游的完整许可证文本（来自上游仓库/发布）。

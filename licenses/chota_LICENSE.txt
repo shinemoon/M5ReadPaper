@@ -1,0 +1,6 @@
+Component: chota.css v0.9.2
+Original License: MIT License
+Copyright: Jenil Gogari
+Source: https://github.com/jenil/chota
+
+请在此处粘贴上游的完整许可证文本（来自上游仓库/发布）。
