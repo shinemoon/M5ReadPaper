@@ -1,0 +1,17 @@
+Component: TJpgDec (Tiny JPEG Decompressor)
+License: BSD-style / ChaN original declaration (BSD 1-clause-like)
+Copyright: ChaN
+Source: http://elm-chan.org/fsw/tjpgd/00index.html
+
+Note: TJpgDec is released under a permissive BSD-style license by ChaN.
+Verify the exact redistribution terms in the source file header (tjpgd.h / tjpgd.c).
+
+-------------------------------------------------------------------------------
+
+请在此处粘贴上游的完整许可证文本（来自上游仓库/发布）。
+[Please paste the full upstream license text here (from the upstream repository/release).]
+
+-------------------------------------------------------------------------------
+
+Upstream license text placeholder — replace with the actual license text from
+ChaN's original TJpgDec source: http://elm-chan.org/fsw/tjpgd/00index.html

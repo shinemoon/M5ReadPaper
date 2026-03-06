@@ -1,0 +1,17 @@
+Component: Font 2 / Font 4 / Font 6 / Font 7 / Font 8 (Bodmer / TFT_eSPI fonts)
+License: MIT License (or BSD 2-Clause; check upstream header for each font file)
+Copyright: Bodmer and contributors
+Source: https://github.com/Bodmer/TFT_eSPI
+
+Note: Individual font files may carry additional attributions or different
+license terms. Check each source file header carefully before distribution.
+
+-------------------------------------------------------------------------------
+
+请在此处粘贴上游的完整许可证文本（来自上游仓库/发布）。
+[Please paste the full upstream license text here (from the upstream repository/release).]
+
+-------------------------------------------------------------------------------
+
+Upstream license text placeholder — replace with the actual license text from:
+https://github.com/Bodmer/TFT_eSPI/blob/master/license.txt

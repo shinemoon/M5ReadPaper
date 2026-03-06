@@ -1,0 +1,126 @@
+THIRD-PARTY NOTICES
+===================
+
+Project: M5ReadPaper
+Main License: Apache License, Version 2.0
+Copyright 2026 shinemoon
+
+This file lists the third-party components used in this project, their
+respective licenses, copyright attributions, and references to the
+corresponding license text files in the licenses/ directory.
+
+When distributing binary firmware, browser extensions, or any other compiled
+artifact derived from this project, you MUST include this file, the LICENSE
+file, and all relevant license texts from the licenses/ directory in your
+distribution package.
+
+IMPORTANT: Do NOT remove or alter the original copyright/license notices
+in the upstream source files. All third-party source file headers must be
+kept intact.
+
+-------------------------------------------------------------------------------
+
+1. M5GFX
+   Homepage/Source: https://github.com/m5stack/M5GFX
+   License: MIT License
+   Copyright: M5Stack / LovyanGFX contributors
+   License file: licenses/M5GFX_LICENSE.txt
+
+2. LovyanGFX
+   Homepage/Source: https://github.com/lovyan03/LovyanGFX
+   License: MIT License
+   Copyright: lovyan03 and contributors
+   License file: licenses/LovyanGFX_LICENSE.txt
+
+3. TJpgDec (Tiny JPEG Decompressor)
+   Homepage/Source: http://elm-chan.org/fsw/tjpgd/00index.html
+   License: BSD-style (ChaN original declaration / BSD 1-clause-like)
+   Copyright: ChaN
+   License file: licenses/TJpgDec_LICENSE.txt
+   Note: Verify the exact redistribution terms in the upstream source header.
+
+4. Pngle (PNG decoder)
+   Homepage/Source: https://github.com/kikuchan/pngle
+   License: MIT License
+   Copyright: kikuchan and contributors
+   License file: licenses/Pngle_LICENSE.txt
+
+5. QRCode
+   Homepage/Source: https://github.com/ricmoo/QRCode
+   License: MIT License
+   Copyright: Richard Moore and contributors
+   License file: licenses/QRCode_LICENSE.txt
+
+6. result (C++ result/error-handling utility)
+   Homepage/Source: (refer to upstream source embedded in this project)
+   License: MIT License (or as specified in upstream source)
+   Copyright: (refer to upstream source)
+   License file: licenses/result_LICENSE.txt
+   Note: Verify the exact copyright holder and license in the upstream source.
+
+7. GFX Font and GLCD Font (Adafruit GFX Library fonts)
+   Homepage/Source: https://github.com/adafruit/Adafruit-GFX-Library
+   License: BSD 2-Clause License
+   Copyright: Adafruit Industries and contributors
+   License file: licenses/GFX_GLCD_FONT_LICENSE.txt
+
+8. Font 2 / Font 4 / Font 6 / Font 7 / Font 8 (Bodmer / TFT_eSPI fonts)
+   Homepage/Source: https://github.com/Bodmer/TFT_eSPI
+   License: MIT License (or BSD 2-Clause; check upstream header for each font)
+   Copyright: Bodmer and contributors
+   License file: licenses/Bodmer_Fonts_LICENSE.txt
+   Note: Individual font files may carry additional attributions; check each
+   source file header.
+
+9. Converted IPA Font
+   Homepage/Source: https://moji.or.jp/ipafont/
+   License: IPA Font License Agreement v1.0
+   Copyright: Information-technology Promotion Agency, Japan (IPA)
+   License file: licenses/IPA_Font_LICENSE.txt
+   *** SPECIAL NOTE: The IPA Font License has specific restrictions on
+   embedding, subsetting, and redistribution. You MUST verify that your
+   intended use (embedded in firmware / distributed as binary) complies
+   with the IPA Font License Agreement. In particular, review the conditions
+   for "Derived Programs" and redistribution of modified/converted versions.
+
+10. efont (Electronic Font)
+    Homepage/Source: http://openlab.jp/efont/
+    License: BSD 3-Clause License (or as specified upstream)
+    Copyright: Yasuyuki Furukawa and efont contributors
+    License file: licenses/efont_LICENSE.txt
+    Note: Verify the exact license version in the upstream distribution.
+
+11. TomThumb Font
+    Homepage/Source: https://robey.lag.net/2010/01/23/tiny-monospace-font.html
+    License: Creative Commons Attribution 3.0 Unported (CC BY 3.0) or
+             3-clause BSD (check upstream header for the version included here)
+    Copyright: Brian Swetland / Robey Pointer
+    License file: licenses/TomThumb_FONT_LICENSE.txt
+    Note: Verify the exact license of the version embedded in this project.
+
+-------------------------------------------------------------------------------
+
+FONT LICENSING SPECIAL NOTICE
+------------------------------
+Several fonts used in this project (particularly the converted IPA font,
+efont, and TomThumb) may have licensing terms that impose specific conditions
+on:
+  - Embedding in firmware or binary distributions
+  - Subsetting or modification of font data
+  - Redistribution of converted/derived versions
+
+Maintainers MUST verify that all embedded font licenses permit the intended
+distribution method (firmware image, browser extension package, etc.) before
+each release.
+
+-------------------------------------------------------------------------------
+
+NEXT STEPS FOR MAINTAINERS
+---------------------------
+1. For each entry in the licenses/ directory, paste the full upstream license
+   text (from the upstream repository or release) in place of the placeholder.
+2. Verify the font licenses (especially IPA) permit your distribution method.
+3. When releasing binary firmware or a browser extension, include this file,
+   LICENSE, and all files in licenses/ in the release package.
+4. Optionally add SPDX-License-Identifier comments to your C/C++ source files,
+   e.g.: // SPDX-License-Identifier: Apache-2.0

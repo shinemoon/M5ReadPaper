@@ -1,0 +1,17 @@
+Component: result (C++ result/error-handling utility)
+License: MIT License (or as specified in upstream source header)
+Copyright: (refer to upstream source embedded in this project)
+Source: (refer to upstream source embedded in this project)
+
+Note: Verify the exact copyright holder and license version in the upstream
+source file that is embedded in this project.
+
+-------------------------------------------------------------------------------
+
+请在此处粘贴上游的完整许可证文本（来自上游仓库/发布）。
+[Please paste the full upstream license text here (from the upstream repository/release).]
+
+-------------------------------------------------------------------------------
+
+Upstream license text placeholder — replace with the actual license text from
+the upstream source of the "result" utility used in this project.

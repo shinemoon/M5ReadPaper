@@ -1,0 +1,29 @@
+Component: Converted IPA Font
+License: IPA Font License Agreement v1.0
+Copyright: Information-technology Promotion Agency, Japan (IPA)
+Source: https://moji.or.jp/ipafont/
+
+*** SPECIAL NOTICE ***
+The IPA Font License has specific restrictions on embedding, subsetting, and
+redistribution of modified/converted versions. You MUST verify that your
+intended use (embedded in firmware / distributed as binary / browser extension)
+complies with the IPA Font License Agreement v1.0.
+
+Key points to verify:
+- The IPA Font License permits redistribution of the font under certain
+  conditions, but derived/converted versions have additional requirements.
+- Redistribution of a "Derived Program" (e.g., a converted binary font) must
+  either retain the IPA Font License or be accompanied by the original IPA font.
+- Review the full license text and consult the IPA website for clarification.
+
+IPA Font License Agreement: https://moji.or.jp/ipafont/license/
+
+-------------------------------------------------------------------------------
+
+请在此处粘贴上游的完整许可证文本（来自上游仓库/发布）。
+[Please paste the full upstream license text here (from the upstream repository/release).]
+
+-------------------------------------------------------------------------------
+
+Upstream license text placeholder — replace with the full IPA Font License
+Agreement v1.0 text from: https://moji.or.jp/ipafont/license/

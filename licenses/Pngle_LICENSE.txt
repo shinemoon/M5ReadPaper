@@ -1,0 +1,14 @@
+Component: Pngle (PNG decoder)
+License: MIT License
+Copyright: kikuchan and contributors
+Source: https://github.com/kikuchan/pngle
+
+-------------------------------------------------------------------------------
+
+请在此处粘贴上游的完整许可证文本（来自上游仓库/发布）。
+[Please paste the full upstream license text here (from the upstream repository/release).]
+
+-------------------------------------------------------------------------------
+
+Upstream license text placeholder — replace with the actual MIT License text
+from: https://github.com/kikuchan/pngle/blob/master/LICENSE

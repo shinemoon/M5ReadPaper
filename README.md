@@ -1,6 +1,19 @@
 # **ReadPaper**
 Y.A.P.T.R. — Yet Another PaperS3 Text Reader
 
+## License
+
+This project is licensed under the **Apache License, Version 2.0**.
+See the [LICENSE](./LICENSE) file for the full license text.
+
+Third-party component licenses are listed in [THIRD-PARTY-NOTICES](./THIRD-PARTY-NOTICES),
+with individual license texts provided in the [licenses/](./licenses/) directory.
+
+> **Distribution note:** When distributing binary firmware, browser extension
+> packages, or any other compiled artifact derived from this project, you must
+> include the `LICENSE`, `THIRD-PARTY-NOTICES`, and all files in the `licenses/`
+> directory in your release package.
+
 *BTW. 知道Y.A.S.D这个梗的人应该都有点年龄了吧……*
 
 ![Banner](/design/banner.png)
