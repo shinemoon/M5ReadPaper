@@ -50,6 +50,10 @@ void ApiRouter::registerRoutes(WebServer& server, WiFiHotspotManager& mgr) {
     server.on("/download", [&](){ add_cors_headers(server); mgr.handleFileDownload(); });
     server.on("/download", HTTP_OPTIONS, [&](){ add_cors_headers(server); server.send(204); });
 
+    // 重命名（仅书籍目录）
+    server.on("/rename", [&](){ add_cors_headers(server); mgr.handleFileRename(); });
+    server.on("/rename", HTTP_OPTIONS, [&](){ add_cors_headers(server); server.send(204); });
+
     // 同步时间：独立实现（保持原逻辑），返回文本但带上 CORS 允许跨域
     server.on("/sync_time", HTTP_POST, [&](){
         String body = server.arg("plain");

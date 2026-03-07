@@ -86,4 +86,54 @@
 
   // 提供兼容旧接口 showConfirm
   window.showConfirm = function(message, title){ return window.niceConfirm(message,{title}); };
+
+  // 输入弹窗：返回 Promise<string|null>，用户取消时 resolve(null)
+  window.nicePrompt = function(message, defaultValue='', options={}) {
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;font-family:inherit;';
+      const backdrop = document.createElement('div');
+      backdrop.style.cssText = 'position:absolute;inset:0;background:rgba(0,0,0,.42);backdrop-filter:blur(2px);';
+      const box = document.createElement('div');
+      box.className = 'card';
+      box.style.cssText = 'position:relative;max-width:440px;width:92%;background:#fff;border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.22);padding:1.1rem .95rem .9rem;display:flex;flex-direction:column;gap:.9rem;';
+      box.setAttribute('role','dialog'); box.setAttribute('aria-modal','true');
+
+      const titleEl = document.createElement('div');
+      titleEl.style.cssText = 'font-size:16px;font-weight:600;line-height:1.4;display:flex;align-items:center;gap:.5rem;';
+      titleEl.innerHTML = '<span style="font-size:18px">✏️</span><span>' + (options.title || '输入') + '</span>';
+
+      const msgEl = document.createElement('div');
+      msgEl.style.cssText = 'font-size:14px;line-height:1.6;white-space:pre-wrap;';
+      msgEl.textContent = message || '';
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = defaultValue || '';
+      input.style.cssText = 'width:100%;box-sizing:border-box;padding:.4rem .6rem;font-size:14px;border:1px solid #ccc;border-radius:6px;outline:none;';
+
+      const actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;justify-content:flex-end;gap:.6rem;margin-top:.2rem;';
+      const btnCancel = document.createElement('button');
+      btnCancel.type = 'button'; btnCancel.className = 'button outline'; btnCancel.textContent = '取消';
+      const btnOk = document.createElement('button');
+      btnOk.type = 'button'; btnOk.className = 'button primary'; btnOk.textContent = '确定';
+      actions.appendChild(btnCancel); actions.appendChild(btnOk);
+
+      box.appendChild(titleEl); box.appendChild(msgEl); box.appendChild(input); box.appendChild(actions);
+      overlay.appendChild(backdrop); overlay.appendChild(box);
+      document.body.appendChild(overlay);
+
+      function cleanup(val) { try { overlay.remove(); } catch(e) {} resolve(val); }
+      btnCancel.onclick = () => cleanup(null);
+      btnOk.onclick = () => { const v = input.value.trim(); cleanup(v.length ? v : null); };
+      overlay.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { cleanup(null); }
+        else if (e.key === 'Enter' && document.activeElement !== btnCancel) {
+          const v = input.value.trim(); cleanup(v.length ? v : null);
+        }
+      });
+      setTimeout(() => { input.focus(); input.select(); }, 10);
+    });
+  };
 })();

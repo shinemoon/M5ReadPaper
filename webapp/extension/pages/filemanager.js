@@ -388,6 +388,7 @@
         <td class='file-actions nowrap'>
           ${f.type==='file'?`<a href='${API_BASE}/download?path=${encodeURIComponent(fullPath)}' data-path='${encodeURIComponent(fullPath)}' class='download-link button is-small outline' title='下载'>下载</a>`:''}
           <button class='button is-small outline' data-del='${fullPath}' ${disableDelete?'disabled':''}>删除</button>
+          ${currentCat==='book' && f.type==='file'?`<button class='button is-small outline' data-rename='${fullPath}' title='重命名'>重命名</button>`:''}
           ${currentCat==='book' && f.type==='file'?`<button class='button is-small outline' data-record='${fullPath}' title='查看阅读记录'>记录</button>`:''}
         </td>
       </tr>`;
@@ -447,6 +448,53 @@
           const bookPath = btn.getAttribute('data-record');
           await fetchAndStoreReadingRecords(bookPath);
           window.open(`readingRecord.html?book=${encodeURIComponent(bookPath)}&src=local`, '_blank');
+        };
+      });
+    }
+
+    // 绑定重命名按钮（仅书籍分类）
+    if(currentCat === 'book'){
+      fileBody.querySelectorAll('button[data-rename]').forEach(btn=>{
+        btn.onclick = async ()=>{
+          const path = btn.getAttribute('data-rename');
+          const parts = path.split('/');
+          const currentName = parts[parts.length - 1] || '';
+
+          // 弹出输入框获取新文件名
+          const promptFn = typeof window.nicePrompt === 'function'
+            ? (msg, def) => window.nicePrompt(msg, def, {title:'重命名书籍'})
+            : (msg, def) => Promise.resolve(window.prompt(msg, def));
+          const rawNew = await promptFn('请输入新文件名（保留 .txt 后缀）：', currentName);
+          if(!rawNew || rawNew === currentName) return;
+
+          // 自动补全 .txt 后缀
+          const newName = rawNew.toLowerCase().endsWith('.txt') ? rawNew : rawNew + '.txt';
+          if(newName === currentName) return;
+
+          // 弹框告知用户重命名影响
+          const confirmed = await showConfirm(
+            '重命名书籍后，设备端按文件名存储的阅读进度（书签、标签、索引等）将会同步迁移。\n\n' +
+            '但网页端本地保存的阅读时间记录（IndexedDB）按书名索引，' +
+            '旧记录不会自动迁移，新旧文件名下的阅读时长记录将独立存储。\n\n' +
+            '将 "' + currentName + '" 重命名为 "' + newName + '"？',
+            '重命名确认'
+          );
+          if(!confirmed) return;
+
+          try{
+            const r = await fetch(`${API_BASE}/rename?old_path=${encodeURIComponent(path)}&new_name=${encodeURIComponent(newName)}`);
+            const j = await r.json();
+            if(j.ok){
+              toast('重命名成功：' + newName, 'success');
+              cache[currentCat] = null;
+              await new Promise(r => setTimeout(r, 500));
+              loadList();
+            } else {
+              toast(j.message || '重命名失败', 'error', 5000);
+            }
+          } catch(e){
+            toast('重命名失败: ' + e.message, 'error', 5000);
+          }
         };
       });
     }

@@ -14,6 +14,7 @@
 #include <SPIFFS.h>
 #include "text/book_handle.h"
 #include "text/tags_handle.h"
+#include "device/safe_fs.h"
 #include <set>
 #include <map>
 #include "ui/ui_lock_screen.h"
@@ -729,6 +730,225 @@ void WiFiHotspotManager::handleFileDelete() {
     } else {
         webServer->send(500, "application/json", String("{\"ok\":false,\"message\":\"Failed to delete file\"}"));
     }
+}
+
+void WiFiHotspotManager::handleFileRename() {
+    String old_path_str = webServer->arg("old_path");
+    String new_name_str = webServer->arg("new_name");
+
+    if (old_path_str.isEmpty() || new_name_str.isEmpty()) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Missing parameters: old_path and new_name required\"}");
+        return;
+    }
+
+    // Only /book/ directory is supported
+    if (!old_path_str.startsWith("/book/")) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Only /book/ files can be renamed\"}");
+        return;
+    }
+
+    // Validate new_name: no path separators, must end with .txt, reasonable length
+    std::string new_name = new_name_str.c_str();
+    if (new_name.find('/') != std::string::npos || new_name.find('\\') != std::string::npos) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Invalid file name: path separators not allowed\"}");
+        return;
+    }
+    if (new_name.empty() || new_name.length() > 64) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Invalid file name length\"}");
+        return;
+    }
+    {
+        std::string ext = new_name.length() >= 4 ? new_name.substr(new_name.length() - 4) : "";
+        for (char &c : ext) c = (char)tolower((unsigned char)c);
+        if (ext != ".txt") {
+            webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Only .txt files are supported\"}");
+            return;
+        }
+    }
+
+    std::string old_path = old_path_str.c_str();
+
+    // Construct new path (same directory as old)
+    size_t lastSlash = old_path.rfind('/');
+    std::string dir = (lastSlash != std::string::npos) ? old_path.substr(0, lastSlash) : "";
+    std::string new_path = dir + "/" + new_name;
+
+    if (!SDW::SD.exists(old_path.c_str())) {
+        webServer->send(404, "application/json", "{\"ok\":false,\"message\":\"Source file not found\"}");
+        return;
+    }
+    if (SDW::SD.exists(new_path.c_str())) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"A file with the new name already exists\"}");
+        return;
+    }
+
+    if (!SDW::SD.rename(old_path.c_str(), new_path.c_str())) {
+        webServer->send(500, "application/json", "{\"ok\":false,\"message\":\"Failed to rename file\"}");
+        return;
+    }
+
+    // Main rename succeeded — respond immediately
+    webServer->send(200, "application/json", "{\"ok\":true,\"message\":\"File renamed successfully\"}");
+
+    // ── Post-rename: update all related auxiliary files ──
+
+    // Resolve real paths (strips /sd or /spiffs prefix if present)
+    std::string old_real_fp;
+    bool old_spiffs = false;
+    if (!resolve_fake_path(old_path, old_real_fp, old_spiffs)) old_real_fp = old_path;
+    old_spiffs = false; // books are always on SD
+
+    std::string new_real_fp;
+    bool new_spiffs = false;
+    if (!resolve_fake_path(new_path, new_real_fp, new_spiffs)) new_real_fp = new_path;
+    new_spiffs = false;
+
+    // Canonical paths (with /sd prefix)
+    std::string old_canonical = "/sd" + old_real_fp;
+    std::string new_canonical = "/sd" + new_real_fp;
+
+    // 1) Rename .idx sidecar in the same directory
+    {
+        auto make_idx_path = [](const std::string &fp) -> std::string {
+            size_t d = fp.rfind('.');
+            return (d != std::string::npos) ? fp.substr(0, d) + ".idx" : fp + ".idx";
+        };
+        std::string old_idx = make_idx_path(old_real_fp);
+        std::string new_idx = make_idx_path(new_real_fp);
+        if (SDW::SD.exists(old_idx.c_str())) {
+            SDW::SD.rename(old_idx.c_str(), new_idx.c_str());
+        }
+    }
+
+    // 2) Rename bookmark-related files in /bookmarks/
+    {
+        extern std::string getBookmarkFileName(const std::string &book_file_path);
+
+        // Robust rename: try SDW::SD.rename first; if it fails, fall back to copy+delete
+        auto robust_rename = [&](const std::string &src, const std::string &dst) {
+            if (!SDW::SD.exists(src.c_str())) return;
+            if (SDW::SD.rename(src.c_str(), dst.c_str())) return; // fast path
+
+            // Fallback: copy contents then delete source
+            File rs = SDW::SD.open(src.c_str(), "r");
+            if (!rs) return;
+            File rd = SDW::SD.open(dst.c_str(), "w");
+            if (!rd) { rs.close(); return; }
+            uint8_t buf[512];
+            while (rs.available()) {
+                int n = rs.read(buf, sizeof(buf));
+                if (n <= 0) break;
+                rd.write(buf, (size_t)n);
+            }
+            rd.flush();
+            rd.close();
+            rs.close();
+            SDW::SD.remove(src.c_str());
+        };
+
+        // getBookmarkFileName returns /bookmarks/<safe>.bm; we swap the extension
+        auto rename_bm = [&](const char *ext) {
+            std::string old_bm = getBookmarkFileName(old_canonical);
+            size_t d = old_bm.rfind('.');
+            std::string old_fn = (d != std::string::npos) ? old_bm.substr(0, d) + ext : old_bm + ext;
+
+            std::string new_bm = getBookmarkFileName(new_canonical);
+            d = new_bm.rfind('.');
+            std::string new_fn = (d != std::string::npos) ? new_bm.substr(0, d) + ext : new_bm + ext;
+
+            robust_rename(old_fn, new_fn);
+
+            // Also handle SafeFS .tmp sidecar (best-effort)
+            std::string old_tmp = old_fn + ".tmp";
+            std::string new_tmp = new_fn + ".tmp";
+            robust_rename(old_tmp, new_tmp);
+        };
+        rename_bm(".bm");
+        rename_bm(".page");
+        rename_bm(".progress");
+        rename_bm(".complete");
+        rename_bm(".rec");
+        rename_bm(".tags");
+    }
+
+    // 3) Update the file_path= line inside bookmark files that embed it (.bm, .progress)
+    {
+        extern std::string getBookmarkFileName(const std::string &book_file_path);
+        // Helper: patch file_path= line in-place for a given bookmark file
+        auto patch_file_path = [&](const std::string &fn) {
+            if (!SDW::SD.exists(fn.c_str())) return;
+            std::vector<std::string> lines;
+            {
+                File f = SDW::SD.open(fn.c_str(), "r");
+                if (!f) return;
+                while (f.available()) {
+                    String line = f.readStringUntil('\n');
+                    line.trim();
+                    std::string ln = line.c_str();
+                    if (ln.rfind("file_path=", 0) == 0) {
+                        ln = std::string("file_path=") + new_canonical;
+                    }
+                    lines.push_back(ln);
+                }
+                f.close();
+            }
+            if (!lines.empty()) {
+                SafeFS::safeWrite(fn, [&](File &f) -> bool {
+                    for (const auto &ln : lines) f.println(ln.c_str());
+                    return true;
+                });
+            }
+        };
+
+        // Helper to get the progress filename from the bookmark filename base
+        auto make_fn = [&](const char *ext) -> std::string {
+            std::string bm = getBookmarkFileName(new_canonical);
+            size_t d = bm.rfind('.');
+            return (d != std::string::npos) ? bm.substr(0, d) + ext : bm + ext;
+        };
+
+        patch_file_path(make_fn(".bm"));
+        patch_file_path(make_fn(".progress"));
+    }
+
+    // 4) Update history.list: replace old canonical path with new
+    {
+        extern bool renameBookInHistory(const std::string &old_path, const std::string &new_path);
+        renameBookInHistory(old_canonical, new_canonical);
+    }
+
+    // 5) If the currently open book is being renamed, update config and re-open it
+    {
+        std::string cfg_raw = std::string(g_config.currentReadFile);
+        std::string cfg_real;
+        bool cfg_spiffs = false;
+        resolve_fake_path(cfg_raw, cfg_real, cfg_spiffs);
+        cfg_real = normalize_real_path(cfg_real);
+        std::string old_norm = normalize_real_path(old_real_fp);
+
+        if (!cfg_spiffs && cfg_real == old_norm) {
+            // Update persisted config path
+            strncpy(g_config.currentReadFile, new_canonical.c_str(), sizeof(g_config.currentReadFile) - 1);
+            g_config.currentReadFile[sizeof(g_config.currentReadFile) - 1] = '\0';
+            config_save();
+
+            // Re-open the renamed file as current book so runtime state is consistent
+            if (g_current_book) {
+                int16_t aw = g_current_book->getAreaWidth();
+                int16_t ah = g_current_book->getAreaHeight();
+                float fs = g_current_book->getFontSize();
+                config_update_current_book(new_canonical.c_str(), aw, ah, fs);
+            }
+        }
+    }
+
+    // 6) Refresh book-list cache
+    BookFileManager::refreshCache();
+
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] 书籍重命名完成: '%s' → '%s'\n",
+                  old_canonical.c_str(), new_canonical.c_str());
+#endif
 }
 
 void WiFiHotspotManager::handleFileDownload() {
