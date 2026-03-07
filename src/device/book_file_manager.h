@@ -14,7 +14,7 @@ public:
     // 获取指定页面的书籍列表（分页支持）
     static std::vector<std::string> getBookList(int page, int perPage);
     
-    // 获取所有书籍名称（去除.txt扩展名）
+    // 获取所有书籍名称（去除.txt扩展名）；目录条目以 '/' 结尾，'..' 表示返回上级
     static std::vector<std::string> getAllBookNames();
     
     // 刷新缓存
@@ -28,11 +28,22 @@ public:
     
     // 清除缓存
     static void clearCache();
+
+    // ── 目录导航 ──
+    // 返回当前扫描目录（SD 路径，以 "/book" 开头）
+    static std::string getCurrentScanDir();
+    // 是否处于根目录 /book
+    static bool isAtRootBookDir();
+    // 进入子目录（dirName 只含目录名，不含路径）
+    static void navigateTo(const std::string& dirName);
+    // 返回上级目录（若已在根目录则不变）
+    static void navigateUp();
     
 private:
     static std::vector<std::string> cachedBookNames;
     static bool cacheValid;
     static unsigned long lastScanTime;
+    static std::string currentScanDir; // 当前扫描目录，默认 "/book"
     
     // 内部扫描函数
     static void scanBooks();

@@ -84,7 +84,7 @@ enum display_type {
 #define PAGES_DELAY 20
 
 // 文件管理最大返回数量 - 主菜单文件列表限制
-#define MAX_MAIN_MENU_FILE_COUNT 99
+#define MAX_MAIN_MENU_FILE_COUNT 128
 
 // Label shift
 

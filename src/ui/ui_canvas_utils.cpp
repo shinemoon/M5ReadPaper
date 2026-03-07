@@ -1124,8 +1124,21 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
 #endif
         }
 
-        // 显示文件名（去掉.txt后的名称），短名处理以便区分同系列卷次
-        std::string display_name = shorten_book_name(book_files[file_index], 8);
+        // 显示条目：目录以 '/' 结尾，'..' 为返回上级，其余为书籍文件
+        const std::string &raw_entry = book_files[file_index];
+        std::string display_name;
+        if (raw_entry == "..") {
+            display_name = "  返回上级";
+            g_canvas->fillTriangle(8,text_y+14, 18, text_y, 18, text_y+28);
+        } else if (!raw_entry.empty() && raw_entry.back() == '/') {
+            // 目录：去除结尾 '/'  并加上标识
+            std::string dir_display = raw_entry.substr(0, raw_entry.size() - 1);
+            display_name = dir_display;
+            g_canvas->fillRect(350,text_y-20, 8, 68);
+            g_canvas->fillRect(344,text_y-20, 4, 68);
+        } else {
+            display_name = shorten_book_name(raw_entry, 8);
+        }
         bin_font_print(display_name.c_str(), 28, 0, 320, 15, text_y, true, g_canvas, TEXT_ALIGN_LEFT, 320);
 
 #if DBG_UI_CANVAS_UTILS
@@ -1349,12 +1362,17 @@ std::string get_selected_book_fullpath(int page, int index)
         return std::string();
     }
 
-    // default behavior: construct from cached name
+    // 默认行为：从缓存构建完整路径
     std::string name = get_cached_book_name(page, index);
     if (name.empty())
         return std::string();
-    // 统一返回 /sd/book/<name>.txt 格式
-    return std::string("/sd/book/") + name + ".txt";
+    // 目录条目：返回特殊标记供 state_main_menu 判断
+    if (name == "..")  // 返回上级
+        return std::string("../");
+    if (!name.empty() && name.back() == '/') // 进入子目录
+        return std::string("DIR:") + BookFileManager::getCurrentScanDir() + "/" + name.substr(0, name.size() - 1);
+    // 普通文件：使用当前扫描目录构建完整路径
+    return std::string("/sd") + BookFileManager::getCurrentScanDir() + "/" + name + ".txt";
 }
 
 bool show_wire_connect(M5Canvas *canvas, bool refresh)

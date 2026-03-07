@@ -200,6 +200,23 @@ namespace SDW
         return ::SD.mkdir(path);
     }
 
+    bool SDWrapper::rmdir(const char *path)
+    {
+#if HAS_SD_MMC
+        if (iface_ == IF_SDMMC)
+        {
+#if DBG_FILE_MANAGER
+            Serial.printf("[SDW] rmdir() called with: %s (SDMMC mode)\n", path);
+#endif
+            return ::SD_MMC.rmdir(path);
+        }
+#endif
+#if DBG_FILE_MANAGER
+        Serial.printf("[SDW] rmdir() called with: %s (SPI mode)\n", path);
+#endif
+        return ::SD.rmdir(path);
+    }
+
     bool SDWrapper::remove(const char *path)
     {
 #if HAS_SD_MMC

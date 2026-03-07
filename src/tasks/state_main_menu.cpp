@@ -51,6 +51,7 @@
 
 #include "current_book.h"
 #include "globals.h"
+#include "device/book_file_manager.h"
 extern float font_size;
 extern M5Canvas *g_canvas;
 extern int16_t target_page;
@@ -170,6 +171,21 @@ void StateMachineTask::handleMainMenuState(const SystemMessage_t *msg)
                 M5.Display.waitDisplay();
                 // 获取当前选中的文件名
                 std::string selected_book_name = get_cached_book_name(current_file_page, mainMenuIndex);
+
+                // 目录条目：导航（OPEN BOOK 即使触发也居安全处理）
+                if (selected_book_name == "..") {
+                    BookFileManager::navigateUp();
+                    current_file_page = 0;
+                    show_main_menu(g_canvas, false, 0, 0, true);
+                    break;
+                }
+                if (!selected_book_name.empty() && selected_book_name.back() == '/') {
+                    std::string dir_name = selected_book_name.substr(0, selected_book_name.size() - 1);
+                    BookFileManager::navigateTo(dir_name);
+                    current_file_page = 0;
+                    show_main_menu(g_canvas, false, 0, 0, true);
+                    break;
+                }
 
                 if (!selected_book_name.empty())
                 {
@@ -420,6 +436,26 @@ void StateMachineTask::handleMainMenuState(const SystemMessage_t *msg)
                         }
                         // 选择书籍
                         mainMenuIndex = clicked_index;
+
+                        // 如果点击的是目录条目，直接导航（单击即进入）
+                        {
+                            std::string sel_entry = get_cached_book_name(current_file_page, mainMenuIndex);
+                            if (sel_entry == "..") {
+                                // 返回上级目录
+                                BookFileManager::navigateUp();
+                                current_file_page = 0;
+                                show_main_menu(g_canvas, false, 0, 0, true);
+                                break;
+                            } else if (!sel_entry.empty() && sel_entry.back() == '/') {
+                                // 进入子目录
+                                std::string dir_name = sel_entry.substr(0, sel_entry.size() - 1);
+                                BookFileManager::navigateTo(dir_name);
+                                current_file_page = 0;
+                                show_main_menu(g_canvas, false, 0, 0, true);
+                                break;
+                            }
+                        }
+
                         // 如果是选中的项，绘制侧边
                         /*
                         g_canvas->fillRect(355, 0, 5, 960, TFT_WHITE);

@@ -318,6 +318,19 @@ void WiFiHotspotManager::handleFileList(String category) {
     String path;
     if (category == "book") {
         path = "/book";
+        // Optional subdir parameter for directory navigation (e.g. ?subdir=manga)
+        if (webServer->hasArg("subdir")) {
+            String subdirParam = webServer->arg("subdir");
+            std::string sd_val = std::string(subdirParam.c_str());
+            // Security: reject path traversal and overlong values
+            if (sd_val.find("..") == std::string::npos && sd_val.length() <= 128) {
+                // Strip leading slashes
+                while (!sd_val.empty() && sd_val[0] == '/') sd_val = sd_val.substr(1);
+                if (!sd_val.empty()) {
+                    path = String("/book/") + String(sd_val.c_str());
+                }
+            }
+        }
     } else if (category == "font") {
         path = "/font";
     } else if (category == "image") {
@@ -351,39 +364,51 @@ void WiFiHotspotManager::handleFileList(String category) {
         // 如果使用分页，先获取总数（轻量级操作）
         int totalFiles = 0;
         if (usePagination) {
-            // For book category, only count .txt files
-            std::string extension = (path == "/book") ? ".txt" : "";
-            totalFiles = EfficientFileScanner::countFiles(stdPath, extension);
-#if DBG_WIFI_HOTSPOT
-            Serial.printf("[WIFI_HOTSPOT] 文件总数: %d, 耗时: %lu ms\n", totalFiles, millis() - startTime);
-#endif
+            // For book paths, count dirs + .txt files; for others count all
+            // We compute this after the full scan below, so leave at 0 for now
+            (void)totalFiles;
         }
 
         // 根据是否分页选择扫描方式
         std::vector<FileInfo> files;
         if (usePagination) {
-            // For pagination, scan entire directory with extension filter (so we can sort),
-            // then slice the requested page from the sorted result.
-            std::string extension = (path == "/book") ? ".txt" : "";
-            std::vector<FileInfo> allFiles = EfficientFileScanner::scanDirectory(stdPath, extension);
-            // Sort by filename (case-insensitive)
+            // Scan all entries (dirs + all files) then filter manually
+            std::vector<FileInfo> allFiles = EfficientFileScanner::scanDirectory(stdPath);
+            // For book paths, keep only dirs + .txt files
+            if (stdPath.rfind("/book", 0) == 0) {
+                std::vector<FileInfo> filtered;
+                for (auto& fi : allFiles) {
+                    if (fi.isDirectory) {
+                        filtered.push_back(fi);
+                    } else if (fi.name.length() >= 4) {
+                        std::string ext = fi.name.substr(fi.name.length() - 4);
+                        for (char& c : ext) if (c >= 'A' && c <= 'Z') c += 32;
+                        if (ext == ".txt") filtered.push_back(fi);
+                    }
+                }
+                allFiles = std::move(filtered);
+            }
+            // Sort: dirs first, then alphabetical within each group
             std::sort(allFiles.begin(), allFiles.end(), [](const FileInfo &a, const FileInfo &b) {
+                if (a.isDirectory != b.isDirectory) return (int)a.isDirectory > (int)b.isDirectory;
                 std::string A = a.name; std::string B = b.name;
                 for (char &c : A) if ((unsigned char)c >= 'A' && (unsigned char)c <= 'Z') c = c - 'A' + 'a';
                 for (char &c : B) if ((unsigned char)c >= 'A' && (unsigned char)c <= 'Z') c = c - 'A' + 'a';
                 return A < B;
             });
-            // totalFiles should reflect filtered count (already computed above for usePagination path,
-            // but recompute to be safe)
             totalFiles = (int)allFiles.size();
+#if DBG_WIFI_HOTSPOT
+            Serial.printf("[WIFI_HOTSPOT] 文件总数: %d, 耗时: %lu ms\n", totalFiles, millis() - startTime);
+#endif
             int startIndex = (page - 1) * perPage;
             for (int i = startIndex; i < startIndex + perPage && i < (int)allFiles.size(); ++i) {
                 files.push_back(allFiles[i]);
             }
         } else {
-            // Non-paginated: scan all entries and sort before iterating/filtering
+            // Non-paginated: scan all entries and sort (dirs first, then alpha)
             files = EfficientFileScanner::scanDirectory(stdPath);
             std::sort(files.begin(), files.end(), [](const FileInfo &a, const FileInfo &b) {
+                if (a.isDirectory != b.isDirectory) return (int)a.isDirectory > (int)b.isDirectory;
                 std::string A = a.name; std::string B = b.name;
                 for (char &c : A) if ((unsigned char)c >= 'A' && (unsigned char)c <= 'Z') c = c - 'A' + 'a';
                 for (char &c : B) if ((unsigned char)c >= 'A' && (unsigned char)c <= 'Z') c = c - 'A' + 'a';
@@ -399,7 +424,7 @@ void WiFiHotspotManager::handleFileList(String category) {
         // Optimization: for book category, only scan .idx files (not all files)
         // This avoids scanning txt/epub files twice and uses efficient lookup
         std::set<std::string> idxStems; // stems of files that have corresponding .idx
-        if (path == "/book") {
+        if (stdPath.rfind("/book", 0) == 0) {
             // Efficient: only iterate directory once looking for .idx files
             File dir = SDW::SD.open(stdPath.c_str());
             if (dir && dir.isDirectory()) {
@@ -458,7 +483,7 @@ void WiFiHotspotManager::handleFileList(String category) {
             if (ESP.getFreeHeap() < 4096) break;
             
             // For book category, only return .txt files (skip .idx and other formats)
-            if (path == "/book" && !fileInfo.isDirectory) {
+            if (stdPath.rfind("/book", 0) == 0 && !fileInfo.isDirectory) {
                 std::string fname = fileInfo.name;
                 // Check if file has .txt extension (case-insensitive)
                 bool isTxt = false;
@@ -500,7 +525,7 @@ void WiFiHotspotManager::handleFileList(String category) {
             char jsonItem[512];
             // Determine if this file equals the currently opened book or currently used font (isCurrent)
             int isCurrent = 0;
-            if (path == "/book" && g_current_book) {
+            if (stdPath.rfind("/book", 0) == 0 && g_current_book) {
                 std::string cur_fp = g_current_book->filePath();
                 std::string cur_real;
                 bool cur_use_spiffs = false;
@@ -519,7 +544,6 @@ void WiFiHotspotManager::handleFileList(String category) {
                 }
             }
             else if (path == "/font") {
-                // Compare with configured fontset (g_config.fontset). It may be "default" or a real path.
                 std::string cfg_fp = std::string(g_config.fontset);
                 if (!cfg_fp.empty() && cfg_fp[0] == '/') {
                     std::string cur_real;
@@ -542,7 +566,7 @@ void WiFiHotspotManager::handleFileList(String category) {
             // Determine whether a same-name (without extension) .idx file exists
             // Use pre-built lookup set for O(1) check instead of filesystem exists()
             int isIdxed = 0;
-            if (path == "/book" && !fileInfo.isDirectory) {
+            if (stdPath.rfind("/book", 0) == 0 && !fileInfo.isDirectory) {
                 // derive stem (name without extension)
                 std::string fname = fileInfo.name;
                 size_t dot = fname.find_last_of('.');
@@ -590,6 +614,71 @@ void WiFiHotspotManager::handleFileUpload() {
     webServer->send(200, "text/html; charset=utf-8", html);
 }
 
+// ── Directory-operation helpers ─────────────────────────────────────────────
+
+// Recursively collect all .txt file paths (full SD paths like /book/sub/name.txt) under dirPath
+static void collectTxtFiles(const std::string& dirPath, std::vector<std::string>& paths) {
+    File dir = SDW::SD.open(dirPath.c_str());
+    if (!dir || !dir.isDirectory()) return;
+    dir.rewindDirectory();
+    while (true) {
+        if (ESP.getFreeHeap() < 4096) break;
+        File entry = dir.openNextFile();
+        if (!entry) break;
+        const char* nam = entry.name();
+        if (!nam || strlen(nam) == 0) { entry.close(); continue; }
+        std::string name = nam;
+        bool isDir = entry.isDirectory();
+        entry.close();
+        std::string childPath = dirPath + "/" + name;
+        if (isDir) {
+            collectTxtFiles(childPath, paths);
+        } else if (name.length() >= 4) {
+            std::string ext = name.substr(name.length() - 4);
+            for (char& c : ext) if (c >= 'A' && c <= 'Z') c += 32;
+            if (ext == ".txt") paths.push_back(childPath);
+        }
+        yield();
+    }
+    dir.close();
+}
+
+// Recursively remove a directory and all its contents from SD
+static void sdRemoveDirectoryRecursive(const std::string& path) {
+    File dir = SDW::SD.open(path.c_str());
+    if (!dir) return;
+    if (!dir.isDirectory()) {
+        dir.close();
+        SDW::SD.remove(path.c_str());
+        return;
+    }
+    dir.rewindDirectory();
+    // Collect children first to avoid iterator invalidation
+    std::vector<std::string> children;
+    std::vector<bool> childIsDir;
+    while (true) {
+        if (ESP.getFreeHeap() < 4096) break;
+        File entry = dir.openNextFile();
+        if (!entry) break;
+        const char* nam = entry.name();
+        if (!nam || strlen(nam) == 0) { entry.close(); continue; }
+        std::string name = nam;
+        bool isD = entry.isDirectory();
+        entry.close();
+        children.push_back(path + "/" + name);
+        childIsDir.push_back(isD);
+    }
+    dir.close();
+    for (size_t i = 0; i < children.size(); ++i) {
+        if (childIsDir[i]) sdRemoveDirectoryRecursive(children[i]);
+        else SDW::SD.remove(children[i].c_str());
+        yield();
+    }
+    SDW::SD.rmdir(path.c_str());
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+
 void WiFiHotspotManager::handleFileDelete() {
     String path = webServer->arg("path");
     if (path.isEmpty()) {
@@ -624,7 +713,69 @@ void WiFiHotspotManager::handleFileDelete() {
             return;
         }
     }
-    
+
+    // ── Directory delete: recursive sidecar cleanup + rmdir ──
+    {
+        File testF = SDW::SD.open(path.c_str());
+        bool isDir = testF && testF.isDirectory();
+        if (testF) testF.close();
+
+        if (isDir) {
+            // Block if current book lives inside this directory
+            if (g_current_book) {
+                std::string cur_fp = g_current_book->filePath();
+                std::string cur_real;
+                bool cur_spiffs = false;
+                resolve_fake_path(cur_fp, cur_real, cur_spiffs);
+                std::string cur_canonical = (cur_spiffs ? "/spiffs" : "/sd") + cur_real;
+                std::string dir_canonical = std::string("/sd") + path.c_str();
+                if (!cur_spiffs && cur_canonical.rfind(dir_canonical + "/", 0) == 0) {
+                    webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Cannot delete directory containing the currently opened book\"}");
+                    return;
+                }
+            }
+
+            // Collect all .txt files and clean up their sidecars + history entries
+            std::vector<std::string> txtFiles;
+            collectTxtFiles(std::string(path.c_str()), txtFiles);
+
+            extern void removeIndexFilesForBookForPath(const std::string &book_file_path);
+            extern std::string getBookmarkFileName(const std::string &book_file_path);
+            extern bool removeBookFromHistory(const std::string &book_path);
+
+            const char* bmExts[] = {".bm", ".page", ".progress", ".complete", ".rec", ".tags"};
+            for (const auto& txtPath : txtFiles) {
+                std::string canonical = "/sd" + txtPath;
+                removeIndexFilesForBookForPath(canonical);
+                // Remove all bookmark sidecar variants
+                {
+                    std::string bmBase = getBookmarkFileName(canonical);
+                    size_t d = bmBase.rfind('.');
+                    std::string bmStem = (d != std::string::npos) ? bmBase.substr(0, d) : bmBase;
+                    for (const auto& ext : bmExts) {
+                        std::string fn = bmStem + ext;
+                        if (SDW::SD.exists(fn.c_str())) SDW::SD.remove(fn.c_str());
+                        std::string tmp = fn + ".tmp";
+                        if (SDW::SD.exists(tmp.c_str())) SDW::SD.remove(tmp.c_str());
+                    }
+                }
+                // Remove .idx sidecar (alongside the .txt in the same directory)
+                std::string idxPath = txtPath;
+                size_t dot = idxPath.find_last_of('.');
+                if (dot != std::string::npos) idxPath = idxPath.substr(0, dot) + ".idx";
+                if (SDW::SD.exists(idxPath.c_str())) SDW::SD.remove(idxPath.c_str());
+                removeBookFromHistory(canonical);
+                yield();
+            }
+
+            // Recursively delete the directory tree
+            sdRemoveDirectoryRecursive(std::string(path.c_str()));
+            BookFileManager::refreshCache();
+            webServer->send(200, "application/json", "{\"ok\":true,\"message\":\"Directory deleted successfully\"}");
+            return;
+        }
+    }
+
     if (SDW::SD.remove(path.c_str())) {
         webServer->send(200, "application/json", String("{\"ok\":true,\"message\":\"File deleted successfully\"}"));
         // 如果删除的是字体目录下的文件，刷新全局字体列表
@@ -757,7 +908,15 @@ void WiFiHotspotManager::handleFileRename() {
         webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Invalid file name length\"}");
         return;
     }
+
+    // Detect if source is a directory before enforcing .txt extension requirement
+    bool sourceIsDir = false;
     {
+        File testF = SDW::SD.open(old_path_str.c_str());
+        if (testF) { sourceIsDir = testF.isDirectory(); testF.close(); }
+    }
+
+    if (!sourceIsDir) {
         std::string ext = new_name.length() >= 4 ? new_name.substr(new_name.length() - 4) : "";
         for (char &c : ext) c = (char)tolower((unsigned char)c);
         if (ext != ".txt") {
@@ -791,6 +950,123 @@ void WiFiHotspotManager::handleFileRename() {
     webServer->send(200, "application/json", "{\"ok\":true,\"message\":\"File renamed successfully\"}");
 
     // ── Post-rename: update all related auxiliary files ──
+
+    // ── Directory rename: recursively update all .txt sidecars inside ──
+    if (sourceIsDir) {
+        extern std::string getBookmarkFileName(const std::string &book_file_path);
+        extern bool renameBookInHistory(const std::string &old_path, const std::string &new_path);
+
+        std::vector<std::string> txtFiles;
+        collectTxtFiles(new_path, txtFiles);
+
+        for (const auto& newTxtPath : txtFiles) {
+            // Derive old path: replace new_path prefix with old_path
+            std::string oldTxtPath = old_path + newTxtPath.substr(new_path.length());
+            std::string old_txt_canonical = "/sd" + oldTxtPath;
+            std::string new_txt_canonical = "/sd" + newTxtPath;
+
+            // Robust copy-and-delete rename for bookmark sidecars
+            auto robust_rename_sidecar = [&](const std::string &src, const std::string &dst) {
+                if (!SDW::SD.exists(src.c_str())) return;
+                if (SDW::SD.rename(src.c_str(), dst.c_str())) return;
+                // Fallback: copy then delete
+                File rs = SDW::SD.open(src.c_str(), "r");
+                if (!rs) return;
+                File rd = SDW::SD.open(dst.c_str(), "w");
+                if (!rd) { rs.close(); return; }
+                uint8_t buf[512];
+                while (rs.available()) { int n = rs.read(buf, sizeof(buf)); if (n <= 0) break; rd.write(buf, (size_t)n); }
+                rd.flush(); rd.close(); rs.close();
+                SDW::SD.remove(src.c_str());
+            };
+
+            // Rename all 6 sidecar extensions + .tmp variants
+            const char* bmExts[] = {".bm", ".page", ".progress", ".complete", ".rec", ".tags"};
+            for (const auto& ext : bmExts) {
+                std::string oldBm = getBookmarkFileName(old_txt_canonical);
+                size_t d = oldBm.rfind('.');
+                std::string oldFn = (d != std::string::npos) ? oldBm.substr(0, d) + ext : oldBm + ext;
+                std::string newBm = getBookmarkFileName(new_txt_canonical);
+                d = newBm.rfind('.');
+                std::string newFn = (d != std::string::npos) ? newBm.substr(0, d) + ext : newBm + ext;
+                robust_rename_sidecar(oldFn, newFn);
+                robust_rename_sidecar(oldFn + ".tmp", newFn + ".tmp");
+            }
+
+            // Rename .idx sidecar
+            {
+                size_t d = oldTxtPath.find_last_of('.');
+                std::string oldIdx = (d != std::string::npos) ? oldTxtPath.substr(0, d) + ".idx" : oldTxtPath + ".idx";
+                d = newTxtPath.find_last_of('.');
+                std::string newIdx = (d != std::string::npos) ? newTxtPath.substr(0, d) + ".idx" : newTxtPath + ".idx";
+                if (SDW::SD.exists(oldIdx.c_str())) SDW::SD.rename(oldIdx.c_str(), newIdx.c_str());
+            }
+
+            // Patch file_path= in .bm and .progress
+            auto patch_file_path_dir = [&](const std::string &fn) {
+                if (!SDW::SD.exists(fn.c_str())) return;
+                std::vector<std::string> lines;
+                {
+                    File f = SDW::SD.open(fn.c_str(), "r");
+                    if (!f) return;
+                    while (f.available()) {
+                        String line = f.readStringUntil('\n'); line.trim();
+                        std::string ln = line.c_str();
+                        if (ln.rfind("file_path=", 0) == 0) ln = "file_path=" + new_txt_canonical;
+                        lines.push_back(ln);
+                    }
+                    f.close();
+                }
+                if (!lines.empty()) {
+                    SafeFS::safeWrite(fn, [&](File &f) -> bool {
+                        for (const auto &ln : lines) f.println(ln.c_str());
+                        return true;
+                    });
+                }
+            };
+            {
+                std::string bmBase = getBookmarkFileName(new_txt_canonical);
+                size_t d = bmBase.rfind('.');
+                std::string bmStem = (d != std::string::npos) ? bmBase.substr(0, d) : bmBase;
+                patch_file_path_dir(bmStem + ".bm");
+                patch_file_path_dir(bmStem + ".progress");
+            }
+
+            // Update history.list
+            renameBookInHistory(old_txt_canonical, new_txt_canonical);
+
+            // If currently reading this book, update config
+            {
+                std::string cfg_raw = std::string(g_config.currentReadFile);
+                std::string cfg_real;
+                bool cfg_spiffs = false;
+                resolve_fake_path(cfg_raw, cfg_real, cfg_spiffs);
+                cfg_real = normalize_real_path(cfg_real);
+                std::string old_norm = normalize_real_path(oldTxtPath);
+                if (!cfg_spiffs && cfg_real == old_norm) {
+                    strncpy(g_config.currentReadFile, new_txt_canonical.c_str(), sizeof(g_config.currentReadFile) - 1);
+                    g_config.currentReadFile[sizeof(g_config.currentReadFile) - 1] = '\0';
+                    config_save();
+                    if (g_current_book) {
+                        int16_t aw = g_current_book->getAreaWidth();
+                        int16_t ah = g_current_book->getAreaHeight();
+                        float fs = g_current_book->getFontSize();
+                        config_update_current_book(new_txt_canonical.c_str(), aw, ah, fs);
+                    }
+                }
+            }
+
+            yield();
+        }
+
+        BookFileManager::refreshCache();
+#if DBG_WIFI_HOTSPOT
+        Serial.printf("[WIFI_HOTSPOT] 目录重命名完成: '%s' → '%s'\n", old_path.c_str(), new_path.c_str());
+#endif
+        return;
+    }
+
+    // ── Single-file post-rename: update all related auxiliary files ──
 
     // Resolve real paths (strips /sd or /spiffs prefix if present)
     std::string old_real_fp;
@@ -949,6 +1225,35 @@ void WiFiHotspotManager::handleFileRename() {
     Serial.printf("[WIFI_HOTSPOT] 书籍重命名完成: '%s' → '%s'\n",
                   old_canonical.c_str(), new_canonical.c_str());
 #endif
+}
+
+void WiFiHotspotManager::handleMkdir() {
+    String path = webServer->arg("path");
+    if (path.isEmpty()) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Missing path parameter\"}");
+        return;
+    }
+    // Only allow creating directories under /book/
+    if (!path.startsWith("/book/")) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Directories can only be created under /book/\"}");
+        return;
+    }
+    // Security: reject path traversal
+    std::string pathStr = path.c_str();
+    if (pathStr.find("..") != std::string::npos) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Invalid path\"}");
+        return;
+    }
+    if (SDW::SD.exists(path.c_str())) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"Path already exists\"}");
+        return;
+    }
+    if (SDW::SD.mkdir(path.c_str())) {
+        BookFileManager::refreshCache();
+        webServer->send(200, "application/json", "{\"ok\":true,\"message\":\"Directory created successfully\"}");
+    } else {
+        webServer->send(500, "application/json", "{\"ok\":false,\"message\":\"Failed to create directory\"}");
+    }
 }
 
 void WiFiHotspotManager::handleFileDownload() {
@@ -1614,6 +1919,14 @@ void WiFiHotspotManager::handleFileUploadPost() {
         uploadDir = "/";
         if (uploadTab == "book") {
             uploadDir = "/book/";
+            // 支持子目录：webapp 侧会传 subdir=manga 或 subdir=manga/sub 等
+            String subdir = webServer->arg("subdir");
+            if (subdir.length() > 0) {
+                // 去掉首尾的 '/' 防止路径重复
+                while (subdir.startsWith("/")) subdir = subdir.substring(1);
+                while (subdir.endsWith("/"))   subdir = subdir.substring(0, subdir.length()-1);
+                if (subdir.length() > 0) uploadDir = "/book/" + subdir + "/";
+            }
         } else if (uploadTab == "font") {
             uploadDir = "/font/";
         } else if (uploadTab == "image") {

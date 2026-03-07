@@ -11,6 +11,7 @@ extern GlobalConfig g_config;
 std::vector<std::string> BookFileManager::cachedBookNames;
 bool BookFileManager::cacheValid = false;
 unsigned long BookFileManager::lastScanTime = 0;
+std::string BookFileManager::currentScanDir = "/book";
 
 int BookFileManager::getBookCount() {
     if (shouldRefreshCache()) {
@@ -78,63 +79,97 @@ void BookFileManager::scanBooks() {
     }
     
 #if DBG_FILE_MANAGER
-    Serial.printf("[BookFileManager] 开始扫描书籍文件，剩余内存: %d bytes\n", ESP.getFreeHeap());
+    Serial.printf("[BookFileManager] 开始扫描目录: %s，剩余内存: %d bytes\n", currentScanDir.c_str(), ESP.getFreeHeap());
     unsigned long startTime = millis();
 #endif
     
     cachedBookNames.clear();
-    
-    // 使用高效文件扫描器扫描.txt文件
-    std::vector<FileInfo> txtFiles = EfficientFileScanner::scanDirectory("/book", ".txt");
-    
-    // 检查扫描结果是否有效
+
+    // 扩展扫描：无扩展名过滤，同时获取目录和文件
+    std::vector<FileInfo> allItems = EfficientFileScanner::scanDirectory(currentScanDir, "");
+
+    std::vector<std::string> dirEntries;  // 目录条目，以 '/' 结尾
+    std::vector<std::string> fileEntries; // txt 文件条目，去除 .txt
     bool scanSuccess = true;
-    
-    for (const auto& fileInfo : txtFiles) {
-        // 内存检查
+
+    for (const auto& item : allItems) {
         if (ESP.getFreeHeap() < 4096) {
 #if DBG_FILE_MANAGER
-            Serial.printf("[BookFileManager] 内存不足，停止处理文件\n");
+            Serial.printf("[BookFileManager] 内存不足，停止处理\n");
 #endif
             scanSuccess = false;
             break;
         }
-        
-        if (!fileInfo.isDirectory && !fileInfo.name.empty()) {
-            // 移除.txt扩展名
-            std::string bookName = removeExtension(fileInfo.name);
-            if (!bookName.empty() && bookName.length() <= 255) { // 支持最长 255 字符的书名显示
-                cachedBookNames.push_back(bookName);
+
+        if (item.isDirectory) {
+            if (!item.name.empty() && item.name.length() <= 255) {
+                dirEntries.push_back(item.name + "/");
+            }
+        } else {
+            // 只接受 .txt 文件
+            const std::string &n = item.name;
+            if (n.size() > 4) {
+                std::string ext = n.substr(n.size() - 4);
+                for (char &c : ext) c = (char)tolower((unsigned char)c);
+                if (ext == ".txt") {
+                    std::string bookName = n.substr(0, n.size() - 4);
+                    if (!bookName.empty() && bookName.length() <= 255) {
+                        fileEntries.push_back(bookName);
+                    }
+                }
             }
         }
-        
-        // 防止处理过多文件 - 限制最多 g_config.main_menu_file_count 个文件（受编译期上限保护）
+
+        // 全局条目数限制
         {
             size_t runtimeLimit = (size_t)g_config.main_menu_file_count;
             size_t cap = (size_t)MAX_MAIN_MENU_FILE_COUNT;
             size_t effective = runtimeLimit < cap ? runtimeLimit : cap;
-            if (cachedBookNames.size() >= effective) {
+            if (dirEntries.size() + fileEntries.size() >= effective) {
 #if DBG_FILE_MANAGER
-                Serial.printf("[BookFileManager] 已达到%d个文件限制，停止处理\n", (int)effective);
+                Serial.printf("[BookFileManager] 已达到%d个条目限制，停止处理\n", (int)effective);
 #endif
                 break;
             }
         }
     }
-    
-    // 只有在扫描成功且有合理结果时才标记缓存有效
+
     if (scanSuccess && ESP.getFreeHeap() > 4096) {
+        // 内部对比函数：大小写不敏感字典序（忽略结尾 '/')
+        auto ci_less = [](const std::string &a, const std::string &b) {
+            // 对于目录条目，比较时忽略结尾 '/'
+            size_t na = a.size(); if (na > 0 && a.back() == '/') na--;
+            size_t nb = b.size(); if (nb > 0 && b.back() == '/') nb--;
+            for (size_t i = 0; i < na && i < nb; ++i) {
+                char ca = a[i], cb = b[i];
+                if ((unsigned char)ca >= 'A' && (unsigned char)ca <= 'Z') ca = ca - 'A' + 'a';
+                if ((unsigned char)cb >= 'A' && (unsigned char)cb <= 'Z') cb = cb - 'A' + 'a';
+                if (ca < cb) return true;
+                if (ca > cb) return false;
+            }
+            return na < nb;
+        };
+        std::sort(dirEntries.begin(), dirEntries.end(), ci_less);
+        std::sort(fileEntries.begin(), fileEntries.end(), ci_less);
+
+        // 非根目录时在首位添加返回上级条目
+        if (currentScanDir != "/book") {
+            cachedBookNames.push_back("..");
+        }
+        for (auto &d : dirEntries) cachedBookNames.push_back(d);
+        for (auto &f : fileEntries) cachedBookNames.push_back(f);
+
         cacheValid = true;
         lastScanTime = millis();
-        
+
 #if DBG_FILE_MANAGER
-        Serial.printf("[BookFileManager] 扫描完成，找到 %d 本书，耗时: %lu ms，剩余内存: %d bytes\n", 
-                     (int)cachedBookNames.size(), millis() - startTime, ESP.getFreeHeap());
+        Serial.printf("[BookFileManager] 扫描完成，目录%d个+文件%d个，耗时: %lu ms，剩余内存: %d bytes\n",
+                     (int)dirEntries.size(), (int)fileEntries.size(), millis() - startTime, ESP.getFreeHeap());
 #endif
 
-        // 构建书籍文件名字体缓存
-        if (!cachedBookNames.empty() && ESP.getFreeHeap() > 32768) {
-            addBookNamesToCache(cachedBookNames);
+        // 字体缓存仅对文件条目构建（过滤目录条目）
+        if (!fileEntries.empty() && ESP.getFreeHeap() > 32768) {
+            addBookNamesToCache(fileEntries);
         }
     } else {
 #if DBG_FILE_MANAGER
@@ -143,22 +178,36 @@ void BookFileManager::scanBooks() {
         cachedBookNames.clear();
         cacheValid = false;
     }
+}
 
-    // Ensure deterministic display order: sort cached book names alphabetically (case-insensitive)
-    if (!cachedBookNames.empty()) {
-        std::sort(cachedBookNames.begin(), cachedBookNames.end(), [](const std::string &a, const std::string &b) {
-            size_t na = a.size();
-            size_t nb = b.size();
-            for (size_t i = 0; i < na && i < nb; ++i) {
-                char ca = a[i]; char cb = b[i];
-                if ((unsigned char)ca >= 'A' && (unsigned char)ca <= 'Z') ca = ca - 'A' + 'a';
-                if ((unsigned char)cb >= 'A' && (unsigned char)cb <= 'Z') cb = cb - 'A' + 'a';
-                if (ca < cb) return true;
-                if (ca > cb) return false;
-            }
-            return na < nb;
-        });
+std::string BookFileManager::getCurrentScanDir() {
+    return currentScanDir;
+}
+
+bool BookFileManager::isAtRootBookDir() {
+    return currentScanDir == "/book";
+}
+
+void BookFileManager::navigateTo(const std::string& dirName) {
+    // dirName 必须不含 '/' 分隔符且不为空
+    if (dirName.empty() || dirName.find('/') != std::string::npos) return;
+    currentScanDir = currentScanDir + "/" + dirName;
+    clearCache();
+}
+
+void BookFileManager::navigateUp() {
+    if (currentScanDir == "/book") return; // 已在根目录
+    size_t last = currentScanDir.rfind('/');
+    if (last == std::string::npos || last == 0) {
+        currentScanDir = "/book";
+    } else {
+        currentScanDir = currentScanDir.substr(0, last);
+        // 保证常规情况下不会退到 /book 以上
+        if (currentScanDir.rfind("/book", 0) != 0) {
+            currentScanDir = "/book";
+        }
     }
+    clearCache();
 }
 
 bool BookFileManager::shouldRefreshCache() {

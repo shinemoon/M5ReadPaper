@@ -884,6 +884,11 @@ body {
     margin-right: .25rem;
 }
 
+/* Action buttons second-row: hidden by default, shown on narrow screens */
+.file-actions-row {
+    display: none;
+}
+
 .upload-box {
     border: 1px dashed var(--grey);
     padding: 1rem;
@@ -1428,6 +1433,23 @@ body {
         overflow: visible;
     }
 
+    /* Stack upload-box / scbackBox buttons one per row on narrow screens */
+    .upload-box .flex-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .upload-box .flex-row .button {
+        width: 100%;
+        margin-bottom: 0.4rem;
+        text-align: center;
+    }
+
+    #uploadInfo {
+        width: 100%;
+        text-align: center;
+    }
+
     body .container {
         padding-left: 0.5rem;
         padding-right: 0.5rem;
@@ -1437,26 +1459,31 @@ body {
     .file-table {
         width: 100% !important;
         max-width: 100vw;
-        table-layout: fixed;
-        /* respect column widths and prevent overflow */
+        table-layout: auto;
         display: table;
-        /* ensure table rendering */
     }
 
-    .file-table td {
-        /* allow long unbroken names (e.g. generated font filenames) to wrap or break */
+    /* Checkbox column: fixed narrow */
+    .file-table thead th:nth-child(1),
+    .file-table tbody td:nth-child(1) {
+        width: 32px;
+    }
+
+    /* Size column: fixed narrow */
+    .file-table thead th:nth-child(3),
+    .file-table tbody td:nth-child(3) {
+        width: 56px;
+        white-space: nowrap;
+    }
+
+    /* Name column: fill remaining space, allow wrapping */
+    .file-table thead th:nth-child(2),
+    .file-table tbody td:nth-child(2) {
+        width: auto;
         overflow-wrap: anywhere;
         word-break: break-word;
-        min-width: 0;
-    }
-
-    /* Name column: truncate with ellipsis to prevent overflow */
-    .file-table td:nth-child(2) {
-        max-width: 0;
-        /* force ellipsis behavior in fixed layout */
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        white-space: normal;
+        overflow: visible;
     }
 
     /* Hide "当前" column (4th column) on small screens to save space */
@@ -1465,16 +1492,31 @@ body {
         display: none;
     }
 
-    /* Make action buttons smaller on mobile to fit better */
-    .file-actions button,
-    .file-actions a {
-        font-size: 11px !important;
-        padding: 0.25rem 0.4rem !important;
-        min-width: auto !important;
-        line-height: 1.2 !important;
-        height: auto !important;
-        display: inline-block;
-        vertical-align: middle;
+    /* On narrow screens: hide inline action column, show dedicated action row instead */
+    .file-table thead th:nth-child(5),
+    .file-table tbody tr:not(.file-actions-row) td:nth-child(5) {
+        display: none;
+    }
+
+    .file-actions-row {
+        display: table-row;
+    }
+
+    .file-actions-row td {
+        padding: 0.15rem 0.4rem 0.4rem;
+        border-top: none;
+    }
+
+    /* Action buttons style on dedicated row */
+    .file-actions-row .file-actions button,
+    .file-actions-row .file-actions a {
+        font-size: 12px;
+        padding: 0.25rem 0.5rem;
+        min-width: auto;
+        line-height: 1.3;
+        height: auto;
+        margin-right: 0.3rem;
+        margin-bottom: 0.2rem;
     }
 
     /* Ensure button and link have same appearance */

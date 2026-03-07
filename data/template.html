@@ -1338,12 +1338,12 @@
             if (fileCount === 0) {
                 // 目录为空时的提示
                 uploadBtn.disabled = false;
-                uploadHint.textContent = "何处见那'遁去的一'？";
+                uploadHint.textContent = "";
                 uploadHint.style.color = '#757575';
             } else if (fileCount >= 99) {
                 // 文件超过99个时禁用上传并提示
                 uploadBtn.disabled = true;
-                uploadHint.textContent = "宁缺毋滥，九九归一";
+                uploadHint.textContent = "";
                 uploadHint.style.color = '#d32f2f';
             } else {
                 // 正常状态
