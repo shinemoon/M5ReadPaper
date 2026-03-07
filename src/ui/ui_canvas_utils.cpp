@@ -1127,6 +1127,7 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
         // 显示条目：目录以 '/' 结尾，'..' 为返回上级，其余为书籍文件
         const std::string &raw_entry = book_files[file_index];
         std::string display_name;
+        int8_t delta_x = 0;
         if (raw_entry == "..") {
             display_name = "  返回上级";
             g_canvas->fillTriangle(8,text_y+14, 18, text_y, 18, text_y+28);
@@ -1134,12 +1135,14 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
             // 目录：去除结尾 '/'  并加上标识
             std::string dir_display = raw_entry.substr(0, raw_entry.size() - 1);
             display_name = dir_display;
-            g_canvas->fillRect(350,text_y-20, 8, 68);
-            g_canvas->fillRect(344,text_y-20, 4, 68);
+            g_canvas->fillRect(5,text_y-20, 4, 68);
+            g_canvas->fillRect(10,text_y-20, 3, 68, TFT_DARKGRAY);
+            g_canvas->fillRect(15,text_y-20, 6, 68, TFT_LIGHTGRAY);
+            delta_x = 20;
         } else {
             display_name = shorten_book_name(raw_entry, 8);
         }
-        bin_font_print(display_name.c_str(), 28, 0, 320, 15, text_y, true, g_canvas, TEXT_ALIGN_LEFT, 320);
+        bin_font_print(display_name.c_str(), 28, 0, 320, 15+delta_x, text_y, true, g_canvas, TEXT_ALIGN_LEFT, 320);
 
 #if DBG_UI_CANVAS_UTILS
         Serial.printf("[MAIN_MENU] 显示文件 %d (索引%d): %s at y=%d\n", i, file_index, book_files[file_index].c_str(), text_y);
@@ -1478,11 +1481,11 @@ bool show_wire_connect(M5Canvas *canvas, bool refresh)
         info_y += line_height + 56;
 
         // 使用说明
-        bin_font_print("使用手机或电脑连接WiFi后", 24, 0, 540, 0, info_y, true, canvas, TEXT_ALIGN_CENTER, 540);
+        bin_font_print("手机或电脑连接WiFi后", 24, 0, 540, 0, info_y, true, canvas, TEXT_ALIGN_CENTER, 540);
         info_y += 40;
         bin_font_print("使用浏览器插件（推荐）管理", 24, 0, 540, 0, info_y, true, canvas, TEXT_ALIGN_CENTER, 540);
         info_y += 40;
-        bin_font_print("或在浏览器中访问上面地址管理", 24, 0, 540, 0, info_y, true, canvas, TEXT_ALIGN_CENTER, 540);
+        bin_font_print("网页接口已停止维护", 24, 0, 540, 0, info_y, true, canvas, TEXT_ALIGN_CENTER, 540);
     }
     else
     {
