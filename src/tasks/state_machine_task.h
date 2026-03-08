@@ -101,6 +101,9 @@ private:
     static void handleUsbConnectState(const SystemMessage_t* msg);
     static void handleShutdownState(const SystemMessage_t* msg);
     static void handleShowTimeRecState(const SystemMessage_t* msg);
+
+    // 根据 lockscreen_mode 决定显示锁屏还是进入联线待机，并更新 currentState_
+    static void activateLockScreen();
     
     // 内部任务函数
     static void taskFunction(void* pvParameters);

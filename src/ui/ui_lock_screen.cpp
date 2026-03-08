@@ -358,7 +358,7 @@ static bool push_random_sd_image_if_available(const char *dirPath, int x, int y)
         }
     }
 
-    if (g_config.defaultlock)
+    if (strcmp(g_config.lockscreen_mode, "random") != 0)
     {
         for (const String &p : candidates)
         {

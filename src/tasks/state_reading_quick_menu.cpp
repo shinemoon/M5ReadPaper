@@ -3,6 +3,8 @@
 #include "state_debug.h"
 #include "device/ui_display.h"
 #include "ui/ui_lock_screen.h"
+#include "device/wifi_hotspot_manager.h"
+#include "ui/ui_canvas_image.h"
 #include "test/per_file_debug.h"
 // for screenshot
 #include "ui/screenshot.h"
@@ -52,8 +54,7 @@ void StateMachineTask::handleReadingQuickMenuState(const SystemMessage_t *msg)
                     g_current_book->refreshTagsCache();
                 }
             }
-            show_lockscreen(PAPER_S3_WIDTH, PAPER_S3_HEIGHT, 30, "双击屏幕解锁");
-            currentState_ = STATE_IDLE;
+            StateMachineTask::activateLockScreen();
         }
         break;
 
@@ -121,6 +122,20 @@ void StateMachineTask::handleReadingQuickMenuState(const SystemMessage_t *msg)
                     // 重新绘制快速菜单并显示状态提示
                     draw_reading_quick_menu(g_canvas);
                     bin_font_flush_canvas(false, false, true);
+                }
+                else if (tx > 249 && tx < 460 && ty > 700 && ty < 775)
+                { // 点击在快速菜单内部：联线待机
+                    quickMenuShown = false;
+                    ui_push_image_to_display_direct("/spiffs/wait.png", 240, 450);
+                    M5.Display.waitDisplay();
+                    wifi_hotspot_init();
+                    if (g_wifi_hotspot)
+                    {
+                        bool connected = g_wifi_hotspot->connectToWiFiFromToken();
+                        if (!connected)
+                            g_wifi_hotspot->disconnectWiFi();
+                    }
+                    currentState_ = STATE_WEBDAV;
                 }
                 else if (tx > 249 && tx < 460 && ty > 780 && ty < 860)
                 { // 点击在快速菜单内部：手动全刷

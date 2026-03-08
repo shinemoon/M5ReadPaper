@@ -952,7 +952,7 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
     draw_button(g_canvas, 370, 608, "清理", false, true);
 
     // FLIP SCREEN - 中心y=720 (96*7+48)
-    draw_button(g_canvas, 370, 704, "显示", false, true);
+    draw_button(g_canvas, 370, 704, "设置", false, true);
 
     // WiFi Connect - 中心y=816 (96*8+48)
     // 按用户要求，主菜单的“连接”按钮不再反色（invert=false）。点击会打开二级菜单“连接方式”。
@@ -1132,12 +1132,12 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
             display_name = "  返回上级";
             g_canvas->fillTriangle(8,text_y+14, 18, text_y, 18, text_y+28);
         } else if (!raw_entry.empty() && raw_entry.back() == '/') {
-            // 目录：去除结尾 '/'  并加上标识
+            // 文件夹：去除结尾 '/'  并加上标识
             std::string dir_display = raw_entry.substr(0, raw_entry.size() - 1);
             display_name = dir_display;
-            g_canvas->fillRect(5,text_y-20, 4, 68);
-            g_canvas->fillRect(10,text_y-20, 3, 68, TFT_DARKGRAY);
-            g_canvas->fillRect(15,text_y-20, 6, 68, TFT_LIGHTGRAY);
+            g_canvas->fillRect(2,text_y-30, 4, 88);
+            g_canvas->fillRect(7,text_y-20, 3, 68, TFT_DARKGRAY);
+            g_canvas->fillRect(12,text_y-10, 2, 48, TFT_LIGHTGRAY);
             delta_x = 20;
         } else {
             display_name = shorten_book_name(raw_entry, 8);

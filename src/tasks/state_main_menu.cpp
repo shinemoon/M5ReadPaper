@@ -87,8 +87,7 @@ void StateMachineTask::handleMainMenuState(const SystemMessage_t *msg)
             sm_dbg_printf("主菜单状态收到超时信号，进入IDLE\n");
 #endif
             shutCnt = 0;
-            show_lockscreen(PAPER_S3_WIDTH, PAPER_S3_HEIGHT, 30, "双击屏幕解锁");
-            // automatic tag before entering IDLE
+            // automatic tag before locking
             if (g_current_book)
             {
                 TextPageResult tp = g_current_book->currentPage();
@@ -98,7 +97,7 @@ void StateMachineTask::handleMainMenuState(const SystemMessage_t *msg)
                     g_current_book->refreshTagsCache();
                 }
             }
-            currentState_ = STATE_IDLE;
+            StateMachineTask::activateLockScreen();
         }
         break;
     case MSG_DEVICE_ORIENTATION:

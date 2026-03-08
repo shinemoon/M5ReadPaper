@@ -30,7 +30,6 @@ void StateMachineTask::handleHelpState(const SystemMessage_t *msg)
             sm_dbg_printf("HELP状态收到超时，进入IDLE\n");
 #endif
             shutCnt = 0;
-            show_lockscreen(PAPER_S3_WIDTH, PAPER_S3_HEIGHT, 30, "双击屏幕解锁");
             // 自动保存书签
             if (g_current_book)
             {
@@ -41,7 +40,7 @@ void StateMachineTask::handleHelpState(const SystemMessage_t *msg)
                     g_current_book->refreshTagsCache();
                 }
             }
-            currentState_ = STATE_IDLE;
+            StateMachineTask::activateLockScreen();
             helpShown = false; // reset for next time
         }
         break;

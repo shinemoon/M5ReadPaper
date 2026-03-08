@@ -55,7 +55,6 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                         sm_dbg_printf("IDLE状态收到5分钟超时信号，j进入IDLE\n");
 #endif
                         shutCnt = 0;
-                        show_lockscreen(PAPER_S3_WIDTH, PAPER_S3_HEIGHT, 30, "双击屏幕解锁");
                         if (g_current_book)
                         {
                                 TextPageResult tp = g_current_book->currentPage();
@@ -65,7 +64,7 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                                         g_current_book->refreshTagsCache();
                                 }
                         }
-                        currentState_ = STATE_IDLE;
+                        StateMachineTask::activateLockScreen();
                 }
                 break;
 
@@ -383,8 +382,7 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                 else if (tx <= corner_w && ty >= PAPER_S3_HEIGHT - corner_h)
                 {
                         shutCnt = 0;
-                        show_lockscreen(PAPER_S3_WIDTH, PAPER_S3_HEIGHT, 30, "双击屏幕解锁");
-                        // automatic tag: save current page into slot0 before entering IDLE
+                        // automatic tag: save current page into slot0 before locking
                         if (g_current_book)
                         {
                                 TextPageResult tp = g_current_book->currentPage();
@@ -394,7 +392,7 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                                         g_current_book->refreshTagsCache();
                                 }
                         }
-                        currentState_ = STATE_IDLE;
+                        StateMachineTask::activateLockScreen();
                         return;
                 }
                 else if (tx >= PAPER_S3_WIDTH - corner_w && ty >= PAPER_S3_HEIGHT - corner_h)
