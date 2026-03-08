@@ -346,10 +346,9 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
         int16_t btn_cy = y + rectH / 2 - 32; // move up by 32 pixels
 
         draw_button(target, btn_cx, btn_cy, "热点连接", true);
-        // Add connection settings button 64 pixels below the wireless button
+        // Connection settings button placeholder (hidden, touch disabled)
         int16_t btn_cy2 = btn_cy + 104;
-        const char *wifi_toggle_label = g_wifi_sta_connected ? "联线待机" : "联线待机";
-        draw_button(target, btn_cx, btn_cy2, wifi_toggle_label, true);
+        bin_font_print("- Connecting People - ", 28, 0, 540, x, btn_cy2, false, target, TEXT_ALIGN_CENTER, rectW);
         //        bin_font_print("请按照说明连接WIFI", 28, 0, 540, 0, btn_cy + 45, false, g_canvas, TEXT_ALIGN_CENTER, 540);
 
         // Draw MSC indicator

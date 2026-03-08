@@ -288,8 +288,9 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                 }
             }
 
-            // Connection settings button hitbox
-            if (cx >= btn_cx - w / 2 && cx <= btn_cx + w / 2 && cy >= btn_cy2 - 16 && cy <= btn_cy2 - 16 + h)
+            // Connection settings button hitbox (disabled - placeholder only)
+            // if (cx >= btn_cx - w / 2 && cx <= btn_cx + w / 2 && cy >= btn_cy2 - 16 && cy <= btn_cy2 - 16 + h)
+#if 0
             {
 #if DBG_STATE_MACHINE_TASK
                 sm_dbg_printf("连接设置按钮被点击\n");
@@ -356,6 +357,7 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                     }
                 }
             }
+#endif
         }
 
         if (main_2nd_level_menu_type == MAIN_2ND_MENU_CLEAN_BOOKMARK)

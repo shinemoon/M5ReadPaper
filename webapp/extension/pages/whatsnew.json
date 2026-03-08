@@ -12,6 +12,10 @@
                 },
                 {
                     "category": "增强",
+                    "description": "联线待机入口提升到快速阅读菜单"
+                },
+                {
+                    "category": "增强",
                     "description": "支持文件名修改"
                 }
             ]
