@@ -150,7 +150,7 @@ namespace
         return out;
     }
 
-    // Scan /book directory and collect all book basenames (without extension, stripped)
+    // Scan /book directory (recursively) and collect all book basenames (without extension, stripped)
     void scan_book_directory()
     {
         if (g_lock_image_cache.books_scanned)
@@ -173,38 +173,45 @@ namespace
             return;
         }
 
-        std::vector<FileInfo> files = EfficientFileScanner::scanDirectory(std::string(bookDir));
-        for (const auto &fi : files)
+        // Recursive lambda: scan dirPath and all its subdirectories
+        std::function<void(const std::string &)> scan_dir = [&](const std::string &dirPath)
         {
-            if (fi.isDirectory)
-                continue;
-
-            // Check if it's a book file (txt, epub, pdf, etc.)
-            std::string lname = fi.name;
-            for (auto &c : lname)
-                if (c >= 'A' && c <= 'Z')
-                    c = static_cast<char>(c - 'A' + 'a');
-
-            bool is_book = (lname.size() >= 4 &&
-                            (lname.find(".txt") != std::string::npos ||
-                             lname.find(".epub") != std::string::npos ||
-                             lname.find(".pdf") != std::string::npos));
-
-            if (!is_book)
-                continue;
-
-            // Extract basename and store stripped version
-            String fullPath = String(fi.path.c_str());
-            String basename = extract_basename_no_ext(fullPath);
-            basename.toLowerCase();
-            String stripped = strip_trailing_digits_and_separators(basename);
-
-            if (stripped.length() > 0)
+            std::vector<FileInfo> files = EfficientFileScanner::scanDirectory(dirPath);
+            for (const auto &fi : files)
             {
-                g_lock_image_cache.book_basenames.push_back(stripped);
-            }
-        }
+                if (fi.isDirectory)
+                {
+                    scan_dir(fi.path); // recurse into subdirectory
+                    continue;
+                }
 
+                // Check if it's a book file (txt, epub, pdf, etc.)
+                std::string lname = fi.name;
+                for (auto &c : lname)
+                    if (c >= 'A' && c <= 'Z')
+                        c = static_cast<char>(c - 'A' + 'a');
+
+                bool is_book = (lname.size() >= 4 &&
+                                (lname.find(".txt") != std::string::npos ||
+                                 lname.find(".epub") != std::string::npos ||
+                                 lname.find(".pdf") != std::string::npos));
+
+                if (!is_book)
+                    continue;
+
+                String fullPath = String(fi.path.c_str());
+                String basename = extract_basename_no_ext(fullPath);
+                basename.toLowerCase();
+                String stripped = strip_trailing_digits_and_separators(basename);
+
+                if (stripped.length() > 0)
+                {
+                    g_lock_image_cache.book_basenames.push_back(stripped);
+                }
+            }
+        };
+
+        scan_dir(std::string(bookDir));
         g_lock_image_cache.books_scanned = true;
     }
 
@@ -358,7 +365,7 @@ static bool push_random_sd_image_if_available(const char *dirPath, int x, int y)
         }
     }
 
-    if (g_config.defaultlock)
+    if (strcmp(g_config.lockscreen_mode, "random") != 0)
     {
         for (const String &p : candidates)
         {

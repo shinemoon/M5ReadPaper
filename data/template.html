@@ -814,7 +814,7 @@
 
 <body>
     <div class='fixed-banner'>
-        V1.3版本之后，推荐使用
+        请使用
         <a href="https://chromewebstore.google.com/detail/readpaper-utils/fgkgjmmeoaojnhkeiebbibgbodikmgoe"
             target="_blank" rel="noopener noreferrer"
             style="background:#FFA500!important;ortant; color:#000 !important; text-decoration:none !important; padding:3px 6px; border-radius:4px;">
@@ -832,8 +832,7 @@
             style="background:#FFA500!important; color:#000 !important; text-decoration:none !important; padding:3px 6px; border-radius:4px;">
             Firefox
         </a>
-
-        浏览器扩展进行管理
+        浏览器扩展, 网页支持已停止维护.
     </div>
     <div class='container'>
         <div class='header'>
@@ -1338,12 +1337,12 @@
             if (fileCount === 0) {
                 // 目录为空时的提示
                 uploadBtn.disabled = false;
-                uploadHint.textContent = "何处见那'遁去的一'？";
+                uploadHint.textContent = "";
                 uploadHint.style.color = '#757575';
             } else if (fileCount >= 99) {
                 // 文件超过99个时禁用上传并提示
                 uploadBtn.disabled = true;
-                uploadHint.textContent = "宁缺毋滥，九九归一";
+                uploadHint.textContent = "";
                 uploadHint.style.color = '#d32f2f';
             } else {
                 // 正常状态

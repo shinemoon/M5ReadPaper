@@ -310,16 +310,29 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
         bin_font_print("随机", 28, 0, 540, 430, themeRowY, true, target, TEXT_ALIGN_LEFT, 100);
 
         // Button - 通用壁纸
-        draw_label(target, 40, y + 5 * 96 + 25, "通用壁纸", true); // EIGHT_ONE/TWO
+        draw_label(target, 40, y + 5 * 96 + 25, "锁屏显示", true); // EIGHT_ONE/TWO
 
         const int16_t wallpaperRowY = y + 5 * 96 - 1 + 25;
-        if (g_config.defaultlock)
-            target->fillTriangle(210, wallpaperRowY + 4, 210, wallpaperRowY + 4 + 18, 210 + 12, wallpaperRowY + 4 + 9, TFT_BLACK);
+#if REMOVEONLINELOCK
+        if (strcmp(g_config.lockscreen_mode, "random") == 0)
+            target->fillTriangle(310, wallpaperRowY + 4, 310, wallpaperRowY + 4 + 18, 310 + 12, wallpaperRowY + 4 + 9, TFT_BLACK);
         else
-            target->fillTriangle(360, wallpaperRowY + 4, 360, wallpaperRowY + 4 + 18, 360 + 12, wallpaperRowY + 4 + 9, TFT_BLACK);
+            target->fillTriangle(210, wallpaperRowY + 4, 210, wallpaperRowY + 4 + 18, 210 + 12, wallpaperRowY + 4 + 9, TFT_BLACK);
 
-        bin_font_print("默认壁纸", 28, 0, 540, 230, wallpaperRowY, true, target, TEXT_ALIGN_LEFT, 150);
-        bin_font_print("随机壁纸", 28, 0, 540, 380, wallpaperRowY, true, target, TEXT_ALIGN_LEFT, 150);
+        bin_font_print("默认", 28, 0, 540, 230, wallpaperRowY, true, target, TEXT_ALIGN_LEFT, 100);
+        bin_font_print("随机", 28, 0, 540, 330, wallpaperRowY, true, target, TEXT_ALIGN_LEFT, 100);
+#else
+        if (strcmp(g_config.lockscreen_mode, "default") == 0)
+            target->fillTriangle(210, wallpaperRowY + 4, 210, wallpaperRowY + 4 + 18, 210 + 12, wallpaperRowY + 4 + 9, TFT_BLACK);
+        else if (strcmp(g_config.lockscreen_mode, "random") == 0)
+            target->fillTriangle(310, wallpaperRowY + 4, 310, wallpaperRowY + 4 + 18, 310 + 12, wallpaperRowY + 4 + 9, TFT_BLACK);
+        else // online
+            target->fillTriangle(410, wallpaperRowY + 4, 410, wallpaperRowY + 4 + 18, 410 + 12, wallpaperRowY + 4 + 9, TFT_BLACK);
+
+        bin_font_print("默认", 28, 0, 540, 230, wallpaperRowY, true, target, TEXT_ALIGN_LEFT, 100);
+        bin_font_print("随机", 28, 0, 540, 330, wallpaperRowY, true, target, TEXT_ALIGN_LEFT, 100);
+        bin_font_print("在线", 28, 0, 540, 430, wallpaperRowY, true, target, TEXT_ALIGN_LEFT, 100);
+#endif
 
         break;
     }
@@ -333,10 +346,9 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
         int16_t btn_cy = y + rectH / 2 - 32; // move up by 32 pixels
 
         draw_button(target, btn_cx, btn_cy, "热点连接", true);
-        // Add connection settings button 64 pixels below the wireless button
+        // Connection settings button placeholder (hidden, touch disabled)
         int16_t btn_cy2 = btn_cy + 104;
-        const char *wifi_toggle_label = g_wifi_sta_connected ? "联线待机" : "联线待机";
-        draw_button(target, btn_cx, btn_cy2, wifi_toggle_label, true);
+        bin_font_print("- Connecting People - ", 28, 0, 540, x, btn_cy2, false, target, TEXT_ALIGN_CENTER, rectW);
         //        bin_font_print("请按照说明连接WIFI", 28, 0, 540, 0, btn_cy + 45, false, g_canvas, TEXT_ALIGN_CENTER, 540);
 
         // Draw MSC indicator

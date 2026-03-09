@@ -3,6 +3,7 @@
   const PAGE_SIZE = 10;
   let currentCat = 'book';
   let currentPage = 1;
+  let currentBookSubdir = ''; // current subdirectory path within /book (e.g. '' or 'manga' or 'manga/sub')
   let cache = { book:null, font:null, image:null, screenshot:null };
   let selectedFiles = [];
   let selectedScbackFile = null;
@@ -36,6 +37,7 @@
   const btnScbackDelete = el('btnScbackDelete');
   const scbackFileInput = el('scbackFileInput');
   const scbackInfo = el('scbackInfo');
+  const btnMkdir = el('btnMkdir');
 
   const hints = {
     book:'支持 unicode/GBK 编码的 txt 文件。',
@@ -264,6 +266,7 @@
     currentCat = cat; 
     currentPage = 1; // 重置为第一页
     cache[cat] = null; // 清除缓存，强制重新加载
+    if (cat !== 'book') currentBookSubdir = ''; // reset subdir when leaving book tab
     uploadTitle.textContent=catNames[cat]+'-文件上传';
     hint.textContent = hints[cat];
     // 更新 tab 激活
@@ -278,7 +281,67 @@
     // 对于 screenshot tab，隐藏常规上传区域，显示截图背景设置盒子
     if(uploadBox){ if(cat === 'screenshot') uploadBox.style.display = 'none'; else uploadBox.style.display = 'block'; }
     if(scbackBox){ if(cat === 'screenshot') scbackBox.style.display = 'block'; else scbackBox.style.display = 'none'; }
+    // Show mkdir button only for book category
+    if(btnMkdir) btnMkdir.style.display = (cat === 'book') ? '' : 'none';
+    updateBookPathBar();
     
+    loadList();
+  }
+
+  function updateBookPathBar() {
+    const bar = el('bookPathBar');
+    const barRow = el('bookPathBarRow');
+    if (!bar) return;
+    if (currentCat !== 'book' || !currentBookSubdir) {
+      if (bar) bar.style.display = 'none';
+      if (barRow) barRow.style.display = 'none';
+      return;
+    }
+    if (barRow) barRow.style.display = '';
+    bar.style.display = '';
+    // Build breadcrumb: /book > part1 > part2 (each part clickable except the last)
+    const parts = currentBookSubdir.split('/');
+    let html = `<span class="crumb" data-crumb-idx="-1">/book</span>`;
+    parts.forEach((p, i) => {
+      html += `<span class="crumb-sep"> &rsaquo; </span>`;
+      if (i < parts.length - 1) {
+        html += `<span class="crumb" data-crumb-idx="${i}">${p}</span>`;
+      } else {
+        html += `<span>${p}</span>`;
+      }
+    });
+    bar.innerHTML = html;
+    // Wire clicks: idx=-1 means /book root; idx=i means navigate to parts[0..i]
+    bar.querySelectorAll('[data-crumb-idx]').forEach(el => {
+      el.onclick = () => {
+        const idx = parseInt(el.getAttribute('data-crumb-idx'));
+        if (idx === -1) {
+          currentBookSubdir = '';
+        } else {
+          currentBookSubdir = parts.slice(0, idx + 1).join('/');
+        }
+        cache.book = null; currentPage = 1;
+        updateBookPathBar();
+        loadList();
+      };
+    });
+  }
+
+  function navigateBookInto(dirName) {
+    currentBookSubdir = currentBookSubdir ? currentBookSubdir + '/' + dirName : dirName;
+    cache.book = null;
+    currentPage = 1;
+    updateBookPathBar();
+    loadList();
+  }
+
+  function navigateBookUp() {
+    const parts = currentBookSubdir.split('/');
+    parts.pop();
+    currentBookSubdir = parts.join('/');
+    cache.book = null;
+    currentPage = 1;
+    updateBookPathBar();
     loadList();
   }
 
@@ -298,7 +361,8 @@
       // 首次请求时检测后端是否支持分页
       if(paginationSupported === null){
         // 尝试分页请求
-        const testUrl = `${API_BASE}/list/${currentCat}?page=1&perPage=${PAGE_SIZE}`;
+        let testUrl = `${API_BASE}/list/${currentCat}?page=1&perPage=${PAGE_SIZE}`;
+        if(currentCat === 'book' && currentBookSubdir) testUrl += `&subdir=${encodeURIComponent(currentBookSubdir)}`;
         const r = await fetch(testUrl);
         if(!r.ok) throw new Error('HTTP '+r.status);
         data = await r.json();
@@ -319,12 +383,16 @@
         }
       } else if(paginationSupported){
         // 已知支持分页，直接请求
-        const r = await fetch(`${API_BASE}/list/${currentCat}?page=${currentPage}&perPage=${PAGE_SIZE}`);
+        let pUrl = `${API_BASE}/list/${currentCat}?page=${currentPage}&perPage=${PAGE_SIZE}`;
+        if(currentCat === 'book' && currentBookSubdir) pUrl += `&subdir=${encodeURIComponent(currentBookSubdir)}`;
+        const r = await fetch(pUrl);
         if(!r.ok) throw new Error('HTTP '+r.status);
         data = await r.json();
       } else {
         // 已知不支持分页，请求全部数据
-        const r = await fetch(`${API_BASE}/list/${currentCat}`);
+        let npUrl = `${API_BASE}/list/${currentCat}`;
+        if(currentCat === 'book' && currentBookSubdir) npUrl += `?subdir=${encodeURIComponent(currentBookSubdir)}`;
+        const r = await fetch(npUrl);
         if(!r.ok) throw new Error('HTTP '+r.status);
         data = await r.json();
       }
@@ -357,9 +425,16 @@
   function render(){
     const data = cache[currentCat];
     if(!data || !data.files || data.files.length===0){
-      fileBody.innerHTML = '<tr><td colspan="5" class="text-center">暂无文件</td></tr>';
+      const goUpRowEmpty = (currentCat === 'book' && currentBookSubdir)
+        ? `<tr><td></td><td class="file-name-cell" style="cursor:pointer" id="goUpRow">&lt;&lt; 返回上级 <span class="muted" style="font-size:0.8em">/book${currentBookSubdir ? '/'+currentBookSubdir : ''}</span></td><td></td><td></td><td></td></tr>`
+        : '';
+      fileBody.innerHTML = goUpRowEmpty + '<tr><td colspan="5" class="text-center">暂无文件</td></tr>';
       pager.classList.add('hidden');
       updateUploadState(0);
+      if (goUpRowEmpty) {
+        const goUpEl = document.getElementById('goUpRow');
+        if (goUpEl) goUpEl.onclick = () => navigateBookUp();
+      }
       return;
     }
     
@@ -373,27 +448,122 @@
     currentPage = data.page || currentPage; // 使用服务端返回的页码
     
     // 渲染当前页文件（不再需要 slice，服务端已分页）
-    fileBody.innerHTML = list.map(f=>{
+    // For book category in a subdirectory, prepend a ".." go-up row
+    const goUpRow = (currentCat === 'book' && currentBookSubdir)
+      ? `<tr><td></td><td class="file-name-cell" style="cursor:pointer" id="goUpRow"><< 返回上级 <span class="muted" style="font-size:0.8em">/book${currentBookSubdir ? '/'+currentBookSubdir : ''}</span></td><td></td><td></td><td></td></tr>`
+      : '';
+
+    fileBody.innerHTML = goUpRow + list.map(f=>{
       // Prefer server-supplied full path (untruncated). Fallback to constructed path.
       const fullPath = f.path ? f.path : `/${currentCat}/${f.name}`;
       const disableDelete = !!f.isCurrent;
+
+      if (f.type === 'dir') {
+        // Directory row: navigate on name click, rename + delete buttons (no download/record)
+        const dirActions = `<button class='button is-small outline' data-dir-rename='${fullPath}' title='重命名目录'>重命名</button>
+            <button class='button is-small outline' data-dir-del='${fullPath}'>删除</button>`;
+        return `<tr>
+          <td></td>
+          <td class="file-name-cell" style="cursor:pointer" data-navigate="${encodeURIComponent(f.name)}" title="进入目录 ${f.name}">[${f.name}]<span class="dir-badge">文件夹</span></td>
+          <td></td>
+          <td></td>
+          <td class='file-actions nowrap'>${dirActions}</td>
+        </tr>
+        <tr class='file-actions-row'><td colspan='5' class='file-actions nowrap'>${dirActions}</td></tr>`;
+      }
+
       // show small badge when book has .idx (isIdxed)
       const idxBadge = (currentCat === 'book' && f.isIdxed) ? ` <span class="badge idx-badge" title="存在目录 (.idx)">目录</span>` : '';
       const currentBadge = f.isCurrent ? ` <span class='badge-current'>${currentCat==='book'?'正在阅读':currentCat==='font'?'当前字体':'当前'}</span>` : '';
+      const fileActions = `${f.type==='file'?`<a href='${API_BASE}/download?path=${encodeURIComponent(fullPath)}' data-path='${encodeURIComponent(fullPath)}' class='download-link button is-small outline' title='下载'>下载</a>`:''}
+          <button class='button is-small outline' data-del='${fullPath}' ${disableDelete?'disabled':''}>删除</button>
+          ${currentCat==='book' && f.type==='file'?`<button class='button is-small outline' data-rename='${fullPath}' title='重命名'>重命名</button>`:''}
+          ${currentCat==='book' && f.type==='file'?`<button class='button is-small outline' data-record='${fullPath}' title='查看阅读记录'>记录</button>`:''}`.trim();
       return `<tr>
         <td><input type="checkbox" class="file-select-checkbox" data-path="${encodeURIComponent(fullPath)}" ${disableDelete? 'disabled' : ''}></td>
         <td class="file-name-cell">${f.name}${currentBadge}${idxBadge}</td>
         <td>${f.type==='file'?formatSize(f.size):''}</td>
         <td>${f.isCurrent? '✔':''}</td>
-        <td class='file-actions nowrap'>
-          ${f.type==='file'?`<a href='${API_BASE}/download?path=${encodeURIComponent(fullPath)}' data-path='${encodeURIComponent(fullPath)}' class='download-link button is-small outline' title='下载'>下载</a>`:''}
-          <button class='button is-small outline' data-del='${fullPath}' ${disableDelete?'disabled':''}>删除</button>
-          ${currentCat==='book' && f.type==='file'?`<button class='button is-small outline' data-record='${fullPath}' title='查看阅读记录'>记录</button>`:''}
-        </td>
-      </tr>`;
+        <td class='file-actions nowrap'>${fileActions}</td>
+      </tr>
+      <tr class='file-actions-row'><td colspan='5' class='file-actions nowrap'>${fileActions}</td></tr>`;
     }).join('');
 
     // 绑定删除按钮
+    // bind go-up row
+    const goUpEl = document.getElementById('goUpRow');
+    if (goUpEl) goUpEl.onclick = () => navigateBookUp();
+
+    // bind directory name cells (navigate into)
+    fileBody.querySelectorAll('[data-navigate]').forEach(cell => {
+      cell.onclick = () => navigateBookInto(decodeURIComponent(cell.getAttribute('data-navigate')));
+    });
+
+    // bind directory delete buttons
+    fileBody.querySelectorAll('button[data-dir-del]').forEach(btn => {
+      btn.onclick = async () => {
+        const dirPath = btn.getAttribute('data-dir-del');
+        const dirName = dirPath.split('/').pop();
+        const ok = await showConfirm(
+          `确认递归删除目录 "${dirName}" 及其所有书籍和关联数据（书签、阅读进度、索引）？此操作不可恢复。`,
+          '删除目录'
+        );
+        if (!ok) return;
+        try {
+          const r = await fetch(`${API_BASE}/delete?path=${encodeURIComponent(dirPath)}`);
+          const j = await r.json();
+          if (j.ok) {
+            toast('目录已删除：' + dirName, 'success');
+            cache.book = null;
+            await new Promise(r => setTimeout(r, 600));
+            loadList();
+          } else {
+            toast(j.message || '删除失败', 'error', 5000);
+          }
+        } catch(e) { toast('删除失败: ' + e.message, 'error', 5000); }
+      };
+    });
+
+    // bind directory rename buttons
+    fileBody.querySelectorAll('button[data-dir-rename]').forEach(btn => {
+      btn.onclick = async () => {
+        const dirPath = btn.getAttribute('data-dir-rename');
+        const currentName = dirPath.split('/').pop();
+        const promptFn = typeof window.nicePrompt === 'function'
+          ? (msg, def) => window.nicePrompt(msg, def, {title:'重命名目录'})
+          : (msg, def) => Promise.resolve(window.prompt(msg, def));
+        const newName = await promptFn('请输入新目录名：', currentName);
+        if (!newName || newName === currentName) return;
+        if (newName.includes('/') || newName.includes('\\') || newName.includes('..')) {
+          toast('目录名无效', 'error'); return;
+        }
+        const confirmed = await showConfirm(
+          `重命名目录将同步更新所有子书籍的阅读进度、书签及历史记录路径。\n\n将 "${currentName}" 重命名为 "${newName}"？`,
+          '重命名确认'
+        );
+        if (!confirmed) return;
+        try {
+          const r = await fetch(`${API_BASE}/rename?old_path=${encodeURIComponent(dirPath)}&new_name=${encodeURIComponent(newName)}`);
+          const j = await r.json();
+          if (j.ok) {
+            toast('目录已重命名：' + newName, 'success');
+            // If we're currently inside the renamed directory, update currentBookSubdir
+            const parts = currentBookSubdir.split('/');
+            if (parts[parts.length - 1] === currentName) {
+              parts[parts.length - 1] = newName;
+              currentBookSubdir = parts.join('/');
+              updateBookPathBar();
+            }
+            cache.book = null;
+            await new Promise(r => setTimeout(r, 600));
+            loadList();
+          } else {
+            toast(j.message || '重命名失败', 'error', 5000);
+          }
+        } catch(e) { toast('重命名失败: ' + e.message, 'error', 5000); }
+      };
+    });
+
     // bind delete buttons (single or batch for screenshots)
     fileBody.querySelectorAll('button[data-del]').forEach(btn=>{
       btn.onclick = async ()=>{
@@ -447,6 +617,53 @@
           const bookPath = btn.getAttribute('data-record');
           await fetchAndStoreReadingRecords(bookPath);
           window.open(`readingRecord.html?book=${encodeURIComponent(bookPath)}&src=local`, '_blank');
+        };
+      });
+    }
+
+    // 绑定重命名按钮（仅书籍分类）
+    if(currentCat === 'book'){
+      fileBody.querySelectorAll('button[data-rename]').forEach(btn=>{
+        btn.onclick = async ()=>{
+          const path = btn.getAttribute('data-rename');
+          const parts = path.split('/');
+          const currentName = parts[parts.length - 1] || '';
+
+          // 弹出输入框获取新文件名
+          const promptFn = typeof window.nicePrompt === 'function'
+            ? (msg, def) => window.nicePrompt(msg, def, {title:'重命名书籍'})
+            : (msg, def) => Promise.resolve(window.prompt(msg, def));
+          const rawNew = await promptFn('请输入新文件名（保留 .txt 后缀）：', currentName);
+          if(!rawNew || rawNew === currentName) return;
+
+          // 自动补全 .txt 后缀
+          const newName = rawNew.toLowerCase().endsWith('.txt') ? rawNew : rawNew + '.txt';
+          if(newName === currentName) return;
+
+          // 弹框告知用户重命名影响
+          const confirmed = await showConfirm(
+            '重命名书籍后，设备端按文件名存储的阅读进度（书签、标签、索引等）将会同步迁移。\n\n' +
+            '但网页端本地保存的阅读时间记录（IndexedDB）按书名索引，' +
+            '旧记录不会自动迁移，新旧文件名下的阅读时长记录将独立存储。\n\n' +
+            '将 "' + currentName + '" 重命名为 "' + newName + '"？',
+            '重命名确认'
+          );
+          if(!confirmed) return;
+
+          try{
+            const r = await fetch(`${API_BASE}/rename?old_path=${encodeURIComponent(path)}&new_name=${encodeURIComponent(newName)}`);
+            const j = await r.json();
+            if(j.ok){
+              toast('重命名成功：' + newName, 'success');
+              cache[currentCat] = null;
+              await new Promise(r => setTimeout(r, 500));
+              loadList();
+            } else {
+              toast(j.message || '重命名失败', 'error', 5000);
+            }
+          } catch(e){
+            toast('重命名失败: ' + e.message, 'error', 5000);
+          }
         };
       });
     }
@@ -528,8 +745,10 @@
 
   function updateUploadState(count){
     const info = el('uploadInfo');
-    if(count===0){ info.textContent = "何处见那'遁去的一'?"; btnUpload.disabled = selectedFiles.length===0; info.style.color='var(--grey)' }
-    else if(count>=99){ info.textContent = '宁缺毋滥，九九归一'; btnUpload.disabled = true; info.style.color='#b30000'; }
+    if(count===0){ info.textContent = ""; btnUpload.disabled = selectedFiles.length===0; info.style.color='var(--grey)' }
+    //if(count===0){ info.textContent = "何处见那'遁去的一'?"; btnUpload.disabled = selectedFiles.length===0; info.style.color='var(--grey)' }
+    else if(count>=99){ info.textContent = ''; btnUpload.disabled = true; info.style.color='#b30000'; }
+    //else if(count>=99){ info.textContent = '宁缺毋滥，九九归一'; btnUpload.disabled = true; info.style.color='#b30000'; }
     else { info.textContent=''; btnUpload.disabled = selectedFiles.length===0; }
   }
 
@@ -629,6 +848,34 @@
   ['dragleave','drop'].forEach(ev=>uploadBox.addEventListener(ev,()=>uploadBox.classList.remove('dragover')));
   uploadBox.addEventListener('drop', e=>{ selectedFiles = Array.from(e.dataTransfer.files); fileInput.value=''; btnUpload.textContent='上传 '+selectedFiles.length+' 个文件'; btnUpload.disabled = selectedFiles.length===0; updateUploadState(cache[currentCat]?cache[currentCat].length:0); });
 
+  // 新建目录
+  if (btnMkdir) {
+    btnMkdir.onclick = async () => {
+      const promptFn = typeof window.nicePrompt === 'function'
+        ? (msg, def) => window.nicePrompt(msg, def, {title:'新建目录'})
+        : (msg, def) => Promise.resolve(window.prompt(msg, def));
+      const dirName = await promptFn('请输入新目录名：', '');
+      if (!dirName) return;
+      if (dirName.includes('/') || dirName.includes('\\') || dirName.includes('..')) {
+        toast('目录名无效', 'error'); return;
+      }
+      const parentPath = currentBookSubdir ? '/book/' + currentBookSubdir : '/book';
+      const fullPath = parentPath + '/' + dirName;
+      try {
+        const r = await fetch(`${API_BASE}/mkdir?path=${encodeURIComponent(fullPath)}`);
+        const j = await r.json();
+        if (j.ok) {
+          toast('目录已创建：' + dirName, 'success');
+          cache.book = null;
+          await new Promise(r => setTimeout(r, 400));
+          loadList();
+        } else {
+          toast(j.message || '创建失败', 'error', 5000);
+        }
+      } catch(e) { toast('创建失败: ' + e.message, 'error', 5000); }
+    };
+  }
+
   btnUpload.onclick = ()=>{
     if(selectedFiles.length===0) return;
     btnUpload.disabled = true; btnUpload.textContent='上传中...';
@@ -674,13 +921,16 @@
     const maxRetries = 2; // same as template.html
     const baseDelay = 500; // ms
     const currentTab = currentCat;
+    const currentSubdir = (currentCat === 'book') ? currentBookSubdir : '';
 
     return (async function(){
       for(let attempt=0; attempt<=maxRetries; attempt++){
         try{
           const res = await new Promise((resolve,reject)=>{
             const xhr = new XMLHttpRequest();
-            xhr.open('POST', `${API_BASE}/upload?tab=${encodeURIComponent(currentTab)}`);
+            let uploadUrl = `${API_BASE}/upload?tab=${encodeURIComponent(currentTab)}`;
+            if(currentSubdir) uploadUrl += `&subdir=${encodeURIComponent(currentSubdir)}`;
+            xhr.open('POST', uploadUrl);
             xhr.upload.onprogress = e=>{ if(e.lengthComputable && onProgress){ onProgress((e.loaded/e.total)*100); } };
             xhr.onerror=()=>reject(new Error('network'));
             xhr.ontimeout=()=>reject(new Error('timeout'));

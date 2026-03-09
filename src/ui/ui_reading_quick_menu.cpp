@@ -7,8 +7,8 @@ extern GlobalConfig g_config;
 
 // rectangle dimensions
 static const int QUICK_MENU_WIDTH = PAPER_S3_WIDTH; // 540
-static const int QUICK_MENU_HEIGHT = 200;// One Auto Reading + One Force Fresh
-static const int QUICK_MENU_TOP = PAPER_S3_HEIGHT - QUICK_MENU_HEIGHT; // 960 - 200 = 760
+static const int QUICK_MENU_HEIGHT = 260;// Auto Reading + Force Fresh + Online Standby
+static const int QUICK_MENU_TOP = PAPER_S3_HEIGHT - QUICK_MENU_HEIGHT; // 960 - 260 = 700
 
 void draw_reading_quick_menu(M5Canvas *canvas)
 {
@@ -56,13 +56,23 @@ void draw_reading_quick_menu(M5Canvas *canvas)
     /* 
         手动全刷ccacaca菜单
     */
-     canvas->drawRoundRect(249, 789, 302, 62, 10, TFT_WHITE);
-    canvas->drawRoundRect(250, 790, 300, 60, 10, TFT_BLACK);
+     canvas->drawRoundRect(247, 788, 304, 63, 10, TFT_WHITE);
+    canvas->drawRoundRect(251, 789, 300, 61, 10, TFT_BLACK);
     canvas->fillRoundRect(252, 792, 298, 54, 10, TFT_BLACK);
 //    canvas->fillRect(260, 800, 192, 38, TFT_BLACK);
     bin_font_print("手动全刷", 30, 0,200,252, 805,false,canvas,TEXT_ALIGN_CENTER,200,false,false,false,true);
     canvas->fillRect(452, 794, 2, 50, TFT_LIGHTGRAY);
     drawScrew(canvas,495, 819);
+
+    /* 
+        联线待机菜单（在手动全刷上方，下边氤20像素）
+    */
+    canvas->drawRoundRect(247, 706, 304, 63, 10, TFT_BLACK);
+    canvas->drawRoundRect(251, 707, 300, 61, 10, TFT_WHITE);
+    canvas->fillRoundRect(252, 710, 298, 54, 10, TFT_WHITE);
+    bin_font_print("联线待机", 30, 0, 200, 252, 723, false, canvas, TEXT_ALIGN_CENTER, 200, false, false, false);
+    canvas->fillRect(452, 712, 2, 50, TFT_LIGHTGRAY);
+    drawScrew(canvas, 495, 737);
 
 }
 

@@ -952,7 +952,7 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
     draw_button(g_canvas, 370, 608, "清理", false, true);
 
     // FLIP SCREEN - 中心y=720 (96*7+48)
-    draw_button(g_canvas, 370, 704, "显示", false, true);
+    draw_button(g_canvas, 370, 704, "设置", false, true);
 
     // WiFi Connect - 中心y=816 (96*8+48)
     // 按用户要求，主菜单的“连接”按钮不再反色（invert=false）。点击会打开二级菜单“连接方式”。
@@ -1124,9 +1124,25 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
 #endif
         }
 
-        // 显示文件名（去掉.txt后的名称），短名处理以便区分同系列卷次
-        std::string display_name = shorten_book_name(book_files[file_index], 8);
-        bin_font_print(display_name.c_str(), 28, 0, 320, 15, text_y, true, g_canvas, TEXT_ALIGN_LEFT, 320);
+        // 显示条目：目录以 '/' 结尾，'..' 为返回上级，其余为书籍文件
+        const std::string &raw_entry = book_files[file_index];
+        std::string display_name;
+        int8_t delta_x = 0;
+        if (raw_entry == "..") {
+            display_name = "  返回上级";
+            g_canvas->fillTriangle(8,text_y+14, 18, text_y, 18, text_y+28);
+        } else if (!raw_entry.empty() && raw_entry.back() == '/') {
+            // 文件夹：去除结尾 '/'  并加上标识
+            std::string dir_display = raw_entry.substr(0, raw_entry.size() - 1);
+            display_name = dir_display;
+            g_canvas->fillRect(2,text_y-30, 4, 88);
+            g_canvas->fillRect(7,text_y-20, 3, 68, TFT_DARKGRAY);
+            g_canvas->fillRect(12,text_y-10, 2, 48, TFT_LIGHTGRAY);
+            delta_x = 20;
+        } else {
+            display_name = shorten_book_name(raw_entry, 8);
+        }
+        bin_font_print(display_name.c_str(), 28, 0, 320, 15+delta_x, text_y, true, g_canvas, TEXT_ALIGN_LEFT, 320);
 
 #if DBG_UI_CANVAS_UTILS
         Serial.printf("[MAIN_MENU] 显示文件 %d (索引%d): %s at y=%d\n", i, file_index, book_files[file_index].c_str(), text_y);
@@ -1349,12 +1365,17 @@ std::string get_selected_book_fullpath(int page, int index)
         return std::string();
     }
 
-    // default behavior: construct from cached name
+    // 默认行为：从缓存构建完整路径
     std::string name = get_cached_book_name(page, index);
     if (name.empty())
         return std::string();
-    // 统一返回 /sd/book/<name>.txt 格式
-    return std::string("/sd/book/") + name + ".txt";
+    // 目录条目：返回特殊标记供 state_main_menu 判断
+    if (name == "..")  // 返回上级
+        return std::string("../");
+    if (!name.empty() && name.back() == '/') // 进入子目录
+        return std::string("DIR:") + BookFileManager::getCurrentScanDir() + "/" + name.substr(0, name.size() - 1);
+    // 普通文件：使用当前扫描目录构建完整路径
+    return std::string("/sd") + BookFileManager::getCurrentScanDir() + "/" + name + ".txt";
 }
 
 bool show_wire_connect(M5Canvas *canvas, bool refresh)
@@ -1460,11 +1481,11 @@ bool show_wire_connect(M5Canvas *canvas, bool refresh)
         info_y += line_height + 56;
 
         // 使用说明
-        bin_font_print("使用手机或电脑连接WiFi后", 24, 0, 540, 0, info_y, true, canvas, TEXT_ALIGN_CENTER, 540);
+        bin_font_print("手机或电脑连接WiFi后", 24, 0, 540, 0, info_y, true, canvas, TEXT_ALIGN_CENTER, 540);
         info_y += 40;
         bin_font_print("使用浏览器插件（推荐）管理", 24, 0, 540, 0, info_y, true, canvas, TEXT_ALIGN_CENTER, 540);
         info_y += 40;
-        bin_font_print("或在浏览器中访问上面地址管理", 24, 0, 540, 0, info_y, true, canvas, TEXT_ALIGN_CENTER, 540);
+        bin_font_print("网页接口已停止维护", 24, 0, 540, 0, info_y, true, canvas, TEXT_ALIGN_CENTER, 540);
     }
     else
     {

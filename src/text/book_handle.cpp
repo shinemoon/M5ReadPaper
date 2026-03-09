@@ -1741,6 +1741,74 @@ bool removeBookFromHistory(const std::string &book_path)
     return removeFromHistoryList(book_path);
 }
 
+// 公共接口：在 history.list 中将书籍旧路径替换为新路径
+bool renameBookInHistory(const std::string &old_path, const std::string &new_path)
+{
+    const char *HISTORY = "/history.list";
+    const char *TMP = "/history.list.tmp";
+
+    // 标准化路径：确保以 /sd 开头
+    auto norm_hist = [](const std::string &p) -> std::string {
+        std::string n = p;
+        if (n.rfind("/sd", 0) != 0) {
+            if (n.empty() || n[0] != '/') n = "/" + n;
+            if (n.rfind("/sd/", 0) != 0) n = "/sd" + n;
+        }
+        return n;
+    };
+    std::string norm_old = norm_hist(old_path);
+    std::string norm_new = norm_hist(new_path);
+
+    if (!SDW::SD.exists(HISTORY))
+        return true; // 没有历史文件，视为成功
+
+    std::vector<std::string> lines;
+    {
+        AutoCloseFile f(SDW::SD.open(HISTORY, "r"));
+        if (f) {
+            while (f.get().available()) {
+                String line = f.get().readStringUntil('\n');
+                line.trim();
+                if (line.length() == 0)
+                    continue;
+                lines.push_back(std::string(line.c_str()));
+            }
+        }
+    }
+
+    bool found = false;
+    for (auto &ln : lines) {
+        if (ln == norm_old) {
+            ln = norm_new;
+            found = true;
+        }
+    }
+
+    if (!found)
+        return true; // 没找到，无需修改
+
+    File tf = SDW::SD.open(TMP, "w");
+    if (!tf)
+        return false;
+    for (const auto &s : lines)
+        tf.println(s.c_str());
+    tf.close();
+
+    if (!SDW::SD.rename(TMP, HISTORY)) {
+        File hf = SDW::SD.open(HISTORY, "w");
+        if (!hf) { SDW::SD.remove(TMP); return false; }
+        for (const auto &s : lines)
+            hf.println(s.c_str());
+        hf.close();
+        SDW::SD.remove(TMP);
+    }
+
+#if DBG_BOOK_HANDLE
+    Serial.printf("[BH] renameBookInHistory: '%s' → '%s'\n", norm_old.c_str(), norm_new.c_str());
+#endif
+    return true;
+}
+
 std::string getBookmarkFileName(const std::string &book_file_path)
 {
     // 为避免不同路径下同名文件的书签冲突，使用完整路径生成书签文件名

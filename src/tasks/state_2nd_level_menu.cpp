@@ -55,7 +55,6 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
             sm_dbg_printf("主菜单状态收到超时信号，进入IDLE\n");
 #endif
             shutCnt = 0;
-            show_lockscreen(PAPER_S3_WIDTH, PAPER_S3_HEIGHT, 30, "双击屏幕解锁");
             if (g_current_book)
             {
                 TextPageResult tp = g_current_book->currentPage();
@@ -65,7 +64,7 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                     g_current_book->refreshTagsCache();
                 }
             }
-            currentState_ = STATE_IDLE;
+            StateMachineTask::activateLockScreen();
         }
         break;
     case MSG_DEVICE_ORIENTATION:
@@ -187,16 +186,23 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
 
             if (!updated && inRow(wallpaperRowY))
             {
-                if (inBox(wallpaperRowY, 210, 140) && !g_config.defaultlock)
+                if (inBox(wallpaperRowY, 210, 120) && strcmp(g_config.lockscreen_mode, "default") != 0)
                 {
-                    g_config.defaultlock = true;
+                    strcpy(g_config.lockscreen_mode, "default");
                     updated = true;
                 }
-                else if (inBox(wallpaperRowY, 360, 140) && g_config.defaultlock)
+                else if (inBox(wallpaperRowY, 330, 120) && strcmp(g_config.lockscreen_mode, "random") != 0)
                 {
-                    g_config.defaultlock = false;
+                    strcpy(g_config.lockscreen_mode, "random");
                     updated = true;
                 }
+#if !REMOVEONLINELOCK
+                else if (inBox(wallpaperRowY, 430, 120) && strcmp(g_config.lockscreen_mode, "online") != 0)
+                {
+                    strcpy(g_config.lockscreen_mode, "online");
+                    updated = true;
+                }
+#endif
                 updateInd = 5;
             }
 
@@ -282,8 +288,9 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                 }
             }
 
-            // Connection settings button hitbox
-            if (cx >= btn_cx - w / 2 && cx <= btn_cx + w / 2 && cy >= btn_cy2 - 16 && cy <= btn_cy2 - 16 + h)
+            // Connection settings button hitbox (disabled - placeholder only)
+            // if (cx >= btn_cx - w / 2 && cx <= btn_cx + w / 2 && cy >= btn_cy2 - 16 && cy <= btn_cy2 - 16 + h)
+#if 0
             {
 #if DBG_STATE_MACHINE_TASK
                 sm_dbg_printf("连接设置按钮被点击\n");
@@ -350,6 +357,7 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
                     }
                 }
             }
+#endif
         }
 
         if (main_2nd_level_menu_type == MAIN_2ND_MENU_CLEAN_BOOKMARK)

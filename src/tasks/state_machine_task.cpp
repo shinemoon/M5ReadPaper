@@ -9,9 +9,38 @@
 #include "task_priorities.h"
 #include "globals.h"
 #include "device/wifi_hotspot_manager.h"
+#include "config/config_manager.h"
+
+#include "ui/ui_canvas_image.h"
 
 // 定义全局变量
 bool enterDebug = false;
+
+extern GlobalConfig g_config;
+
+void StateMachineTask::activateLockScreen()
+{
+    if (strcmp(g_config.lockscreen_mode, "online") == 0)
+    {
+        ui_push_image_to_display_direct("/spiffs/wait.png", 240, 450);
+        M5.Display.waitDisplay();
+        wifi_hotspot_init();
+        bool connected = false;
+        if (g_wifi_hotspot)
+        {
+            connected = g_wifi_hotspot->connectToWiFiFromToken();
+            if (!connected)
+                g_wifi_hotspot->disconnectWiFi();
+        }
+        currentState_ = STATE_WEBDAV;
+    }
+    else
+    {
+        show_lockscreen(PAPER_S3_WIDTH, PAPER_S3_HEIGHT, 30, "双击屏幕解锁");
+        currentState_ = STATE_IDLE;
+    }
+}
+
 
 // 静态成员初始化
 TaskHandle_t StateMachineTask::taskHandle_ = NULL;
@@ -70,7 +99,23 @@ bool StateMachineTask::initialize()
         {
             currentState_ = STATE_IDLE;
             // currentState_ = STATE_READING;
+#if REMOVEONLINELOCK
+            // REMOVEONLINELOCK: 开机时若配置为 online 则强制覆写为 random 并保存
+            if (strcmp(g_config.lockscreen_mode, "online") == 0)
+            {
+                strcpy(g_config.lockscreen_mode, "random");
+                config_save();
+            }
             show_lockscreen(PAPER_S3_WIDTH, PAPER_S3_HEIGHT, 30, "双击屏幕解锁");
+#else
+            // 复位启动时若 online 模式，首次锁屏以 random 壁纸显示，不修改配置
+            bool is_online_boot = (strcmp(g_config.lockscreen_mode, "online") == 0);
+            if (is_online_boot)
+                strcpy(g_config.lockscreen_mode, "random");
+            show_lockscreen(PAPER_S3_WIDTH, PAPER_S3_HEIGHT, 30, "双击屏幕解锁");
+            if (is_online_boot)
+                strcpy(g_config.lockscreen_mode, "online");
+#endif
         }
         else
         {

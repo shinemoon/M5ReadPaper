@@ -72,24 +72,35 @@ void render_reading_status_component(JsonObject component)
         bin_font_print(book_name.c_str(), (uint8_t)fontSize, (uint8_t)textColor,
                        a_w, x, y, false, nullptr, (TextAlign)align, a_w);
 
+        // 计算阅读进度百分比（无论是否有章节名均尝试）
+        int pct = -1;
+        if (g_current_book)
+        {
+            size_t total = g_current_book->getFileSize();
+            if (total > 0)
+            {
+                size_t pos = g_current_book->position();
+                pct = (int)((double)pos / (double)total * 100.0 + 0.5);
+            }
+        }
+
+        int chapSize = std::max(8, (int)(fontSize * 0.9f));
+        int16_t next_y = y + fontSize + 24;
+
         if (!chapter_name.empty())
         {
-            int chapSize = std::max(8, (int)(fontSize * 0.9f));
-            int16_t next_y = y + fontSize + 24;
-
             std::string chapter_display = chapter_name;
-            if (g_current_book)
-            {
-                size_t total = g_current_book->getFileSize();
-                if (total > 0)
-                {
-                    size_t pos = g_current_book->position();
-                    int pct = (int)((double)pos / (double)total * 100.0 + 0.5);
-                    chapter_display += std::string(" · ") + std::to_string(pct) + std::string("%");
-                }
-            }
+            if (pct >= 0)
+                chapter_display += std::string(" · ") + std::to_string(pct) + std::string("%");
 
             bin_font_print(chapter_display.c_str(), (uint8_t)chapSize, (uint8_t)textColor,
+                           a_w, x, next_y, false, nullptr, (TextAlign)align, a_w);
+        }
+        else if (pct >= 0)
+        {
+            // 无章节信息但有进度，单独显示百分比
+            std::string pct_display = std::to_string(pct) + std::string("%");
+            bin_font_print(pct_display.c_str(), (uint8_t)chapSize, (uint8_t)textColor,
                            a_w, x, next_y, false, nullptr, (TextAlign)align, a_w);
         }
     }

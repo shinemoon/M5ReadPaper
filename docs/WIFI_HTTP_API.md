@@ -1,224 +1,561 @@
-**ReaderPaper — HTTP API（Web 前端 开发者参考）**
+# ReaderPaper — WiFi 热点 HTTP API（Web 前端开发者参考）
 
-- 说明: 本文档面向前端工程师，汇总设备中用于 Web 前端交互的 HTTP 接口（由 `WiFiHotspotManager` 和 `ApiRouter` 提供）。包括请求方法、必需/可选参数、响应格式、示例（curl / fetch / XHR）、以及前端实现注意事项（CORS、预检、上传进度、分页）。
-- 设备默认热点地址: `http://192.168.4.1`（在 AP 模式下，`WiFiHotspotManager::getIPAddress()` 返回热点地址）
+- **说明**: 本文档面向前端工程师，汇总设备中用于 Web 前端交互的全部 HTTP 接口（由 `WiFiHotspotManager` 和 `ApiRouter` 提供）。包含请求方法、必需/可选参数、响应格式、示例（curl / fetch / XHR）以及前端实现注意事项。
+- **设备默认热点地址**: `http://192.168.4.1`（在 AP 模式下，`WiFiHotspotManager::getIPAddress()` 返回热点地址）
 
-**通用注意**
-- CORS: 服务端会在 JSON API 上添加以下响应头：
-  - `Access-Control-Allow-Origin: *`
-  ```markdown
-  **ReaderPaper — HTTP API（Web 前端 开发者参考）**
+---
 
-  - 说明: 本文档面向前端工程师，汇总设备中用于 Web 前端交互的 HTTP 接口（由 `WiFiHotspotManager` 和 `ApiRouter` 提供）。包含请求方法、必需/可选参数、响应格式、示例（curl / fetch / XHR）以及前端实现注意事项（CORS、预检、上传进度、分页）。
-  - 设备默认热点地址: `http://192.168.4.1`（在 AP 模式下，`WiFiHotspotManager::getIPAddress()` 返回热点地址）
+## 通用注意
 
-  **通用注意**
-  - CORS: 服务端会在 JSON API 上添加以下响应头：
-    - `Access-Control-Allow-Origin: *`
-    - `Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE`
-    - `Access-Control-Allow-Headers: Content-Type, X-Requested-With`
-  - OPTIONS 预检: 当浏览器发起跨域复杂请求（例如带自定义头或 Content-Type 为 JSON）时，浏览器会先发送 `OPTIONS`，服务器已实现对应的 `HTTP_OPTIONS` 返回（通常返回 204）。前端无需特殊处理，浏览器自动发起预检。
-  - 常见辅助路由: `/favicon.ico` 返回 204（避免 404）
-  - 大文件上传: 服务器以流式方式写入到 SD 卡（使用临时 `.tmp` 文件），完成后会尝试重命名覆盖目标文件。上传期间与写入相关的内存与存储检查可能导致上传被拒绝并返回 4xx/5xx 错误（详见上传章节）。
+**CORS**  
+服务端会在所有 API 路由上自动添加以下响应头：
+```
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE
+Access-Control-Allow-Headers: Content-Type, X-Requested-With
+```
 
-  ---
+**OPTIONS 预检**  
+所有路由都有对应的 `HTTP_OPTIONS` 处理，返回 `204 No Content`。浏览器跨域复杂请求会自动触发预检，前端无需额外处理。
 
-  **1) 获取文件列表 — `/list`**
-  - 方法: GET
-  - 路径示例:
-    - 列出所有: `GET /list`
-    - 列出书籍: `GET /list/book`
-    - 列出字体: `GET /list/font`
-    - 列出图片: `GET /list/image`
-    - 列出屏幕截图: `GET /list/screenshot`
-  - Query 参数 (可选):
-    - `page` (整数) — 页码（从1开始），与 `perPage` 一起作用；代码以 `page>0 && perPage>0` 判断是否启用分页
-    - `perPage` (整数) — 每页条数
-  - 返回:
-    - 无分页: 返回 JSON 数组，元素形如:
-      {
-        "name":"显示名称（最长约60字符，过长会被截断并添加 ...）",
-        "type":"file|dir",
-        "size":12345,
-        "isCurrent":0|1,       // 是否为当前打开的书/正在使用的字体
-        "isIdxed":0|1,         // 针对书籍：是否存在对应的 .idx 索引
-        "path":"/book/xxx.txt" // 可用于下载/删除的完整路径（注意需要以此 path 参数调用 /download 或 /delete）
-      }
-    - 分页: 返回对象 {"total":N,"page":P,"perPage":M,"files":[...]}（`total` 为总条目数）
-  - HTTP 示例 (curl):
-    ```bash
-    curl "http://192.168.4.1/list/book"
-    curl "http://192.168.4.1/list/book?page=1&perPage=20"
-    ```
-  - 前端 Fetch 示例:
-    ```js
-    const res = await fetch('http://192.168.4.1/list/book');
-    const data = await res.json();
-    // data 可能是数组或分页对象，检查是否有 data.files
-    ```
-  - 注意:
-    - 对于 `/list/book`，服务端会过滤掉非 `.txt` 的文件并只返回书籍条目（兼容性策略）。
-    - 名称会被 JSON 转义并做长度限制以减少前端内存峰值。
+**辅助路由**  
+- `/favicon.ico` → 204（避免浏览器 404 日志）
 
-  ---
+**通用错误码**
 
-  **2) 上传文件 — `/upload`**
-  - 方法: GET (返回上传页面 HTML), POST (multipart/form-data 上传)
-  - 说明: 上传使用 multipart/form-data 表单提交。前端可使用 `FormData` 或 `XMLHttpRequest` 发送文件。
-  - 表单字段:
-    - `tab` (可选)：目标目录，支持值 `book`, `font`, `image`, `scback`。服务端将把文件保存到对应目录：
-      - `book` → `/book/`
-      - `font` → `/font/`
-      - `image` → `/image/`
-      - `scback` → SD根目录的 `/scback.png`（强制文件名，用于锁屏背景）
-      - 默认为 `/`（根目录）
-    - 文件字段：标准的 multipart/form-data 文件上传字段（后端从 multipart 中读取文件并写入临时文件）。
-  - 行为与实现细节（关键点）:
-    - 流式写入：服务端在上传时以流式写入到 SD 卡的临时路径（目标路径 + `.tmp`），上传完成并验证后再重命名为目标文件。若目标文件已存在，会尝试删除或先重命名为备份（`.upload.bak`）再覆盖。
-    - 内存检查：上传开始时会检查可用堆内存（需要至少 32KB），写入阶段会再次检查（至少 24KB），验证阶段若内存很低（<16KB）会跳过验证并返回成功提示。不同阶段可能返回 507/500 等错误。
-    - 存储检查：会检查 SD 剩余空间并预留约10MB空间，如空间不足会返回 507（Insufficient storage space）。
-    - 超时：上传有超时时间（300秒/5分钟），超时会返回 408。
-    - 大文件限制：服务器限制单个文件最大 50MB。超过此限制会返回 413。注意：错误消息中可能仍显示"20MB supported"（实现不一致），前端应以状态码为准。
-    - 完整性验证：上传结束后会打开临时文件验证大小（允许小幅差异，容忍度为 1% 或 1KB 二者较小者），若差异过大会删除临时文件并返回 500。
-    - 覆盖/索引触发：若上传到 `/book/` 并覆盖了当前正在阅读的文件，设备会触发重建索引请求；若上传到 `/font/`，会刷新字体列表；上传到 `/image/` 会使锁屏图片缓存失效。
+| 状态码 | 含义 |
+|--------|------|
+| 200 | 成功（返回 JSON 或文件流） |
+| 204 | 无内容（用于 OPTIONS 预检） |
+| 400 | 客户端错误（缺少参数、非法路径、重名等） |
+| 404 | 资源未找到 |
+| 408 | 上传超时（300 秒）|
+| 413 | 文件/Chunk 过大 |
+| 500 | 服务器内部错误（写入/重命名失败） |
+| 507 | 存储或内存不足 |
 
-  - 返回值:
-    - 成功: HTTP 200 + JSON {"ok":true,"message":"File uploaded successfully"}
-    - 常见错误: HTTP 413 (文件过大，超过50MB), 507 (资源不足，内存或存储空间不足), 500 (写入/验证失败), 408 (上传超时300秒) 等，响应体为 JSON 错误描述。
+---
 
-  - curl 示例:
-    ```bash
-    curl -F "tab=book" -F "file=@/path/to/book.txt" http://192.168.4.1/upload
-    # 上传锁屏背景（强制保存为 /scback.png）
-    curl -F "tab=scback" -F "file=@/path/to/background.png" http://192.168.4.1/upload
-    ```
+## 接口列表
 
-  - 前端 Fetch 示例 (FormData):
-    ```js
-    const file = fileInput.files[0];
-    const fd = new FormData();
-    fd.append('tab', 'book');
-    fd.append('file', file, file.name);
+| # | 路径 | 方法 | 功能 |
+|---|------|------|------|
+| 1 | `/list` `/list/book` `/list/font` `/list/image` `/list/screenshot` | GET | 获取文件列表 |
+| 2 | `/upload` | GET / POST | 上传文件 |
+| 3 | `/download` | GET | 下载文件 |
+| 4 | `/delete` | GET | 删除文件（及伴随文件） |
+| 5 | `/rename` | GET | 重命名书籍（及伴随文件）|
+| 6 | `/sync_time` | POST | 同步设备时间 |
+| 7 | `/heartbeat` | GET | 健康检查 / 版本信息 |
+| 8 | `/api/reading_records` | GET | 查询阅读记录 |
+| 9 | `/api/webdav_config` | GET / POST | 读写 WebDAV 配置 |
+| 10 | `/api/wifi_config` | GET / POST | 读写 WiFi 连接配置 |
+| 11 | `/api/update_display` | POST | 单次推送显示内容（PNG + RDT） |
+| 12 | `/api/update_display_start` | POST | 分块推送：初始化 |
+| 13 | `/api/update_display_chunk` | POST | 分块推送：追加数据块 |
+| 14 | `/api/update_display_commit` | POST | 分块推送：提交（原子替换） |
 
-    const res = await fetch('http://192.168.4.1/upload', {
-      method: 'POST',
-      body: fd,
-      mode: 'cors'
-    });
-    const json = await res.json();
-    console.log(json);
-    ```
+---
 
-  - Upload 进度（XHR）示例:
-    ```js
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', 'http://192.168.4.1/upload');
-    xhr.upload.onprogress = function(e) {
-      if (e.lengthComputable) {
-        const pct = (e.loaded / e.total) * 100;
-        console.log('上传进度', pct);
-      }
-    };
-    xhr.onload = function() { console.log('完成', xhr.responseText); };
-    const fd = new FormData(); fd.append('tab','book'); fd.append('file', file);
-    xhr.send(fd);
-    ```
+## 1) 获取文件列表 — `/list`
 
-  - 实用提示:
-    - 不要手动设置 `Content-Type`（浏览器会为 multipart 设置边界）；若手动设置，会导致上传失败或预检出错。
-    - 客户端在上传前应做文件大小检查并给出友好提示；若文件确实很大，建议在界面上告知用户预计耗时并在断线后提供重试。
+**方法**: GET
 
-  ---
+**路径变体**:
+- `GET /list` — 列出所有文件
+- `GET /list/book` — 仅列出书籍（`/book/` 目录，过滤非 `.txt`）
+- `GET /list/font` — 仅列出字体
+- `GET /list/image` — 仅列出图片
+- `GET /list/screenshot` — 仅列出截图
 
-  **3) 下载文件 — `/download`**
-  - 方法: GET
-  - 参数: `path` (必需) — 例如 `/book/somebook.txt` 或 `/font/xxx`
-  - 返回: 文件流，带适当 `Content-Type` 与 `Content-Disposition: attachment; filename="..."`，浏览器会提示保存。
-  - curl 示例:
-    ```bash
-    curl "http://192.168.4.1/download?path=/book/book.txt" -o book.txt
-    ```
-  - 前端 Fetch 示例:
-    ```js
-    const res = await fetch('http://192.168.4.1/download?path=/book/book.txt');
-    if (res.ok) {
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      // 创建 <a download> 链接或直接打开
-    }
-    ```
+**Query 参数（可选）**:
+- `page` (整数) — 页码（从 1 开始），与 `perPage` 配对使用
+- `perPage` (整数) — 每页条目数；两个参数均大于 0 时启用分页
 
-  ---
+**响应**:
 
-  **4) 删除文件 — `/delete`**
-  - 方法: GET
-  - 参数: `path` (必需)
-  - 返回: JSON {"ok":true,"message":"File deleted successfully"} 或错误信息
-  - 保护机制及副作用:
-    - 若尝试删除当前正在阅读的书，服务器会返回 400 并拒绝删除（以避免运行时引用失效）。
-    - 删除书籍时，设备会同时清理相关的辅助文件（如 `.idx`、书签 `.bm`、进度/索引文件、tags 等），并刷新书籍缓存；若删除的文件正被当前打开的书使用，设备会尝试回退到默认文件（例如 `/spiffs/ReadPaper.txt`）或清空当前引用。
+无分页时，返回 JSON 数组：
+```json
+[
+  {
+    "name": "书名（最长约 60 字符，超长追加 ...）",
+    "type": "file",
+    "size": 123456,
+    "isCurrent": 0,
+    "isIdxed": 1,
+    "path": "/book/example.txt"
+  }
+]
+```
 
-  - curl 示例:
-    ```bash
-    curl "http://192.168.4.1/delete?path=/book/book.txt"
-    ```
+启用分页时，返回对象：
+```json
+{ "total": 42, "page": 1, "perPage": 20, "files": [ ... ] }
+```
 
-  ---
+**示例**:
+```bash
+curl "http://192.168.4.1/list/book"
+curl "http://192.168.4.1/list/book?page=1&perPage=20"
+```
+```js
+const res = await fetch('http://192.168.4.1/list/book');
+const data = await res.json();
+// data 可能是数组或分页对象，用 Array.isArray(data) 区分
+```
 
-  **5) 时间同步 — `/sync_time`**
-  - 方法: POST
-  - Body: 服务器从请求 body 的文本中解析 `timestamp`（示例 JSON 字段名或简单文本形式皆可，解析基于字符串检索而非严格 JSON 解析），可选解析 `tzOffsetMinutes` 字段来设置时区偏移。
-  - 功能: 调用 `settimeofday` 同步设备时间，并返回本地时间的可读字符串。
-  - curl 示例:
-    ```bash
-    curl -X POST -d '{"timestamp": 1630000000}' http://192.168.4.1/sync_time
-    ```
+---
 
-  ---
+## 2) 上传文件 — `/upload`
 
-  **6) 健康检查 / 版本信息 — `/heartbeat`**
-  - 方法: GET
-  - 返回: JSON {"status":"ok","hw":"...","firmware":"...","version":"..."}
-  - 实现细节: 服务端会尝试从 SPIFFS 的 `/version` 文件读取前三行（hw、firmware、version），若文件不存在则使用内置默认值。
-  - 使用场景: Web 前端在页面加载时可 ping 此接口以判断设备是否已就绪并显示版本信息。
-  - curl 示例:
-    ```bash
-    curl "http://192.168.4.1/heartbeat"
-    ```
+**方法**: GET（返回上传页 HTML）| POST（multipart/form-data 上传）
 
-  ---
+**POST 表单字段**:
 
-  **7) 阅读记录 — `/api/reading_records`**
-  - 方法: GET
-  - 用途: 导出/查询设备上的阅读时长记录（由设备在 `/bookmarks` 下生成的 `.rec` / `.bm` 等文件）。
-  - 支持的查询参数:
-    - `book`：单本书路径（示例 `/book/example.txt`）
-    - `books`：逗号分隔的多本书路径（示例 `/book/a.txt,/book/b.txt`）
-    - 若无参数，则返回设备上所有可发现的 `.rec` 记录（会扫描 `/bookmarks` 目录）
-  - 返回: JSON 对象，示例结构：
+| 字段 | 必需 | 说明 |
+|------|------|------|
+| `file` | 是 | 要上传的文件（multipart） |
+| `tab` | 否 | 目标目录：`book` → `/book/`；`font` → `/font/`；`image` → `/image/`；`scback` → `/scback.png`（锁屏背景，强制文件名）；默认 → `/` 根目录 |
+
+**实现细节**:
+- 流式写入：先写临时路径（目标路径 + `.tmp`），完成后重命名覆盖；若目标已存在先备份为 `.upload.bak`。
+- 内存检查：上传开始需 ≥32 KB 堆；写入阶段需 ≥24 KB；验证阶段 <16 KB 时跳过验证。
+- 存储检查：SD 剩余空间不足（预留约 10 MB）时返回 507。
+- 超时：300 秒，超时返回 408。
+- 大小限制：单文件最大 50 MB，超过返回 413。
+- 上传后副作用：覆盖当前阅读书籍触发重建索引；上传字体刷新字体列表；上传图片使锁屏缓存失效。
+
+**响应**:
+```json
+{"ok": true, "message": "File uploaded successfully"}
+```
+
+**示例**:
+```bash
+curl -F "tab=book" -F "file=@/path/to/book.txt" http://192.168.4.1/upload
+curl -F "tab=scback" -F "file=@bg.png" http://192.168.4.1/upload
+```
+```js
+const fd = new FormData();
+fd.append('tab', 'book');
+fd.append('file', file, file.name);
+const res = await fetch('http://192.168.4.1/upload', { method: 'POST', body: fd });
+const json = await res.json();
+```
+
+**上传进度（XHR）**:
+```js
+const xhr = new XMLHttpRequest();
+xhr.open('POST', 'http://192.168.4.1/upload');
+xhr.upload.onprogress = e => {
+  if (e.lengthComputable) console.log('进度', (e.loaded / e.total * 100).toFixed(1) + '%');
+};
+xhr.onload = () => console.log('完成', xhr.responseText);
+const fd = new FormData();
+fd.append('tab', 'book');
+fd.append('file', file);
+xhr.send(fd);
+```
+
+> **注意**: 不要手动设置 `Content-Type`，浏览器会自动为 multipart 设置 boundary。
+
+---
+
+## 3) 下载文件 — `/download`
+
+**方法**: GET
+
+**Query 参数**:
+- `path` (必需) — 文件路径，例如 `/book/example.txt`
+
+**响应**: 文件流，带 `Content-Type` 与 `Content-Disposition: attachment; filename="..."`。
+
+**示例**:
+```bash
+curl "http://192.168.4.1/download?path=/book/book.txt" -o book.txt
+```
+```js
+const res = await fetch('http://192.168.4.1/download?path=/book/book.txt');
+if (res.ok) {
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  // 创建 <a download> 或直接打开
+}
+```
+
+---
+
+## 4) 删除文件 — `/delete`
+
+**方法**: GET
+
+**Query 参数**:
+- `path` (必需) — 要删除的文件路径
+
+**响应**:
+```json
+{"ok": true, "message": "File deleted successfully"}
+```
+
+**保护机制与副作用**:
+- 不允许删除当前正在阅读的书籍（返回 400）。
+- 删除书籍时同步清理伴随文件：`.idx`、`/bookmarks/` 下的 `.bm`、`.page`、`.progress`、`.complete`、`.rec`、`.tags`；并刷新书籍缓存。
+
+**示例**:
+```bash
+curl "http://192.168.4.1/delete?path=/book/book.txt"
+```
+
+---
+
+## 5) 重命名书籍 — `/rename`
+
+**方法**: GET
+
+**Query 参数**:
+- `old_path` (必需) — 原始文件路径，必须以 `/book/` 开头（示例：`/book/old_name.txt`）
+- `new_name` (必需) — 新文件名（仅文件名，不含路径分隔符），必须以 `.txt` 结尾，最长 64 字符
+
+**响应**:
+```json
+{"ok": true, "message": "File renamed successfully"}
+```
+
+服务端在主文件重命名成功后**立即返回 200**，随后异步完成以下副作用操作：
+
+**副作用（异步）**:
+1. 重命名同目录 `.idx` 索引文件
+2. 重命名 `/bookmarks/` 下所有伴随文件（`.bm`、`.page`、`.progress`、`.complete`、`.rec`、`.tags`）及其 `.tmp` 副本（copy+delete 兜底，确保可靠性）
+3. 更新 `.bm` 和 `.progress` 文件内的 `file_path=` 字段
+4. 更新 `/history.list` 中的书籍路径记录
+5. 若正在阅读该书籍：同步更新 `g_config.currentReadFile`、保存配置文件（`readpaper.cfg.A/B`）
+
+**错误码**:
+| 状态码 | 场景 |
+|--------|------|
+| 400 | 缺少参数 / 非 `/book/` 目录 / 文件名含路径分隔符 / 名称过长或非 `.txt` / 目标文件名已存在 |
+| 404 | 源文件不存在 |
+| 500 | 底层重命名失败 |
+
+**示例**:
+```bash
+curl "http://192.168.4.1/rename?old_path=/book/old.txt&new_name=new.txt"
+```
+```js
+const res = await fetch(
+  `http://192.168.4.1/rename?old_path=${encodeURIComponent('/book/old.txt')}&new_name=${encodeURIComponent('new.txt')}`
+);
+const json = await res.json();
+```
+
+> **注意**: webapp 中 IndexedDB 阅读时长记录以书籍文件名为 key，重命名后旧记录**不会**自动迁移，新书名在 webapp 统计页面将从零开始计数。
+
+---
+
+## 6) 时间同步 — `/sync_time`
+
+**方法**: POST
+
+**请求体**: 文本或 JSON，服务端使用字符串检索（非严格 JSON 解析）提取 `timestamp` 和可选的 `tzOffsetMinutes` 字段。
+
+**功能**: 调用 `settimeofday` 同步设备时间，返回本地时间可读字符串。
+
+**示例**:
+```bash
+curl -X POST -d '{"timestamp": 1700000000, "tzOffsetMinutes": 480}' http://192.168.4.1/sync_time
+```
+
+---
+
+## 7) 健康检查 / 版本信息 — `/heartbeat`
+
+**方法**: GET
+
+**响应**:
+```json
+{"status": "ok", "hw": "PaperS3", "firmware": "1.0", "version": "1.0.0"}
+```
+
+服务端从 SPIFFS `/version` 文件读取前三行（hw、firmware、version），文件不存在时使用内置默认值。
+
+**使用场景**: 页面加载时 ping 此接口，判断设备是否就绪并展示版本号。
+
+**示例**:
+```bash
+curl "http://192.168.4.1/heartbeat"
+```
+
+---
+
+## 8) 阅读记录 — `/api/reading_records`
+
+**方法**: GET
+
+**Query 参数**:
+- `book` — 单本书路径（示例：`/book/example.txt`）
+- `books` — 逗号分隔的多本书路径
+- 无参数 — 扫描 `/bookmarks/` 目录，返回全部 `.rec` 记录
+
+**响应**:
+```json
+{
+  "total": 5,
+  "records": [
     {
-      "total": N,
-      "records": [ { /* 每本书的统计 JSON，包含 book_path, book_name, total_hours, total_minutes, hourly_records, daily_summary, monthly_summary */ }, ... ],
-      "processed": M
+      "book_path": "/sd/book/example.txt",
+      "book_name": "example.txt",
+      "total_hours": 2,
+      "total_minutes": 135,
+      "hourly_records": { ... },
+      "daily_summary": { ... },
+      "monthly_summary": { ... }
     }
-  - 细节: 服务端会尝试匹配 `/sd` 和 `/spiffs` 前缀以找到对应的 `.rec` 文件；单本/多本查询会解析并返回每本书的小时/天/月聚合统计（若文件缺失会在对应条目中包含 error 字段）。
+  ],
+  "processed": 5
+}
+```
 
-  ---
+若某本书的 `.rec` 文件缺失或解析失败，对应条目中会包含 `error` 字段。
 
-  **错误与状态码（常见）**
-  - 200: 成功（对于部分操作返回 JSON 或文件流）
-  - 204: 无内容（用于 OPTIONS 预检 或 favicon）
-  - 400: 客户端错误（如缺失参数、非法 path、尝试删除当前阅读书等）
-  - 404: 资源未找到（例如下载路径无效）
-  - 408: 上传超时
-  - 413: 上传文件过大（服务器可能返回此状态）
-  - 500/507: 服务器错误或资源不足（内存/存储不足） — 前端应显示用户友好错误并允许重试或稍后重试
+**示例**:
+```bash
+curl "http://192.168.4.1/api/reading_records"
+curl "http://192.168.4.1/api/reading_records?book=/book/example.txt"
+curl "http://192.168.4.1/api/reading_records?books=/book/a.txt,/book/b.txt"
+```
 
-  **前端最佳实践**
-  - 在发起上传前，检测文件大小并在客户端给出用户提示，避免尝试上传明显过大的文件。
-  - 使用 `XMLHttpRequest` 追踪上传进度（`xhr.upload.onprogress`），为用户显示上传条。
-  - 处理 CORS/OPTIONS：浏览器会自动在需要时发送预检，不要为 `FormData` 手动设置 `Content-Type`。
-  - 对返回的 JSON 做容错处理：`/list` 可能返回数组或分页对象，检查 `Array.isArray()` 或 `data.files`。
-  - 对低内存或 SD 不足错误做好友好提示（服务器会返回 5xx/507），并建议用户释放空间或重试。
+---
 
-  ```
+## 9) WebDAV 配置 — `/api/webdav_config`
+
+**GET** — 读取当前 WebDAV 配置
+
+**响应**:
+```json
+{
+  "ok": true,
+  "config": {
+    "url": "https://example.com/dav/",
+    "username": "user",
+    "password": "pass"
+  }
+}
+```
+
+**POST** — 更新 WebDAV 配置
+
+**请求体（JSON）**:
+```json
+{
+  "config": {
+    "url": "https://example.com/dav/",
+    "username": "user",
+    "password": "pass"
+  }
+}
+```
+也支持根级字段：`{"url": "...", "username": "...", "password": "..."}`（与 `config` 对象等效，根级优先）。
+
+**响应**: 同 GET，包含保存后的配置。失败时返回 500 并带 `"message": "save failed"`。
+
+**示例**:
+```bash
+curl "http://192.168.4.1/api/webdav_config"
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"config":{"url":"https://dav.example.com/","username":"u","password":"p"}}' \
+  http://192.168.4.1/api/webdav_config
+```
+
+---
+
+## 10) WiFi 连接配置 — `/api/wifi_config`
+
+**GET** — 读取当前 WiFi 配置（支持最多 3 组 SSID/密码）
+
+**响应**:
+```json
+{
+  "ok": true,
+  "configs": [
+    {"ssid": "MyWifi", "password": "pass1"},
+    {"ssid": "", "password": ""},
+    {"ssid": "", "password": ""}
+  ],
+  "last_success_idx": 0
+}
+```
+
+**POST** — 更新 WiFi 配置
+
+**请求体（新格式，推荐）**:
+```json
+{
+  "configs": [
+    {"ssid": "Wifi1", "password": "pass1"},
+    {"ssid": "Wifi2", "password": "pass2"},
+    {"ssid": "", "password": ""}
+  ]
+}
+```
+
+**请求体（旧格式，兼容）**:
+```json
+{"ssid": "MyWifi", "password": "mypass"}
+```
+或 `{"config": {"ssid": "...", "password": "..."}}`（写入第 0 组）。
+
+**响应**: 同 GET，包含保存后的全部配置。失败时返回 500。
+
+---
+
+## 11) 单次推送显示内容 — `/api/update_display`
+
+**方法**: POST
+
+**说明**: 将 PNG 图像和 RDT 布局数据一次性推送到设备，适合小图（<= ~1 MB 解码后二进制）。对于大图请使用分块接口（12–14）。
+
+**请求体（JSON）**:
+```json
+{
+  "png_base64": "<Base64 编码的 PNG 数据>",
+  "rdt": "<RDT 布局文本>"
+}
+```
+
+- `png_base64`：PNG 文件的 Base64 字符串（限制：Base64 长度 ≤ 1,500,000 字符，约对应 ~1.1 MB 二进制）
+- `rdt`：RDT 布局文本
+
+**响应**:
+```json
+{"ok": true, "message": "Display updated"}
+```
+
+**文件落盘**:
+- PNG 解码后写入 `/rdt/readpaper.png`（原子写，经 `.tmp` 临时文件）
+- RDT 写入 `/rdt/readpaper.rdt`
+
+**错误码**: 400（缺字段）、413（png_base64 过大）、500（内存不足或写入失败）
+
+---
+
+## 12) 分块推送：初始化 — `/api/update_display_start`
+
+**方法**: POST
+
+**说明**: 开始一次分块上传，初始化（清空）目标临时文件。
+
+**请求体（JSON）**:
+```json
+{"type": "rdt"}
+```
+或
+```json
+{"type": "png"}
+```
+
+- `type`：`"rdt"` 或 `"png"`
+
+**响应**:
+```json
+{"ok": true}
+```
+
+**对应临时路径**:
+- `rdt` → `/rdt/readpaper.rdt.upload`
+- `png` → `/rdt/readpaper.png.upload`
+
+---
+
+## 13) 分块推送：追加数据块 — `/api/update_display_chunk`
+
+**方法**: POST
+
+**说明**: 向临时文件追加一个数据块；可调用多次，直到所有数据发送完毕。
+
+**请求体（JSON）**:
+```json
+{"type": "rdt", "data": "<文本内容>"}
+```
+```json
+{"type": "png", "data": "<Base64 编码的二进制块>"}
+```
+
+- `type`：`"rdt"` 或 `"png"`
+- `data`：
+  - `rdt` 类型：原始文本，直接追加
+  - `png` 类型：Base64 字符串，服务端实时解码后追加二进制到临时文件
+- 单块 `data` 长度限制：≤ 16,384 字符（`"Chunk too large"` → 413）
+
+**响应**:
+```json
+{"ok": true}
+```
+
+---
+
+## 14) 分块推送：提交 — `/api/update_display_commit`
+
+**方法**: POST
+
+**说明**: 将临时文件原子重命名为最终路径，完成本次推送。若 `type` 为 `rdt`，额外调用 `cache_clear_history()` 清空历史布局缓存。
+
+**请求体（JSON）**:
+```json
+{"type": "rdt"}
+```
+或
+```json
+{"type": "png"}
+```
+
+**响应**:
+```json
+{"ok": true, "message": "Saved"}
+```
+
+**错误码**: 400（临时文件不存在 / 参数无效）、500（重命名失败）
+
+**分块上传完整流程示例**（以 PNG 为例）:
+```js
+const API = 'http://192.168.4.1';
+const CHUNK_SIZE = 12000; // 约 12 KB per chunk（base64 字符数）
+
+async function uploadPngChunked(base64String) {
+  // 1. 初始化
+  await fetch(`${API}/api/update_display_start`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ type: 'png' })
+  });
+
+  // 2. 分块发送
+  for (let i = 0; i < base64String.length; i += CHUNK_SIZE) {
+    const chunk = base64String.slice(i, i + CHUNK_SIZE);
+    await fetch(`${API}/api/update_display_chunk`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ type: 'png', data: chunk })
+    });
+  }
+
+  // 3. 提交
+  const res = await fetch(`${API}/api/update_display_commit`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ type: 'png' })
+  });
+  const json = await res.json();
+  console.log('提交结果', json);
+}
+```
+
+---
+
+## 前端实现最佳实践
+
+- **文件列表**：`/list` 返回数组或分页对象，使用 `Array.isArray(data)` 区分；分页时取 `data.files`。
+- **上传**：不要手动设置 `Content-Type`（浏览器自动设置 multipart boundary）；上传前客户端判断文件大小（≤ 50 MB）；使用 `XMLHttpRequest` 追踪进度。
+- **删除/重命名**：操作后刷新文件列表；重命名书籍后 webapp 侧 IndexedDB 阅读时长记录不会自动迁移（以文件名为 key）。
+- **低内存/存储错误**：设备返回 5xx/507 时提示用户释放空间或稍后重试。
+- **分块大小**：`update_display_chunk` 每块不超过 16,384 字符；建议实际使用 ≤ 12,000 留有余量。
+- **RDT + PNG 同步**：先上传 PNG，再上传 RDT（或反之），最后 commit 两者；设备读显示数据时同时需要两个文件。

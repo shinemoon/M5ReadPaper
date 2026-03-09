@@ -122,6 +122,8 @@ private:
     void handleFileList(String category);
     void handleFileUpload();
     void handleFileDelete();
+    void handleFileRename();
+    void handleMkdir();
     void handleFileDownload();
     void handleNotFound();
     void handleFileUploadPost();

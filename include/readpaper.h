@@ -5,6 +5,9 @@
 #ifndef ENABLE_AUTO_ROTATION
 #define ENABLE_AUTO_ROTATION 1
 #endif
+
+// 当为 1 时，锁屏显示配置中隐藏“在线”选项，并在开机时将 online 配置强制覆写为 random
+#define REMOVEONLINELOCK 1
 // 优化：使用条件编译而非运行时判断
 //#define DEBUGON
 
@@ -84,7 +87,7 @@ enum display_type {
 #define PAGES_DELAY 20
 
 // 文件管理最大返回数量 - 主菜单文件列表限制
-#define MAX_MAIN_MENU_FILE_COUNT 99
+#define MAX_MAIN_MENU_FILE_COUNT 128
 
 // Label shift
 
@@ -99,7 +102,7 @@ struct GlobalConfig {
     char pageStyle[16] = "default";                // 页面样式: 'default' 或其他样式名
     char labelposition[16] = "default";           // 标签位置: 'default' / 'top' / 'bottom' / etc
     char marktheme[16] = "dark";                  // 书签主题: 'dark' / 'light' / 'random'
-    bool defaultlock = true;                       // 通用壁纸: true=默认壁纸, false=随机壁纸
+    char lockscreen_mode[16] = "default";          // 锁屏模式: 'default'=默认壁纸, 'random'=随机壁纸, 'online'=联线待机
 
     // 繁简转换模式: 0 = 不转换 (default), 1 = 转为简体 (simple), 2 = 转为繁体 (tradition)
     uint8_t zh_conv_mode = 1;

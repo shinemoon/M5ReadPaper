@@ -136,7 +136,7 @@ bool config_save()
         config_file.printf("pageStyle=%s\n", g_config.pageStyle);
         config_file.printf("labelposition=%s\n", g_config.labelposition);
         config_file.printf("marktheme=%s\n", g_config.marktheme);
-        config_file.printf("defaultlock=%d\n", g_config.defaultlock ? 1 : 0);
+        config_file.printf("lockscreen_mode=%s\n", g_config.lockscreen_mode);
         config_file.printf("currentReadFile=%s\n", g_config.currentReadFile);
         // 繁简转换配置
         config_file.printf("zh_conv_mode=%d\n", g_config.zh_conv_mode);
@@ -338,9 +338,17 @@ static int32_t config_load_from_file(const char* path, GlobalConfig& out_config,
             strncpy(temp_config.marktheme, value.c_str(), sizeof(temp_config.marktheme) - 1);
             temp_config.marktheme[sizeof(temp_config.marktheme) - 1] = '\0';
         }
-        else if (key == "defaultlock")
+        else if (key == "lockscreen_mode")
         {
-            temp_config.defaultlock = (value == "1" || value == "true");
+            strncpy(temp_config.lockscreen_mode, value.c_str(), sizeof(temp_config.lockscreen_mode) - 1);
+            temp_config.lockscreen_mode[sizeof(temp_config.lockscreen_mode) - 1] = '\0';
+        }
+        else if (key == "defaultlock") // 向后兼容旧配置
+        {
+            if (value == "0" || value == "false")
+                strcpy(temp_config.lockscreen_mode, "random");
+            else
+                strcpy(temp_config.lockscreen_mode, "default");
         }
         else if (key == "zh_conv_mode")
         {
@@ -485,7 +493,7 @@ static void init_config_defaults(GlobalConfig& config)
     strcpy(config.pageStyle, "default");
     strcpy(config.labelposition, "default");
     strcpy(config.marktheme, "dark");
-    config.defaultlock = true;
+    strcpy(config.lockscreen_mode, "default");
     config.zh_conv_mode = 1;
     config.dark = false;
     config.fastrefresh = false;
@@ -668,7 +676,7 @@ void config_reset_to_defaults()
     strcpy(g_config.pageStyle, "default");
     strcpy(g_config.labelposition, "default");
     strcpy(g_config.marktheme, "dark");
-    g_config.defaultlock = true;
+    strcpy(g_config.lockscreen_mode, "default");
     g_config.zh_conv_mode = 1; // 默认显示简体（0=不转换,1=简体,2=繁体）
     // UI theme: default to light mode
     g_config.dark = false;

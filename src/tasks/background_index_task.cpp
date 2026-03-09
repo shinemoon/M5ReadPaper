@@ -139,8 +139,8 @@ static bool writeCompleteMarkerLocal(BookHandle *bh)
     }
     else
     {
-        // fallback: construct from file path
-        complete_marker = std::string("/bookmarks/") + bh->filePath();
+        // fallback: construct from file path using the same sanitization as getCompleteFileName
+        complete_marker = bh->getCompleteFileName();
     }
 
     SafeFS::safeWrite(complete_marker, [&](File &cm) {

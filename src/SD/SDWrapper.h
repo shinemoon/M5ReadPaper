@@ -32,6 +32,8 @@ namespace SDW
         bool exists(const String &path) { return exists(path.c_str()); }
         bool mkdir(const char *path);
         bool mkdir(const String &path) { return mkdir(path.c_str()); }
+        bool rmdir(const char *path);
+        bool rmdir(const String &path) { return rmdir(path.c_str()); }
         bool remove(const char *path);
         bool remove(const String &path) { return remove(path.c_str()); }
         bool rename(const char *oldPath, const char *newPath);

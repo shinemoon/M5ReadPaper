@@ -77,8 +77,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
             sm_dbg_printf("MENU状态收到5分钟超时信号，j进入IDLE\n");
 #endif
             shutCnt = 0;
-            show_lockscreen(PAPER_S3_WIDTH, PAPER_S3_HEIGHT, 30, "双击屏幕解锁");
-            // automatic tag: save current page into slot0 before entering IDLE
+            // automatic tag: save current page into slot0 before locking
             if (g_current_book)
             {
                 TextPageResult tp = g_current_book->currentPage();
@@ -88,7 +87,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     g_current_book->refreshTagsCache();
                 }
             }
-            currentState_ = STATE_IDLE;
+            StateMachineTask::activateLockScreen();
         }
         break;
 
@@ -270,8 +269,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
             {
                 // 锁屏
                 // 圆形按钮被按下 - lock screen
-                show_lockscreen(PAPER_S3_WIDTH, PAPER_S3_HEIGHT, 30, "双击屏幕解锁");
-                // automatic tag before entering IDLE
+                // automatic tag before locking
                 if (g_current_book)
                 {
                     TextPageResult tp = g_current_book->currentPage();
@@ -281,7 +279,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                         g_current_book->refreshTagsCache();
                     }
                 }
-                currentState_ = STATE_IDLE;
+                StateMachineTask::activateLockScreen();
             }
             else if (touch_result.button_pwr_pressed)
             {
