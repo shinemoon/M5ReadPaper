@@ -635,7 +635,30 @@ document.addEventListener('DOMContentLoaded', () => {
 			if(bytes[0] === 0xFF && bytes[1] === 0xFE) return 'utf-16le'; // UTF-16 LE BOM
 			if(bytes[0] === 0xFE && bytes[1] === 0xFF) return 'utf-16be'; // UTF-16 BE BOM
 		}
-		
+
+		// 1.5. 严格 UTF-8 校验（无 BOM）：
+		// GB18030 能"吞下"大量 UTF-8 字节：UTF-8 三字节 CJK 序列（如 E4 B8 AD）可被
+		// GB18030 逐对解析为合法双字节字符，导致启发式评分和 fatal:true fallback 均无法
+		// 区分两者。唯一可靠方案：用 fatal:true 严格校验 UTF-8 字节结构。
+		//
+		// 重要陷阱：样本大小固定为 128KB，中文 UTF-8 每字符 3 字节，128KB/3 不整除，
+		// 样本末尾极大概率截断在某个三字节序列中途，导致 fatal:true 误判合法 UTF-8 文件。
+		// 修复：最多向后退 3 字节重试（UTF-8 最大编码单元 4 字节），确保末尾是完整码点。
+		{
+			let hasNonAscii = false;
+			for(let i = 0; i < bytes.length; i++){ if(bytes[i] > 0x7F){ hasNonAscii = true; break; } }
+			if(hasNonAscii){
+				for(let trim = 0; trim <= 3; trim++){
+					try{
+						const testBuf = trim > 0 ? buffer.slice(0, bytes.length - trim) : buffer;
+						new TextDecoder('utf-8', {fatal: true}).decode(testBuf);
+						return 'utf-8'; // 严格 UTF-8 验证通过，优先判定
+					}catch(_){ /* 尝试更短的缓冲区 */ }
+				}
+				// 4 次均失败 → 文件确实含非法 UTF-8 字节序列 → 继续启发式检测
+			}
+		}
+
 		// 2. 启发式检测：统计字符特征
 		const detectWithHeuristics = (encoding) => {
 			try{
@@ -709,8 +732,11 @@ document.addEventListener('DOMContentLoaded', () => {
 			}
 		}
 		
-		// 5. 如果启发式检测失败，回退到简单的 fatal 检测（兼容旧逻辑）
-		for(const enc of tryEncodings){
+		// 5. 如果启发式检测失败，回退到 fatal:true 检测
+		// 注意：GB18030 的 fatal:true 也能"通过" UTF-8 字节（视为合法双字节对），
+		// 因此必须先尝试 utf-8，而不能沿用原 tryEncodings 顺序（gb18030 在前）。
+		const fallbackOrder = ['utf-8', ...tryEncodings.filter(e => e !== 'utf-8')];
+		for(const enc of fallbackOrder){
 			try{
 				const dec = new TextDecoder(enc, {fatal:true});
 				try{ 
