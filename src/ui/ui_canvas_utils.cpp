@@ -1128,21 +1128,31 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
         const std::string &raw_entry = book_files[file_index];
         std::string display_name;
         int8_t delta_x = 0;
-        if (raw_entry == "..") {
+        if (raw_entry == "..")
+        {
             display_name = "  返回上级";
-            g_canvas->fillTriangle(8,text_y+14, 18, text_y, 18, text_y+28);
-        } else if (!raw_entry.empty() && raw_entry.back() == '/') {
+            g_canvas->fillTriangle(8, text_y + 14, 18, text_y, 18, text_y + 28);
+        }
+        else if (!raw_entry.empty() && raw_entry.back() == '/')
+        {
             // 文件夹：去除结尾 '/'  并加上标识
             std::string dir_display = raw_entry.substr(0, raw_entry.size() - 1);
             display_name = dir_display;
+            /*
             g_canvas->fillRect(2,text_y-30, 4, 88);
             g_canvas->fillRect(7,text_y-20, 3, 68, TFT_DARKGRAY);
             g_canvas->fillRect(12,text_y-10, 2, 48, TFT_LIGHTGRAY);
+            */
+            g_canvas->fillRect(2, text_y - 30, 4, 88, TFT_LIGHTGRAY);
+            g_canvas->fillRect(7, text_y - 30, 3, 88, TFT_DARKGRAY);
+            g_canvas->fillRect(12, text_y - 30, 2, 88, TFT_BLACK);
             delta_x = 20;
-        } else {
+        }
+        else
+        {
             display_name = shorten_book_name(raw_entry, 8);
         }
-        bin_font_print(display_name.c_str(), 28, 0, 320, 15+delta_x, text_y, true, g_canvas, TEXT_ALIGN_LEFT, 320);
+        bin_font_print(display_name.c_str(), 28, 0, 320, 15 + delta_x, text_y, true, g_canvas, TEXT_ALIGN_LEFT, 320);
 
 #if DBG_UI_CANVAS_UTILS
         Serial.printf("[MAIN_MENU] 显示文件 %d (索引%d): %s at y=%d\n", i, file_index, book_files[file_index].c_str(), text_y);
@@ -1370,7 +1380,7 @@ std::string get_selected_book_fullpath(int page, int index)
     if (name.empty())
         return std::string();
     // 目录条目：返回特殊标记供 state_main_menu 判断
-    if (name == "..")  // 返回上级
+    if (name == "..") // 返回上级
         return std::string("../");
     if (!name.empty() && name.back() == '/') // 进入子目录
         return std::string("DIR:") + BookFileManager::getCurrentScanDir() + "/" + name.substr(0, name.size() - 1);
