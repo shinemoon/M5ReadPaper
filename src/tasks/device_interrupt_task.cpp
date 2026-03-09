@@ -478,13 +478,14 @@ void DeviceInterruptTask::checkBatteryStatus()
     }
     else
     {
-        // task creation failed, fall back to direct read
+        // task creation failed: free params ourselves, then fall back to direct read
+        vPortFree(params);
         voltage = M5.Power.getBatteryVoltage();
         percentage = M5.Power.getBatteryLevel();
         isCharging = M5.Power.isCharging();
     }
 
-    // params will be freed by helper task after a short delay
+    // params will be freed by helper task after a short delay (if task was created successfully)
 
     // 检查电池电压变化 (变化超过0.1V) 实际上的单位是1mV！
     bool batteryChanged = (lastBatteryVoltage_ < 0 || abs(voltage - lastBatteryVoltage_) > 100.0f);
