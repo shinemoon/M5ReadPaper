@@ -2584,15 +2584,8 @@ bool WiFiHotspotManager::connectToWiFiFromToken() {
 #endif
                 configTime(8 * 3600, 0, "ntp.aliyun.com", "cn.pool.ntp.org", "pool.ntp.org");
 
-                // 等待时间同步（最多3秒）
-                int retry = 0;
                 struct tm timeinfo;
-                while (!getLocalTime(&timeinfo) && retry < 6) {
-                    delay(500);
-                    retry++;
-                }
-
-                if (getLocalTime(&timeinfo)) {
+                if (getLocalTime(&timeinfo, 0)) {
 #if DBG_WIFI_HOTSPOT
                     Serial.printf("[WIFI_HOTSPOT] ✅ 时间同步成功: %04d-%02d-%02d %02d:%02d:%02d\n",
                                  timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,

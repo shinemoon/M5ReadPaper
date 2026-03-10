@@ -299,9 +299,9 @@ bool show_reading_menu(M5Canvas *canvas, bool refresh, readingMenuArea area)
     bin_font_print(read_min_str, 28, 0, 80, 452, 144, false, nullptr, TEXT_ALIGN_CENTER, 80, false, false, false, true);
 
     // 0间
-    // 获取当前时间
+    // 获取当前时间（0ms 超时，不阻塞；无论是否同步直接显示当前 RTC 值）
     struct tm timeinfo;
-    if (getLocalTime(&timeinfo))
+    getLocalTime(&timeinfo, 0);
     {
         char time_str[32];
         snprintf(time_str, sizeof(time_str), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
