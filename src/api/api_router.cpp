@@ -2,6 +2,7 @@
 #include "device/wifi_hotspot_manager.h"
 #include <Arduino.h>
 #include <SPIFFS.h>
+#include <M5Unified.h>
 
 // Helper to add common CORS headers for JSON endpoints
 static inline void add_cors_headers(WebServer& server) {
@@ -104,6 +105,10 @@ void ApiRouter::registerRoutes(WebServer& server, WiFiHotspotManager& mgr) {
             } else { setenv("TZ", "CST-8", 1); tzset(); }
 
             time_t now = tv.tv_sec; struct tm local_tm; localtime_r(&now, &local_tm);
+            // 回写硬件 RTC（BM8563），否则重启后时间还原
+            if (M5.Rtc.isEnabled()) {
+                M5.Rtc.setDateTime(&local_tm);
+            }
             char local_buf[64]; strftime(local_buf, sizeof(local_buf), "%Y-%m-%d %H:%M:%S LOCAL", &local_tm);
             server.send(200, "text/plain", String("Time synced: ") + String(ts) + " (" + String(local_buf) + ")");
         } else {

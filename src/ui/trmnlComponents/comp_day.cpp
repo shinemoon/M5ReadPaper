@@ -225,7 +225,7 @@ void render_day_component(JsonObject component)
         if (!cache_load(comp_type, comp_zindex, day_content, day_origin))
         {
             struct tm timeinfo;
-            if (getLocalTime(&timeinfo))
+            if (getLocalTime(&timeinfo, 0))
             {
                 char buf[64];
                 const char *weekdays[] = {"星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"};
@@ -236,7 +236,7 @@ void render_day_component(JsonObject component)
             }
             else
             {
-                day_content = "日期信息不可用";
+                day_content = "N/A";
             }
             day_origin = "";
         }
