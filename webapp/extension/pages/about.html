@@ -25,47 +25,85 @@
                         <div class="card-body">
                             <h4 class="text-primary">Y.A.P.T.R. — Yet Another PaperS3 Text Reader</h4>
                             <p class="muted">出于个人兴趣开发的轻量级阅读固件，针对 PaperS3 平台的文本阅读体验进行了优化。</p>
-                            <p><b>代码和设计已开源</b>， <a href="https://github.com/shinemoon/M5ReadPaper">仓库地址</a></p>
-                            <p>更详细的使用和帮助信息后续也会在Wiki部分更新</b>， <a
-                                    href="https://github.com/shinemoon/M5ReadPaper/wiki">Wiki</a></p>
+                            <img src="./wikipics/cover.jpg" alt="ReadPaper Cover" loading="lazy">
+                            <p><b>代码和设计已开源</b>：<a href="https://github.com/shinemoon/M5ReadPaper"
+                                    target="_blank" rel="noopener noreferrer">GitHub 仓库</a></p>
+                            <p>详细使用说明请参见：<a href="https://github.com/shinemoon/M5ReadPaper/wiki"
+                                    target="_blank" rel="noopener noreferrer">Wiki</a></p>
                             <h5>快速上手</h5>
                             <ul>
                                 <li>双击解锁</li>
                                 <li>左右翻页</li>
-                                <li>阅读快捷手势(单击)
+                                <li>点击中心区域显示菜单</li>
+                                <li>阅读快捷手势（单击）
                                     <ul>
-                                        <li>中心: 显示菜单</li>
                                         <li>左上角：目录/索引列表</li>
                                         <li>右上角：增删书签</li>
-                                        <li>右下角：自动翻页</li>
+                                        <li>右下角：自动翻页及快捷功能</li>
                                         <li>左下角：快速锁屏</li>
-                                        <li>正下方：随机翻页</li>
                                     </ul>
                                 </li>
-                                <li>阅读快捷手势(双击)
+                                <li>阅读快捷手势（双击）
                                     <ul>
                                         <li>顶部中心: 截屏</li>
-                                        <li>中轴线（除去顶部正中）: 手动全刷</li>
+                                        <li>中轴线（除去顶部和中央）: 手动全刷</li>
                                     </ul>
                                 </li>
-                                <li>支持180度自动旋转</li>
-                                <li>支持繁简转换</li>
-                                <li>支持竖排</li>
-                                <li>支持深色模式</li>
+                                <li>支持自动旋转、繁简转换、竖排、深色模式</li>
                                 <li>支持详细阅读时间记录</li>
                                 <li>可配置联线待机显示</li>
                             </ul>
 
-                            <p><b>固件安装</b>， <a
-                                    href="https://docs.m5stack.com/zh_CN/uiflow/m5burner/intro">使用M5Stack官方烧录工具</a>,
-                                参考官方教程，在<b>PAPER</b>分类找到<b>ReadPaper</b>即可：</p>
+                        </div>
+                    </div>
 
-                            <img src="../assets/publish.png">
-                            <h4>Readpaper Utils 浏览器扩展</h4>
-                            <p>与之配套的浏览器扩展则是为了方便使用，把文件管理（仅支持Readpaper固件），字体生成，文本文件优化，Epub文件转换和壁纸生成整合在浏览器中方便使用。</p>
-                            <p>除了文件管理需要配合Readpaper固件之外，其余功能都可以配合<a
-                                    href="https://edcbook.cn">EDCBook</a>固件来使用（字体生成请注意正确的字体类型，即EDCBook字体），而目录文件也是EDCBook兼容。
-                            </p>
+                    <div class="mt-05">
+                        <div class="card">
+                            <div class="card-body">
+                                <h4>安装</h4>
+                                <p>使用<a href="https://docs.m5stack.com/zh_CN/uiflow/m5burner/intro" target="_blank"
+                                        rel="noopener noreferrer">M5Stack 官方烧录工具</a>，在 <b>PAPER</b> 分类搜索
+                                    <b>ReadPaper</b> 即可。</p>
+                                <img src="./wikipics/publish.jpg" alt="M5Burner 安装示意" loading="lazy">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-05">
+                        <div class="card">
+                            <div class="card-body">
+                                <h4>ReadPaper Utils 浏览器扩展</h4>
+                                <img src="./wikipics/extFront.jpg" alt="ReadPaper Utils" loading="lazy">
+                                <p>从 V1.3 起，推荐使用跨平台浏览器扩展进行文件管理、字体生成与相关工具处理；旧网页入口仍可使用，但后续不再扩展。</p>
+                                <p>扩展下载：</p>
+                                <ul>
+                                    <li><a href="https://chromewebstore.google.com/detail/readpaper-utils/fgkgjmmeoaojnhkeiebbibgbodikmgoe"
+                                            target="_blank" rel="noopener noreferrer">ReadPaper Utils @ Google
+                                            Chrome（需可访问 Chrome Web Store）</a></li>
+                                    <li><a href="https://microsoftedge.microsoft.com/addons/detail/readpaper-utils/ablggfkhbegbnlgjbleoklekinmglnia"
+                                            target="_blank" rel="noopener noreferrer">ReadPaper Utils @ Microsoft
+                                            Edge</a></li>
+                                    <li><a href="https://addons.mozilla.org/zh-CN/firefox/addon/readpaper-utils/"
+                                            target="_blank" rel="noopener noreferrer">ReadPaper Utils @ Firefox</a>
+                                    </li>
+                                </ul>
+                                <ul>
+                                    <li>安卓设备可安装 Firefox 使用本工具；</li>
+                                    <li>iOS 端目前通常不支持浏览器扩展安装；</li>
+                                    <li>部分安卓第三方浏览器也可支持 Chrome/Edge 扩展。</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-05">
+                        <div class="card">
+                            <div class="card-body">
+                                <h4>文件管理与 HTTP API</h4>
+                                <p>为了配合扩展实现文件访问，固件提供 HTTP API。只要接口保持一致，即可通过扩展实现基础管理功能。</p>
+                                <p><a href="https://github.com/shinemoon/M5ReadPaper/wiki/WIFI_HTTP_API" target="_blank"
+                                        rel="noopener noreferrer">ReadPaper — HTTP API（Web 前端开发者参考）</a></p>
+                            </div>
                         </div>
                     </div>
 
@@ -73,53 +111,50 @@
                         <div class="card">
                             <div class="card-body">
                                 <h4>字体与显示</h4>
-                                <p>为了提高对生僻字的支持并节省存储空间，本项目使用了进一步压缩的字体（.bin）。压缩会带来视觉损耗，建议通过工具页面的预览功能调校阈值与尺寸以达到最佳效果。</p>
-                                <p>当前支持了ReadPaper和EDC Book两种固件的bin文件字体生成，请在页面通过下拉框选择类型生成。</p>
+                                <p>字体文件放置于 SD 卡 <b>/font</b> 目录，并在主菜单中启用。切换字体（尤其 size 变化）会触发索引重建并跳回第一页。</p>
+                                <p>可通过扩展进行字体压缩与生成，当前支持 ReadPaper 与 EDCBook 两种字体类型。</p>
+                                <p>字体体积取决于字符集和字号，常见约 2MB，极端情况下 ReadPaper 字体可到 &lt;15MB，EDCBook 字体可到 &lt;25MB。</p>
+                                <img src="./wikipics/fontgenerator.jpg" alt="字体生成器" loading="lazy">
+                                <p>可参考仓库中的 <a href="https://github.com/shinemoon/M5ReadPaper/tree/main/Fonts"
+                                        target="_blank" rel="noopener noreferrer">Fonts 目录</a> 预生成字体。</p>
                             </div>
                         </div>
                     </div>
-
-                    <div class="mt-05">
-                        <div class="card">
-                            <div class="card-body">
-                                <h4>文件管理</h4>
-                                <p>推荐1.3之后使用扩展进行文件管理，网页直连后续不一定能够及时更新了；而用于支持前端或者工具开发的API文档参见:</p>
-                                <p><a href="https://github.com/shinemoon/M5ReadPaper/wiki/WIFI_HTTP_API" target="_blank"
-                                        rel="noopener noreferrer">ReaderPaper — HTTP API（Web 前端
-                                        开发者参考）</a></p>
-
-                            </div>
-                        </div>
-                    </div>
-
-
-
 
                     <div class="mt-05">
                         <div class="card">
                             <div class="card-body">
                                 <h4>目录与书签</h4>
-                                <p>目录支持是依靠与书籍同名的.idx文件来实现，请将由工具生成的idx文件放置在book目录下即可。</p>
-                                <p>书签自动书签（通常在书籍切换，状态切换时自动生成，占据第一个位置），手动切换（阅读中点击屏幕右上角）组成，一共支持十个书签位，先进先出（自动书签不受影响）。</p>
-                                <p>目录和书签都仅对分页完成部分可支持跳转，未分页完成前虽然可见书签或者目录，但是不支持跳转。</p>
+                                <p>目录功能依赖与书籍同名的 <b>.idx</b> 文件，请将工具生成的 idx 文件上传到 <b>/books</b> 目录。</p>
+                                <p>每本书支持 10 个循环书签位，以及 1 个 Auto 书签位（锁屏/关机等场景自动保存，记录本书已读最远位置）。</p>
+                                <p>目录与书签仅能在已完成分页的范围内跳转，未分页部分可见但不可跳转。</p>
                             </div>
                         </div>
                     </div>
-
 
                     <div class="mt-05">
                         <div class="card">
                             <div class="card-body">
                                 <h4>壁纸</h4>
-                                <p>壁纸请上传到“锁屏”目录，对应SD的/image，按照如下优先级选择锁屏图案:</p>
+                                <p>壁纸请上传到 SD 卡 <b>/image</b> 目录，系统按如下优先级选择锁屏图案：</p>
                                 <ul>
                                     <li>优先设定当前书籍同名壁纸;</li>
-                                    <li>然后是试图看看有没有可以模糊匹配的壁纸（例如，
-                                        《古龙作品集-XXXXX.txt》会试图使用"古龙N.png"或者"作品集N.png"之类图片中的随机一张,N为阿拉伯数字可以不带）;</li>
-                                    <li>然后是根据设备的显示配置，使用default.png，或者是随机的图片；</li>
-                                    <li>当卡上不存在随机图片，或者虽然设置为默认壁纸但是不存在default.png时，则使用系统自带壁纸;</li>
+                                    <li>尝试模糊匹配壁纸（例如《古龙作品集-XXXXX.txt》会尝试匹配 "古龙N.jpg" / "作品集N.jpg"，N 可省略）;</li>
+                                    <li>然后是根据设备的显示配置，使用default.jpg，或者是随机的图片；</li>
+                                    <li>当卡上不存在随机图片，或者虽然设置为默认壁纸但是不存在default.jpg时，则使用系统自带壁纸;</li>
                                 </ul>
-                                <p>PS：支持透明png。</p>
+                                <p>支持透明 PNG，可借助扩展工具做简单处理：</p>
+                                <img src="./wikipics/pic.jpg" alt="壁纸处理工具" loading="lazy">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-05">
+                        <div class="card">
+                            <div class="card-body">
+                                <h4>自动阅读</h4>
+                                <p>阅读中点击屏幕右下角，会显示自动阅读设置条；可在四档速度中选择，点击播放后返回阅读界面生效。</p>
+                                <p>自动翻页期间，屏幕中部会显示卡标提示。</p>
                             </div>
                         </div>
                     </div>
@@ -133,6 +168,10 @@
                                     <li>操作方式：大部分界面下，都可以在顶部中央双击，会将截屏保存到SD卡的/screenshots目录中;</li>
                                     <li>从扩展的1.6.6版本开始，可以在文件管理页面下载和删除截屏文件；</li>
                                 </ul>
+                                <p>如果 SD 卡根目录存在 <b>scback.jpg</b>，则截屏会以该图片作为背景生成，建议背景尺寸 540x960。</p>
+                                <p><a href="https://github.com/shinemoon/M5ReadPaper/wiki/ScreenShot" target="_blank"
+                                    
+                                        rel="noopener noreferrer">查看截屏图样</a></p>
                             </div>
                         </div>
                     </div>
@@ -145,7 +184,7 @@
                                 <ul>
                                     <li>在阅读菜单界面，点击"已读"的信息部分，将会进入阅读记录细节汇总页面；</li>
                                     <li>从扩展的1.6.6版本开始，可以在文件管理页面点击按钮进入完整的阅读记录报告页面（可选单本、多本、全部），并且可以生成简单、标准、详细三种图片汇总；</li>
-                                    <li>从扩展的1.6.11版本开始，支持“数据中心”，在每次导入阅读记录时，会自动存入本地数据库，之后可以脱机管理查看（即使设备侧记录被删除也不影响），后续不论是设备导入还是JSON文件导入都是自动会进行查重合并，方便持久性保存阅读历史和记录；
+                                    <li>从扩展的1.6.11版本开始，支持“数据中心”，每次导入会自动合入本地数据库，支持脱机管理、JSON 导入导出与查重合并，方便持久保存阅读历史；
                                     </li>
                                 </ul>
                             </div>
@@ -156,14 +195,15 @@
                         <div class="card">
                             <div class="card-body">
                                 <h4>联线待机</h4>
-                                <p>从固件1.7版本开始支持本功能，简单讲就是TRMNL丐版吧：</p>
+                                <p>从固件 V1.7.0 开始支持联线待机（可理解为轻量化 TRMNL 风格信息屏）：</p>
                                 <ul>
                                     <li>通过热点连接后，扩展（V1.7+)可以配置设备侧的WIFI连接和WEBDAV连接；</li>
                                     <li>扩展可以通过添加、定制组件的方式来定义“联线待机”时的具体显示的格式和内容，之后可以按照需要将该配置同步到WEBDAV云端、设备侧或者导出到本地保存；</li>
                                     <li>设备通过主菜单-连接-联线待机进入该模式，试图从WebDAV同步显示设置，如果不成功回退到使用本地或者上一次的配置进行显示;</li>
-                                    <li>更详细的介绍参见Wiki.</li>
-                                    </li>
+                                    <li>可在无网络时通过热点模式将配置写入设备，至少显示预渲染与固定信息组件。</li>
                                 </ul>
+                                <p><a href="https://github.com/shinemoon/M5ReadPaper/wiki/%E5%85%B3%E4%BA%8E%E8%81%94%E7%BA%BF%E5%BE%85%E6%9C%BA"
+                                        target="_blank" rel="noopener noreferrer">关于联线待机（详细说明）</a></p>
                             </div>
                         </div>
                     </div>
@@ -192,13 +232,7 @@
                                 </ul>
 
                                 <p class="bg-light">手机上能使用这个工具吗？</p>
-                                <p class="">只要是能安装扩展的安卓浏览器，理论上就可以；推荐Firefox 安卓版。</p>
-
-                                <p class="bg-light">USB连接为什么那么久？</p>
-                                <p class="">
-                                    这个属于本人技术水平有限，一直没能解决usbmsc的初始枚举的速度问题，但是当时加入主要是为了万一电脑没有无线网卡的时候依然可以应急调试的需求；从应用角度，USB直连其实不如网页方便，只能作为实验特性供自己临时救急。一旦初始化结束，连接还是比较稳定的，但是速率其实还比不上Wifi管理。
-                                </p>
-                                <p class="">如前所述，使用USB时，尽量避免在索引进行时并行。</p>
+                                <p class="">安卓端只要浏览器支持扩展，理论上即可使用（推荐 Firefox 安卓版）；iOS 端目前通常不支持扩展安装。</p>
 
                             </div>
                         </div>
@@ -212,6 +246,7 @@
                                 <ul>
                                     <li>遇到兼容性问题，可先尝试恢复出厂（仅清理配置、书签与索引，不删除书籍/字体）。</li>
                                     <li>配置与记录保存在 SD 卡，可自由尝试其它固件。</li>
+                                    <li>索引期间建议尽量避免 WIFI/USB 并发操作，降低偶发冲突风险。</li>
                                 </ul>
                             </div>
                         </div>
@@ -222,7 +257,8 @@
                             <div class="card-body">
                                 <h4>致谢</h4>
                                 <p>感谢 M5Stack 的优雅硬件设计；特别感谢 <a
-                                        href="https://space.bilibili.com/111996924?spm_id_from=333.337.0.0">@梦西游啊游</a>
+                                        href="https://space.bilibili.com/111996924?spm_id_from=333.337.0.0" target="_blank"
+                                        rel="noopener noreferrer">@梦西游啊游</a>
                                     的开创性工作为我带来的启发。</p>
                                 <p>某种意义上他的EDCBook是对主流阅读器厂商们近年一味力大砖飞，靠堆配置，而不是沉下心来真的改进“读书”体验的趋势的一种有力的回答。</p>
                                 <p class="muted">作者：@shinemoon</p>
@@ -235,28 +271,24 @@
                             <div class="card-body">
                                 <h4>版本历史</h4>
                                 <div>V1.5之后的版本更新参见<a
-                                        href="https://github.com/shinemoon/M5ReadPaper/commits/main/">Github的历史</a>和<a
-                                        href="https://github.com/shinemoon/M5ReadPaper/releases"> Release记录</a></div>
+                                        href="./version-update.html" target="_blank"
+                                        rel="noopener noreferrer">Release 记录</a></div>
                                 <ul>
                                     <li>V1.5 - UI调整 / Bug修正 /字体调整</li>
                                     <li>V1.4</li>
-                                    <ul>
-                                        <li>V1.4.4 — 字体调整优化</li>
-                                        <li>V1.4.3 — 增加少量显示选项/ 调整UI / 自动翻页 </li>
-                                        <li>V1.4.2 — 竖排显示优化 / 其他一些样式优化 /其他问题的修正</li>
-                                        <li>V1.4 — 浏览器插件支持Epub文件转换和目录生成/ 支持目录浏览 </li>
-                                    </ul>
+                                    <li>V1.4.4 — 字体调整优化</li>
+                                    <li>V1.4.3 — 增加少量显示选项 / 调整UI / 自动翻页</li>
+                                    <li>V1.4.2 — 竖排显示优化 / 其他样式优化 / 问题修正</li>
+                                    <li>V1.4 — 浏览器扩展支持 Epub 转换和目录生成</li>
                                     <li>V1.3 — 浏览器插件支持管理及字体生成 / API支持</li>
                                     <li>V1.2</li>
-                                    <ul>
-                                        <li>V1.2.10 — 简单书签管理功能 / 自动旋转</li>
-                                        <li>V1.2.9.4 — 索引优化</li>
-                                        <li>V1.2.9.3 — 优化与微调；部分实验功能</li>
-                                        <li>V1.2.9.2 — 底层重构与稳定性修正</li>
-                                        <li>V1.2.9.1 — 深色模式支持 / 壁纸工具优化</li>
-                                        <li>V1.2.9 — 竖排支持 / 锁屏调整</li>
-                                        <li>V1.2 — 繁简转换支持等修正</li>
-                                    </ul>
+                                    <li>V1.2.10 — 简单书签管理功能 / 自动旋转</li>
+                                    <li>V1.2.9.4 — 索引优化</li>
+                                    <li>V1.2.9.3 — 优化与微调；部分实验功能</li>
+                                    <li>V1.2.9.2 — 底层重构与稳定性修正</li>
+                                    <li>V1.2.9.1 — 深色模式支持 / 壁纸工具优化</li>
+                                    <li>V1.2.9 — 竖排支持 / 锁屏调整</li>
+                                    <li>V1.2 — 繁简转换支持等修正</li>
                                 </ul>
                             </div>
                         </div>
