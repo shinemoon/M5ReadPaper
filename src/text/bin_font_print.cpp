@@ -519,6 +519,90 @@ static void render_v3_scaled(M5Canvas *canvas, uint16_t *bitmap,
     }
 }
 
+// V2 二值字形缩放：使用覆盖率而非最近邻，减少轻微放大时的锯齿和断笔。
+static void render_v2_binary_scaled(M5Canvas *canvas, const uint16_t *bitmap,
+                                    int16_t orig_w, int16_t orig_h,
+                                    int16_t scaled_w, int16_t scaled_h,
+                                    int16_t canvas_x, int16_t canvas_y,
+                                    float scale_factor, uint16_t text_color)
+{
+    if (!canvas || !bitmap || orig_w <= 0 || orig_h <= 0 || scaled_w <= 0 || scaled_h <= 0)
+        return;
+
+    const bool is_upscale = (scale_factor >= 1.0f);
+
+    // 放大时阈值更低，优先保留细笔画；缩小时阈值更高，避免糊成一团。
+    float threshold;
+    if (is_upscale)
+    {
+        threshold = 0.26f / fmaxf(1.0f, scale_factor * 0.6f);
+        threshold = fmaxf(0.12f, fminf(0.30f, threshold));
+    }
+    else
+    {
+        threshold = 0.28f * fmaxf(0.5f, scale_factor);
+        threshold = fmaxf(0.14f, fminf(0.40f, threshold));
+    }
+
+    for (int16_t sy = 0; sy < scaled_h; sy++)
+    {
+        for (int16_t sx = 0; sx < scaled_w; sx++)
+        {
+            float orig_x_start = sx / scale_factor;
+            float orig_y_start = sy / scale_factor;
+            float orig_x_end = (sx + 1) / scale_factor;
+            float orig_y_end = (sy + 1) / scale_factor;
+
+            int16_t x_min = (int16_t)floorf(orig_x_start);
+            int16_t y_min = (int16_t)floorf(orig_y_start);
+            int16_t x_max = (int16_t)ceilf(orig_x_end - 0.0001f);
+            int16_t y_max = (int16_t)ceilf(orig_y_end - 0.0001f);
+
+            x_min = (x_min < 0) ? 0 : x_min;
+            y_min = (y_min < 0) ? 0 : y_min;
+            x_max = (x_max >= orig_w) ? (orig_w - 1) : x_max;
+            y_max = (y_max >= orig_h) ? (orig_h - 1) : y_max;
+
+            if (x_min > x_max || y_min > y_max)
+                continue;
+
+            float black_coverage = 0.0f;
+            float total_coverage = 0.0f;
+
+            for (int16_t oy = y_min; oy <= y_max; oy++)
+            {
+                for (int16_t ox = x_min; ox <= x_max; ox++)
+                {
+                    float overlap_x_start = fmaxf(orig_x_start, (float)ox);
+                    float overlap_x_end = fminf(orig_x_end, (float)(ox + 1));
+                    float overlap_y_start = fmaxf(orig_y_start, (float)oy);
+                    float overlap_y_end = fminf(orig_y_end, (float)(oy + 1));
+
+                    if (overlap_x_end <= overlap_x_start || overlap_y_end <= overlap_y_start)
+                        continue;
+
+                    float overlap_area = (overlap_x_end - overlap_x_start) * (overlap_y_end - overlap_y_start);
+                    total_coverage += overlap_area;
+
+                    if (bitmap[oy * orig_w + ox] != 0xFFFF)
+                    {
+                        black_coverage += overlap_area;
+                    }
+                }
+            }
+
+            if (total_coverage <= 0.0f)
+                continue;
+
+            float coverage_ratio = black_coverage / total_coverage;
+            if (coverage_ratio > threshold)
+            {
+                canvas->drawPixel(canvas_x + sx, canvas_y + sy, text_color);
+            }
+        }
+    }
+}
+
 // Helper: ensure a fixed-size UTF-8 buffer does not end with a truncated multi-byte sequence
 static void utf8_trim_tail(char *buf, size_t bufsize)
 {
@@ -2808,24 +2892,12 @@ void bin_font_print(const std::string &text, uint8_t font_size, uint8_t color, i
                         }
                         else
                         {
-                            // V2字体：使用像素级绘制来处理颜色和缩放
-                            for (int16_t sy = 0; sy < scaled_height; sy++)
-                            {
-                                for (int16_t sx = 0; sx < scaled_width; sx++)
-                                {
-                                    int16_t orig_x = (int16_t)(sx / scale_factor);
-                                    int16_t orig_y = (int16_t)(sy / scale_factor);
-
-                                    if (orig_x < render_width && orig_y < render_height)
-                                    {
-                                        uint16_t pixel = char_bitmap[orig_y * render_width + orig_x];
-                                        if (pixel != 0xFFFF)
-                                        {
-                                            target_canvas->drawPixel(canvas_x + sx, canvas_y + sy, text_color);
-                                        }
-                                    }
-                                }
-                            }
+                            // V2字体：覆盖率缩放，减少放大时锯齿与缺笔画。
+                            render_v2_binary_scaled(target_canvas, char_bitmap,
+                                                    render_width, render_height,
+                                                    scaled_width, scaled_height,
+                                                    canvas_x, canvas_y,
+                                                    scale_factor, text_color);
                         }
                     }
                 }
@@ -2875,24 +2947,12 @@ void bin_font_print(const std::string &text, uint8_t font_size, uint8_t color, i
                         }
                         else
                         {
-                            // V2字体：像素级绘制
-                            for (int16_t sy = 0; sy < scaled_height; sy++)
-                            {
-                                for (int16_t sx = 0; sx < scaled_width; sx++)
-                                {
-                                    int16_t orig_x = (int16_t)(sx / scale_factor);
-                                    int16_t orig_y = (int16_t)(sy / scale_factor);
-
-                                    if (orig_x < render_width && orig_y < render_height)
-                                    {
-                                        uint16_t pixel = char_bitmap[orig_y * render_width + orig_x];
-                                        if (pixel != 0xFFFF)
-                                        {
-                                            target_canvas->drawPixel(canvas_x + sx, canvas_y + sy, text_color);
-                                        }
-                                    }
-                                }
-                            }
+                            // V2字体：覆盖率缩放，减少放大时锯齿与缺笔画。
+                            render_v2_binary_scaled(target_canvas, char_bitmap,
+                                                    render_width, render_height,
+                                                    scaled_width, scaled_height,
+                                                    canvas_x, canvas_y,
+                                                    scale_factor, text_color);
                         }
                     }
                 }
@@ -3202,161 +3262,12 @@ void bin_font_print(const std::string &text, uint8_t font_size, uint8_t color, i
                     }
                     else
                     {
-                        // 需要缩放：使用优化的二值图像算法（快速模式专用）
-                        if (scale_factor >= 1.0f)
-                        {
-                            // 放大：使用简化的最近邻算法，仅在关键位置进行覆盖率判断
-                            int16_t step = (scale_factor > 1.5f) ? 1 : 2; // 大倍数缩放用更精细的步长
-
-                            for (int16_t sy = 0; sy < scaled_height; sy += step)
-                            {
-                                for (int16_t sx = 0; sx < scaled_width; sx += step)
-                                {
-                                    // 简化的最近邻映射
-                                    int16_t orig_x = (int16_t)((sx + 0.5f) / scale_factor);
-                                    int16_t orig_y = (int16_t)((sy + 0.5f) / scale_factor);
-
-                                    // 边界检查
-                                    if (orig_x < 0 || orig_y < 0 || orig_x >= glyph->bitmapW || orig_y >= glyph->bitmapH)
-                                        continue;
-
-                                    uint16_t pixel = char_bitmap[orig_y * glyph->bitmapW + orig_x];
-                                    if (pixel != 0xFFFF)
-                                    {
-                                        // 绘制方块而不是单像素，提升性能
-                                        int16_t block_size = step;
-                                        for (int16_t by = 0; by < block_size && (sy + by) < scaled_height; by++)
-                                        {
-                                            for (int16_t bx = 0; bx < block_size && (sx + bx) < scaled_width; bx++)
-                                            {
-                                                target_canvas->drawPixel(canvas_x + sx + bx, canvas_y + sy + by, text_color);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        else
-                        {
-                            // 缩小：使用防粘连的精细抽样算法
-                            float inv_scale = 1.0f / scale_factor;
-
-                            for (int16_t sy = 0; sy < scaled_height; sy++)
-                            {
-                                for (int16_t sx = 0; sx < scaled_width; sx++)
-                                {
-                                    // 计算原图对应区域的中心点
-                                    float orig_x_center = (sx + 0.5f) * inv_scale - 0.5f;
-                                    float orig_y_center = (sy + 0.5f) * inv_scale - 0.5f;
-
-                                    // 动态抽样策略：小字体用最精细的抽样防止粘连
-                                    int16_t sample_step = 1; // 统一使用精细抽样
-
-                                    bool should_draw = false;
-                                    (void)should_draw;
-                                    int16_t samples = 0;
-                                    int16_t black_samples = 0;
-                                    int16_t center_black_samples = 0; // 中心区域的黑色样本
-
-                                    // 抽样范围：较小范围防止跨笔画抽样
-                                    int16_t sample_range = (int16_t)(inv_scale * 0.5f); // 减小抽样范围
-                                    sample_range = (sample_range < 1) ? 1 : sample_range;
-                                    // 增大采样上限以在较大缩小比例下保留更多细节（成本略增）
-                                    if (sample_range > PAPERS3_SAMPLE_RANGE_MAX)
-                                        sample_range = PAPERS3_SAMPLE_RANGE_MAX; // 限制最大范围
-
-                                    // 中心权重检测：优先检测中心点
-                                    int16_t center_x = (int16_t)(orig_x_center + 0.5f);
-                                    int16_t center_y = (int16_t)(orig_y_center + 0.5f);
-                                    bool center_is_black = false;
-
-                                    if (center_x >= 0 && center_y >= 0 &&
-                                        center_x < glyph->bitmapW && center_y < glyph->bitmapH)
-                                    {
-                                        uint16_t center_pixel = char_bitmap[center_y * glyph->bitmapW + center_x];
-                                        center_is_black = (center_pixel != 0xFFFF);
-                                    }
-
-                                    // 扩展抽样
-                                    for (int16_t dy = -sample_range; dy <= sample_range; dy += sample_step)
-                                    {
-                                        for (int16_t dx = -sample_range; dx <= sample_range; dx += sample_step)
-                                        {
-                                            int16_t check_x = (int16_t)(orig_x_center + dx);
-                                            int16_t check_y = (int16_t)(orig_y_center + dy);
-
-                                            if (check_x >= 0 && check_y >= 0 &&
-                                                check_x < glyph->bitmapW && check_y < glyph->bitmapH)
-                                            {
-                                                samples++;
-                                                uint16_t pixel = char_bitmap[check_y * glyph->bitmapW + check_x];
-                                                if (pixel != 0xFFFF)
-                                                {
-                                                    black_samples++;
-                                                    // 如果是中心区域（距离中心点较近），增加权重
-                                                    if (abs(dx) <= 1 && abs(dy) <= 1)
-                                                    {
-                                                        center_black_samples++;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    // 防粘连的多层判断策略
-                                    bool draw_pixel = false;
-
-                                    if (scale_factor > 0.7f)
-                                    {
-                                        // 轻微缩小：中心点权重策略 + 高阈值
-                                        if (center_is_black)
-                                        {
-                                            // 中心是黑色，需要周围也有足够支持
-                                            draw_pixel = (center_black_samples >= 2) || (black_samples * 10 >= samples * 6); // 60%
-                                        }
-                                        else
-                                        {
-                                            // 中心不是黑色，需要更高的周围密度
-                                            draw_pixel = (black_samples * 10 >= samples * 7); // 70%
-                                        }
-                                    }
-                                    else if (scale_factor > 0.5f)
-                                    {
-                                        // 中度缩小：平衡策略
-                                        if (center_is_black)
-                                        {
-                                            draw_pixel = (center_black_samples >= 1) || (black_samples * 10 >= samples * 5); // 50%
-                                        }
-                                        else
-                                        {
-                                            draw_pixel = (black_samples * 10 >= samples * 6); // 60%
-                                        }
-                                    }
-                                    else if (scale_factor > 0.3f)
-                                    {
-                                        // 较大缩小：保证可见性但防止过粗
-                                        if (center_is_black)
-                                        {
-                                            draw_pixel = true; // 中心黑色直接绘制
-                                        }
-                                        else
-                                        {
-                                            draw_pixel = (black_samples * 10 >= samples * 4); // 40%
-                                        }
-                                    }
-                                    else
-                                    {
-                                        // 大幅缩小：确保基本可见性
-                                        draw_pixel = (black_samples > 0); // 有黑色就绘制
-                                    }
-
-                                    if (draw_pixel && samples > 0)
-                                    {
-                                        target_canvas->drawPixel(canvas_x + sx, canvas_y + sy, text_color);
-                                    }
-                                }
-                            }
-                        }
+                        // 需要缩放：统一使用覆盖率缩放，提升轻微放大（如28->32）的笔画完整性。
+                        render_v2_binary_scaled(target_canvas, char_bitmap,
+                                                glyph->bitmapW, glyph->bitmapH,
+                                                scaled_width, scaled_height,
+                                                canvas_x, canvas_y,
+                                                scale_factor, text_color);
                     }
                 }
                 else
