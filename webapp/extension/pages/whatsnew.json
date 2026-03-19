@@ -2,7 +2,7 @@
     "version": "1.7.4",
     "latestFirmware": "ReadPaper V1.7.3",
     "sections": [
-     {
+        {
             "icon": "📖",
             "title": "ReadPaper V1.7.3 固件更新",
             "updates": [
@@ -31,5 +31,297 @@
             ]
         }
     ],
-    "announcement": null
+    "announcement": null,
+    "history": [
+        {
+            "version": "1.7.4",
+            "date": "2026-03-08",
+            "latestFirmware": "ReadPaper V1.7.3",
+            "sections": [
+                {
+                    "icon": "📖",
+                    "title": "ReadPaper V1.7.3 固件更新",
+                    "updates": [
+                        {
+                            "category": "功能",
+                            "description": "支持文件夹"
+                        },
+                        {
+                            "category": "增强",
+                            "description": "联线待机入口提升到快速阅读菜单"
+                        },
+                        {
+                            "category": "增强",
+                            "description": "支持文件名修改"
+                        }
+                    ]
+                },
+                {
+                    "icon": "🌐",
+                    "title": "ReadPaper Utils V1.7.4 扩展更新",
+                    "updates": [
+                        {
+                            "category": "功能",
+                            "description": "配合固件支持文件夹管理以及文件名修改"
+                        }
+                    ]
+                }
+            ],
+            "announcement": null
+        },
+        {
+            "version": "1.7.3.1",
+            "date": "2026-03-03",
+            "latestFirmware": "ReadPaper V1.7.2.4",
+            "sections": [
+                {
+                    "icon": "📖",
+                    "title": "ReadPaper V1.7.2.4 固件更新",
+                    "updates": [
+                        {
+                            "category": "修正",
+                            "description": "部分残存清理逻辑"
+                        },
+                        {
+                            "category": "优化",
+                            "description": "快刷模式微调"
+                        },
+                        {
+                            "category": "增强",
+                            "description": "整理优化USBMSC连接速度"
+                        }
+                    ]
+                },
+                {
+                    "icon": "🌐",
+                    "title": "ReadPaper Utils V1.7.3.1 扩展更新",
+                    "updates": [
+                        {
+                            "category": "优化",
+                            "description": "增强WebDaV的健壮性以适配更多自建服务"
+                        }
+                    ]
+                }
+            ],
+            "announcement": null
+        },
+        {
+            "version": "1.7.3",
+            "date": "2026-02-28",
+            "latestFirmware": "ReadPaper V1.7.2.3",
+            "sections": [
+                {
+                    "icon": "🌐",
+                    "title": "ReadPaper Utils V1.7.3 扩展更新",
+                    "updates": [
+                        {
+                            "category": "新增功能",
+                            "description": "支持数据中心导出阅读记录到'纸间书摘'APP"
+                        }
+                    ]
+                }
+            ],
+            "announcement": null
+        },
+        {
+            "version": "1.7.2",
+            "date": "2026-02-27",
+            "latestFirmware": "ReadPaper V1.7.2.3",
+            "sections": [
+                {
+                    "icon": "📖",
+                    "title": "ReadPaper V1.7.2.3 固件更新",
+                    "updates": [
+                        {
+                            "category": "功能更新",
+                            "description": "联线待机新增股票信息组件"
+                        }
+                    ]
+                },
+                {
+                    "icon": "🌐",
+                    "title": "ReadPaper Utils V1.7.2 扩展更新",
+                    "updates": [
+                        {
+                            "category": "功能更新",
+                            "description": "配合固件1.7.2新增联机组件和部分增强: 增加‘股票信息’组件；"
+                        }
+                    ]
+                }
+            ],
+            "announcement": {
+                "title": "Farewell Meizu",
+                "items": [
+                    {
+                        "title": "Thanks for this fancy 23 years' journey",
+                        "content": "Good Luck! via Meizu 22"
+                    }
+                ]
+            }
+        },
+        {
+            "version": "1.7.1",
+            "date": "2026-02-22",
+            "latestFirmware": "ReadPaper V1.7.2",
+            "sections": [
+                {
+                    "icon": "📖",
+                    "title": "ReadPaper V1.7.2 固件更新",
+                    "updates": [
+                        {
+                            "category": "功能更新",
+                            "description": "联线待机新增万年历/黄历/ONE一言/Block组件"
+                        },
+                        {
+                            "category": "优化",
+                            "description": "重构了部分代码结构便于将来组件可扩展性"
+                        },
+                        {
+                            "category": "修正",
+                            "description": "修正部分联线待机的逻辑问题"
+                        }
+                    ]
+                },
+                {
+                    "icon": "🌐",
+                    "title": "ReadPaper Utils V1.7.1 扩展更新",
+                    "updates": [
+                        {
+                            "category": "功能更新",
+                            "description": "配合固件1.7.2新增联机组件和部分增强。"
+                        }
+                    ]
+                }
+            ],
+            "announcement": null
+        },
+        {
+            "version": "1.7.0",
+            "date": "2026-02-14",
+            "latestFirmware": "ReadPaper V1.7",
+            "sections": [
+                {
+                    "icon": "📖",
+                    "title": "ReadPaper V1.7 固件更新",
+                    "updates": [
+                        {
+                            "category": "功能更新",
+                            "description": "支持自定义联线待机显示"
+                        },
+                        {
+                            "category": "修正",
+                            "description": "部分换行不正确的问题"
+                        }
+                    ]
+                },
+                {
+                    "icon": "🌐",
+                    "title": "ReadPaper Utils V1.7 扩展更新",
+                    "updates": [
+                        {
+                            "category": "功能更新",
+                            "description": "增加联线待机页面，用来配置联网以及联线待机自定义界面。"
+                        }
+                    ]
+                }
+            ],
+            "announcement": null
+        },
+        {
+            "version": "1.6.11",
+            "date": "2026-02-05",
+            "latestFirmware": "ReadPaper V1.6.10.4",
+            "sections": [
+                {
+                    "icon": "📖",
+                    "title": "ReadPaper V1.6.10.4 固件更新",
+                    "updates": [
+                        {
+                            "category": "功能增强",
+                            "description": "竖排标点持续补足修正"
+                        },
+                        {
+                            "category": "显示优化",
+                            "description": "锁屏细节调整"
+                        }
+                    ]
+                },
+                {
+                    "icon": "📖",
+                    "title": "ReadPaper V1.6.10.3 固件更新",
+                    "updates": [
+                        {
+                            "category": "问题修正",
+                            "description": "一些显示问题修正"
+                        }
+                    ]
+                },
+                {
+                    "icon": "📖",
+                    "title": "ReadPaper V1.6.10.2 固件更新",
+                    "updates": [
+                        {
+                            "category": "功能增强",
+                            "description": "截屏功能优化，增加书籍信息标签(通过锁屏配置控制)"
+                        },
+                        {
+                            "category": "增加功能",
+                            "description": "手动全刷，通过阅读快捷菜单或者双击中部区域触发)"
+                        }
+                    ]
+                },
+                {
+                    "icon": "🌐",
+                    "title": "ReadPaper Utils V1.6.11 扩展更新",
+                    "updates": [
+                        {
+                            "category": "功能更新",
+                            "description": "增加数据中心页面，用来保存显示和管理阅读记录信息。"
+                        }
+                    ]
+                }
+            ],
+            "announcement": null
+        },
+        {
+            "version": "1.6.10",
+            "date": "2026-02-05",
+            "latestFirmware": "ReadPaper V1.6.10.2",
+            "sections": [
+                {
+                    "icon": "📖",
+                    "title": "ReadPaper V1.6.10 固件更新",
+                    "updates": [
+                        {
+                            "category": "显示优化",
+                            "description": "调整UI刷新细节"
+                        },
+                        {
+                            "category": "显示优化",
+                            "description": "部分页面切换特效"
+                        },
+                        {
+                            "category": "功能增强",
+                            "description": "可定制截屏背景和截屏质量优化"
+                        },
+                        {
+                            "category": "问题修正",
+                            "description": "时间记录精确度修正"
+                        }
+                    ]
+                },
+                {
+                    "icon": "🌐",
+                    "title": "ReadPaper Utils V1.6.10 扩展更新",
+                    "updates": [
+                        {
+                            "category": "功能更新",
+                            "description": "支持截图自定义背景的管理"
+                        }
+                    ]
+                }
+            ],
+            "announcement": null
+        }
+    ]
 }

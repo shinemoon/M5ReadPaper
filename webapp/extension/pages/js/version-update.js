@@ -1,3 +1,112 @@
+function createUpdateItem(update) {
+    const li = document.createElement('li');
+    const strong = document.createElement('strong');
+    strong.textContent = update.category || '更新';
+
+    li.appendChild(strong);
+    li.appendChild(document.createTextNode(` - ${update.description || ''}`));
+    return li;
+}
+
+function renderSections(container, sections) {
+    if (!sections || !Array.isArray(sections) || sections.length === 0) {
+        return;
+    }
+
+    sections.forEach(section => {
+        const sectionDiv = document.createElement('div');
+        sectionDiv.className = 'update-section';
+
+        const title = document.createElement('h2');
+        title.textContent = `${section.icon || ''} ${section.title || ''}`.trim();
+        sectionDiv.appendChild(title);
+
+        if (section.updates && section.updates.length > 0) {
+            const ul = document.createElement('ul');
+            ul.className = 'update-list';
+
+            section.updates.forEach(update => {
+                ul.appendChild(createUpdateItem(update));
+            });
+
+            sectionDiv.appendChild(ul);
+        }
+
+        container.appendChild(sectionDiv);
+    });
+}
+
+function renderAnnouncement(container, announcement) {
+    if (!announcement || !announcement.items || announcement.items.length === 0) {
+        return;
+    }
+
+    const announcementDiv = document.createElement('div');
+    announcementDiv.className = 'update-section';
+
+    const title = document.createElement('h2');
+    title.textContent = `${announcement.icon || '📰'} ${announcement.title || '消息提醒'}`;
+    announcementDiv.appendChild(title);
+
+    const ul = document.createElement('ul');
+    ul.className = 'update-list';
+
+    announcement.items.forEach(item => {
+        const li = document.createElement('li');
+        const strong = document.createElement('strong');
+        strong.textContent = item.title || '公告';
+        li.appendChild(strong);
+        li.appendChild(document.createTextNode(` - ${item.content || ''}`));
+        ul.appendChild(li);
+    });
+
+    announcementDiv.appendChild(ul);
+    container.appendChild(announcementDiv);
+}
+
+function renderReleaseCard(updateBody, release) {
+    const card = document.createElement('section');
+    card.className = 'history-release';
+
+    const cardHeader = document.createElement('button');
+    cardHeader.type = 'button';
+    cardHeader.className = 'history-release-header';
+    cardHeader.setAttribute('aria-expanded', 'false');
+
+    const title = document.createElement('h3');
+    title.textContent = `v${release.version || '未知版本'}`;
+    cardHeader.appendChild(title);
+
+    const meta = document.createElement('div');
+    meta.className = 'history-release-meta';
+    const dateText = release.date ? `发布日期: ${release.date}` : '发布日期: -';
+    const fwText = release.latestFirmware ? `对应固件: ${release.latestFirmware}` : '对应固件: -';
+    meta.textContent = `${dateText} · ${fwText}`;
+    cardHeader.appendChild(meta);
+
+    const arrow = document.createElement('span');
+    arrow.className = 'history-release-arrow';
+    arrow.textContent = '▾';
+    cardHeader.appendChild(arrow);
+
+    card.appendChild(cardHeader);
+
+    const content = document.createElement('div');
+    content.className = 'history-release-content';
+
+    renderSections(content, release.sections);
+    renderAnnouncement(content, release.announcement);
+
+    card.appendChild(content);
+
+    cardHeader.addEventListener('click', () => {
+        const isExpanded = card.classList.toggle('expanded');
+        cardHeader.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+    });
+
+    updateBody.appendChild(card);
+}
+
 // 加载并渲染更新内容
 async function loadWhatsNew() {
     try {
@@ -5,69 +114,33 @@ async function loadWhatsNew() {
         if (!response.ok) {
             throw new Error('Failed to load whatsnew.json');
         }
+
         const data = await response.json();
-        
-        // 渲染更新内容
         const updateBody = document.getElementById('updateBody');
         updateBody.innerHTML = '';
-        
-        // 渲染每个更新section
-        if (data.sections && Array.isArray(data.sections)) {
-            data.sections.forEach(section => {
-                const sectionDiv = document.createElement('div');
-                sectionDiv.className = 'update-section';
-                
-                // 标题
-                const title = document.createElement('h2');
-                title.textContent = `${section.icon || ''} ${section.title}`;
-                sectionDiv.appendChild(title);
-                
-                // 更新列表
-                if (section.updates && section.updates.length > 0) {
-                    const ul = document.createElement('ul');
-                    ul.className = 'update-list';
-                    
-                    section.updates.forEach(update => {
-                        const li = document.createElement('li');
-                        li.innerHTML = `<strong>${update.category}</strong> - ${update.description}`;
-                        ul.appendChild(li);
-                    });
-                    
-                    sectionDiv.appendChild(ul);
-                }
-                
-                updateBody.appendChild(sectionDiv);
-            });
+
+        const latestTitle = document.createElement('h2');
+        latestTitle.className = 'timeline-title';
+        latestTitle.textContent = '当前版本更新';
+        updateBody.appendChild(latestTitle);
+
+        renderSections(updateBody, data.sections);
+        renderAnnouncement(updateBody, data.announcement);
+
+        const history = Array.isArray(data.history) ? data.history : [];
+        if (history.length > 0) {
+            const historyTitle = document.createElement('h2');
+            historyTitle.className = 'timeline-title';
+            historyTitle.textContent = '完整历史记录';
+            updateBody.appendChild(historyTitle);
+
+            history.forEach(release => renderReleaseCard(updateBody, release));
         }
-        
-        // 渲染公告（如果有）
-        if (data.announcement) {
-            const announcementDiv = document.createElement('div');
-            announcementDiv.className = 'update-section';
-            
-            const title = document.createElement('h2');
-            title.textContent = `${data.announcement.icon || '📰'} ${data.announcement.title || '消息提醒'}`;
-            announcementDiv.appendChild(title);
-            
-            const ul = document.createElement('ul');
-            ul.className = 'update-list';
-            
-            data.announcement.items.forEach(item => {
-                const li = document.createElement('li');
-                li.innerHTML = `<strong>${item.title}</strong> - ${item.content}`;
-                ul.appendChild(li);
-            });
-            
-            announcementDiv.appendChild(ul);
-            updateBody.appendChild(announcementDiv);
-        }
-        
-        // 更新固件信息
+
         const firmwareInfo = document.getElementById('firmwareInfo');
         if (firmwareInfo && data.latestFirmware) {
             firmwareInfo.innerHTML = `扩展对应最新固件: <b>${data.latestFirmware}</b>`;
         }
-        
     } catch (error) {
         console.error('Failed to load whatsnew.json:', error);
         const updateBody = document.getElementById('updateBody');
