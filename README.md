@@ -3,7 +3,7 @@ Y.A.P.T.R. — Yet Another PaperS3 Text Reader
 
 *BTW. 知道Y.A.S.D这个梗的人应该都有点年龄了吧……*
 
-![Banner](/design/banner.png)
+![Banner](/design/newBurner.png)
 
 ## 简介
 
@@ -29,6 +29,10 @@ Y.A.P.T.R. — Yet Another PaperS3 Text Reader
 - 目录支持
 - 自动翻页
 - 更多锁屏和式样支持
+- USB访问模式
+- 自定义连线待机界面
+- 截屏
+- 阅读记录管理、导出
 - 等等
 
 而V1.3之后，把原本依赖Python的支持性工具用浏览器扩展支持。
