@@ -17,8 +17,24 @@ extern float font_size;
 #include <cstring>
 #include "ui/ui_reading_quick_menu.h"
 #include "../config/config_manager.h"
+#include "tasks/background_index_task.h"
+#include "text/bin_font_print.h"
 
 extern GlobalConfig g_config;
+
+namespace
+{
+constexpr int16_t QUICK_AUTOSPEED_X = 49;
+constexpr int16_t QUICK_AUTOSPEED_Y = 889;
+constexpr int16_t QUICK_AUTOSPEED_W = 492;
+constexpr int16_t QUICK_AUTOSPEED_H = 62;
+
+// 字体比例条第三段（xxx%）局部刷新区域
+constexpr int16_t QUICK_SCALE_VALUE_X = 313;
+constexpr int16_t QUICK_SCALE_VALUE_Y = 624;
+constexpr int16_t QUICK_SCALE_VALUE_W = 110;
+constexpr int16_t QUICK_SCALE_VALUE_H = 63;
+}
 
 void StateMachineTask::handleReadingQuickMenuState(const SystemMessage_t *msg)
 {
@@ -26,12 +42,41 @@ void StateMachineTask::handleReadingQuickMenuState(const SystemMessage_t *msg)
     sm_dbg_printf("READING_QUICK_MENU 状态处理消息: %d\n", msg->type);
 #endif
     static bool quickMenuShown = false;
+    static uint8_t pending_font_scale_pct = FONT_SCALE_DEFAULT_PCT;
+    static bool pending_font_scale_dirty = false;
+
+    auto apply_pending_font_scale_if_needed = [&]() {
+        if (!pending_font_scale_dirty)
+            return;
+
+        uint8_t new_scale = clamp_font_scale_pct((int)pending_font_scale_pct);
+        if (g_config.font_scale_pct != new_scale)
+        {
+            g_config.font_scale_pct = new_scale;
+            extern float font_size;
+            font_size = get_configured_reading_font_size(get_font_size_from_file());
+            if (g_current_book)
+            {
+                g_current_book->setFontSize(font_size);
+                // 同步更新 area_w：小字号时增大右边距，确保分页与渲染右边距一致
+                g_current_book->setAreaWidth(PAPER_S3_WIDTH - MARGIN_LEFT - get_reading_effective_margin_right());
+            }
+            config_save();
+            if (g_current_book)
+            {
+                requestForceReindex();
+            }
+        }
+        pending_font_scale_dirty = false;
+    };
 
     // 首次进入时绘制一次初始界面
     if (!quickMenuShown)
     {
         quickMenuShown = true;
-        draw_reading_quick_menu(g_canvas);
+        pending_font_scale_pct = clamp_font_scale_pct((int)g_config.font_scale_pct);
+        pending_font_scale_dirty = false;
+        draw_reading_quick_menu(g_canvas, pending_font_scale_pct, pending_font_scale_dirty);
         bin_font_flush_canvas(false, false, false);
     }
     switch (msg->type)
@@ -43,6 +88,7 @@ void StateMachineTask::handleReadingQuickMenuState(const SystemMessage_t *msg)
 #if DBG_STATE_MACHINE_TASK
             sm_dbg_printf("READING_QUICK_MENU 收到超时，进入 IDLE\n");
 #endif
+            apply_pending_font_scale_if_needed();
             shutCnt = 0;
             // 自动保存书签
             if (g_current_book)
@@ -78,6 +124,7 @@ void StateMachineTask::handleReadingQuickMenuState(const SystemMessage_t *msg)
 #endif
                     quickMenuShown = false;
                     currentState_ = STATE_READING;
+                    apply_pending_font_scale_if_needed();
                     if (g_current_book)
                     {
                         g_current_book->renderCurrentPage(font_size);
@@ -109,8 +156,46 @@ void StateMachineTask::handleReadingQuickMenuState(const SystemMessage_t *msg)
                         sm_dbg_printf("READING_QUICK_MENU: 设置 autospeed -> %u\n", ::autospeed);
 #endif
                         // 重新绘制快速菜单以反馈变化
-                        draw_reading_quick_menu(g_canvas);
-                        bin_font_flush_canvas(false, false, true);
+                        draw_reading_quick_menu(g_canvas, pending_font_scale_pct, pending_font_scale_dirty);
+                        bin_font_flush_canvas(false, false, false, NOEFFECT,
+                                              QUICK_AUTOSPEED_X, QUICK_AUTOSPEED_Y,
+                                              QUICK_AUTOSPEED_W, QUICK_AUTOSPEED_H);
+                    }
+                }
+                else if (ty >= 628 && ty <= 682 && tx >= 51 && tx <= 551)
+                {
+                    const uint8_t scale_values[15] = {80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150};
+                    int current_idx = 4;
+                    for (int i = 0; i < 15; ++i)
+                    {
+                        if (pending_font_scale_pct == scale_values[i])
+                        {
+                            current_idx = i;
+                            break;
+                        }
+                    }
+
+                    int target_idx = current_idx;
+                    // 500宽字体比例条: 标题190 | 减号70 | 当前值110 | 加号70 | 螺丝60
+                    // 实际可点击区域主要是减号和加号两段
+                    if (tx >= 243 && tx < 313)
+                    {
+                        target_idx = current_idx > 0 ? current_idx - 1 : current_idx;
+                    }
+                    else if (tx >= 423 && tx < 493)
+                    {
+                        target_idx = current_idx < 14 ? current_idx + 1 : current_idx;
+                    }
+
+                    uint8_t new_scale = scale_values[target_idx];
+                    if (pending_font_scale_pct != new_scale)
+                    {
+                        pending_font_scale_pct = new_scale;
+                        pending_font_scale_dirty = true;
+                        draw_reading_quick_menu(g_canvas, pending_font_scale_pct, pending_font_scale_dirty);
+                        bin_font_flush_canvas(false, false, false, NOEFFECT,
+                                              QUICK_SCALE_VALUE_X, QUICK_SCALE_VALUE_Y,
+                                              QUICK_SCALE_VALUE_W, QUICK_SCALE_VALUE_H);
                     }
                 }
                 else if (tx > 460 && ty > 880) // 点击在快速菜单内部：当坐标 x>460 && y>880 时切换 autoread
@@ -120,11 +205,12 @@ void StateMachineTask::handleReadingQuickMenuState(const SystemMessage_t *msg)
                     sm_dbg_printf("READING_QUICK_MENU: 切换 autoread -> %d\n", autoread);
 #endif
                     // 重新绘制快速菜单并显示状态提示
-                    draw_reading_quick_menu(g_canvas);
+                    draw_reading_quick_menu(g_canvas, pending_font_scale_pct, pending_font_scale_dirty);
                     bin_font_flush_canvas(false, false, true);
                 }
                 else if (tx > 249 && tx < 460 && ty > 700 && ty < 775)
                 { // 点击在快速菜单内部：联线待机
+                    apply_pending_font_scale_if_needed();
                     quickMenuShown = false;
                     ui_push_image_to_display_direct("/spiffs/wait.png", 240, 450);
                     M5.Display.waitDisplay();
@@ -140,6 +226,7 @@ void StateMachineTask::handleReadingQuickMenuState(const SystemMessage_t *msg)
                 else if (tx > 249 && tx < 460 && ty > 780 && ty < 860)
                 { // 点击在快速菜单内部：手动全刷
                     //bin_font_flush_canvas(false, false, true);
+                    apply_pending_font_scale_if_needed();
                     quickMenuShown = false;
                     currentState_ = STATE_READING;
                     if (g_current_book)
@@ -149,6 +236,7 @@ void StateMachineTask::handleReadingQuickMenuState(const SystemMessage_t *msg)
                 }
                 else
                 {
+                    apply_pending_font_scale_if_needed();
                     quickMenuShown = false;
                     currentState_ = STATE_READING;
                     if (g_current_book)
@@ -183,7 +271,7 @@ void StateMachineTask::handleReadingQuickMenuState(const SystemMessage_t *msg)
             // 重新绘制快速菜单以适配旋转
             if (quickMenuShown)
             {
-                draw_reading_quick_menu(g_canvas);
+                draw_reading_quick_menu(g_canvas, pending_font_scale_pct, pending_font_scale_dirty);
                 bin_font_flush_canvas(false, false, false);
             }
         }

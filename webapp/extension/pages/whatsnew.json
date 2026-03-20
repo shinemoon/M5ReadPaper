@@ -1,48 +1,65 @@
 {
-    "version": "1.7.4.2",
-    "latestFirmware": "ReadPaper V1.7.4.2",
+    "version": "1.7.5",
+    "latestFirmware": "ReadPaper V1.7.5",
     "sections": [
         {
             "icon": "📖",
-            "title": "ReadPaper V1.7.4.2 固件更新",
+            "title": "ReadPaper V1.7.5 固件更新",
             "updates": [
                 {
-                    "category": "增强",
-                    "description": "字体缩放算法优化"
-                }
-            ]
-        },
-        {
-            "icon": "📖",
-            "title": "ReadPaper V1.7.4.1 固件更新",
-            "updates": [
-                {
-                    "category": "修正",
-                    "description": "修正电量耗尽过之后出现的菜单卡顿问题"
-                }
-            ]
-        },
-        {
-            "icon": "🌐",
-            "title": "ReadPaper Utils V1.7.5 扩展更新",
-            "updates": [
-                {
-                    "category": "修正",
-                    "description": "修正部分文本文件处理功能的历史Bug"
-                },
-                {
-                    "category": "优化",
-                    "description": "优化更新历史页面"
-                },
-                {
-                    "category": "优化",
-                    "description": "界面微调"
+                    "category": "功能",
+                    "description": "支持字体尺寸比例动态设置"
                 }
             ]
         }
     ],
     "announcement": null,
     "history": [
+        {
+            "version": "1.7.4.2",
+            "latestFirmware": "ReadPaper V1.7.4.2",
+            "sections": [
+                {
+                    "icon": "📖",
+                    "title": "ReadPaper V1.7.4.2 固件更新",
+                    "updates": [
+                        {
+                            "category": "增强",
+                            "description": "字体缩放算法优化"
+                        }
+                    ]
+                },
+                {
+                    "icon": "📖",
+                    "title": "ReadPaper V1.7.4.1 固件更新",
+                    "updates": [
+                        {
+                            "category": "修正",
+                            "description": "修正电量耗尽过之后出现的菜单卡顿问题"
+                        }
+                    ]
+                },
+                {
+                    "icon": "🌐",
+                    "title": "ReadPaper Utils V1.7.5 扩展更新",
+                    "updates": [
+                        {
+                            "category": "修正",
+                            "description": "修正部分文本文件处理功能的历史Bug"
+                        },
+                        {
+                            "category": "优化",
+                            "description": "优化更新历史页面"
+                        },
+                        {
+                            "category": "优化",
+                            "description": "界面微调"
+                        }
+                    ]
+                }
+            ],
+            "announcement": null
+        },
         {
             "version": "1.7.4",
             "latestFirmware": "ReadPaper V1.7.3",

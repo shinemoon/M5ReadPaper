@@ -233,10 +233,10 @@ void setup()
 #endif
         strcpy(g_config.currentReadFile, "/spiffs/ReadPaper.txt"); // backward comp purpose
     }
-    // 获取显示区域参数
-    int16_t area_w = PAPER_S3_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
+    // 获取显示区域参数（右边距随字号缩放比例动态调整）
+    int16_t area_w = PAPER_S3_WIDTH - MARGIN_LEFT - get_reading_effective_margin_right();
     int16_t area_h = PAPER_S3_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM;
-    float fsize = (float)get_font_size_from_file();
+    float fsize = get_configured_reading_font_size(get_font_size_from_file());
 
 #if DBG_SETUP
     Serial.printf("[SETUP] 从配置加载书籍: %s\n", g_config.currentReadFile);

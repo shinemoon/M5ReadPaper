@@ -21,6 +21,7 @@
 #include "text/bin_font_print.h"
 #include "config/config_manager.h"
 #include "device/safe_fs.h"
+#include "globals.h"
 // tag handling (auto/manual tags)
 #include "text/tags_handle.h"
 // font buffer for page caching
@@ -226,7 +227,7 @@ void removeIndexFilesForBookForPath(const std::string &book_file_path)
 BookHandle::BookHandle(const std::string &path, std::int16_t area_w_, std::int16_t area_h_, float fsize,
                        TextEncoding enc)
     : file_path(path), file_handle(), cur_pos(0), area_w(area_w_), area_h(area_h_),
-      font_size(get_font_size_from_file()), encoding(enc), // 使用字体文件中的实际大小
+    font_size(fsize > 0.0f ? fsize : (float)get_font_size_from_file()), encoding(enc),
       font_cache_initialized(false),                       // 【初始化】字体缓存标志
       history_head(0), history_count(0), current_page_index(0), page_completed(false),
       indexing_in_progress(false), indexing_should_stop(false),
@@ -1190,6 +1191,18 @@ TextPageResult BookHandle::prevPage()
 
 TextPageResult BookHandle::currentPage()
 {
+    // 先同步运行时字号，再决定是否可复用缓存页；
+    // 否则字号刚变化时会被早返回拦住，导致首帧仍显示旧比例。
+    extern float font_size;
+    if (fabs(this->font_size - font_size) > 0.01f)
+    {
+        this->font_size = font_size;
+        last_page.success = false;
+#if DBG_BOOK_HANDLE
+        Serial.printf("[BH] currentPage: 字号变化，失效缓存页并更新为 %.2f\n", font_size);
+#endif
+    }
+
     if (last_page.success && last_page.file_pos == cur_pos)
         return last_page;
 
@@ -1215,17 +1228,6 @@ TextPageResult BookHandle::currentPage()
 
     // 保存当前文件位置
     size_t saved_pos = saveCurrentPosition();
-
-    // 使用全局 font_size 而非成员变量，确保切换字体后立即生效
-    extern float font_size;
-    // 同步更新成员变量，确保后续保存书签时使用正确的值
-    if (fabs(this->font_size - font_size) > 0.01f)
-    {
-        this->font_size = font_size;
-#if DBG_BOOK_HANDLE
-        Serial.printf("[BH] currentPage: 检测到字体大小变化，更新为 %.2f\n", font_size);
-#endif
-    }
 
     // Determine next page boundary to limit reading within current page
     size_t max_byte_pos = SIZE_MAX;
@@ -3356,8 +3358,10 @@ void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool
     TextPageResult current = currentPage();
     last_render_char_count_ = count_readable_codepoints(current.page_text);
     bin_font_clear_canvas(dark);
+    // 根据当前字号缩放比例动态计算右边距：小字号时增大右边距以保持左右视觉平衡
+    int16_t eff_margin_right = get_reading_effective_margin_right();
     display_print(current.page_text.c_str(), font_size_param, TFT_BLACK, TL_DATUM,
-                  MARGIN_TOP, MARGIN_BOTTOM, MARGIN_LEFT, MARGIN_RIGHT, TFT_WHITE, true, dark);
+                  MARGIN_TOP, MARGIN_BOTTOM, MARGIN_LEFT, eff_margin_right, TFT_WHITE, true, dark);
 
     // If this page contains any tag start positions, draw a small black dot at top-right
     // 【保护条件】只有在索引完全加载且有效时才检查和显示书签图标

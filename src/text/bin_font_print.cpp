@@ -420,7 +420,7 @@ static void render_v3_scaled(M5Canvas *canvas, uint16_t *bitmap,
                              int16_t canvas_x, int16_t canvas_y,
                              float scale_factor, bool dark_mode)
 {
-    if (!canvas || !bitmap)
+    if (!canvas || !bitmap || orig_w <= 0 || orig_h <= 0 || scaled_w <= 0 || scaled_h <= 0)
         return;
 
     // 注意：bitmap 中的颜色已经根据 dark_mode 映射好了
@@ -429,6 +429,123 @@ static void render_v3_scaled(M5Canvas *canvas, uint16_t *bitmap,
     uint16_t bg_color = FontColorMapper::get_background_color(dark_mode);
     uint16_t fg_color = dark_mode ? 0xFFFF : 0x0000;
     uint16_t gray_out = dark_mode ? GREY_LEVEL_MID : GREY_MAP_COLOR;
+
+    // 缩放时轻微提亮：降低墨水强度，缓解双线性采样造成的“偏深”观感。
+    float scale_delta = fabsf(scale_factor - 1.0f);
+    float lighten_amount = (scale_delta > 0.01f)
+                               ? fminf(0.35f, scale_delta * 0.25f * FONT_SCALE_LIGHTEN_STRENGTH)
+                               : 0.0f;
+    float fg_thr = fminf(0.95f, 0.75f + lighten_amount);
+    float gray_thr = fminf(0.80f, 0.25f + lighten_amount);
+
+    // 常见阅读缩放区间使用快速路径：双线性采样 + 同色水平线段绘制
+    const bool use_fast_path = (scale_factor >= 0.75f && scale_factor <= 1.5f);
+    if (use_fast_path)
+    {
+        std::vector<int16_t> x0_cache((size_t)scaled_w);
+        std::vector<int16_t> x1_cache((size_t)scaled_w);
+        std::vector<float> wx_cache((size_t)scaled_w);
+
+        for (int16_t sx = 0; sx < scaled_w; ++sx)
+        {
+            float src_x = ((float)sx + 0.5f) / scale_factor - 0.5f;
+            if (src_x < 0.0f)
+                src_x = 0.0f;
+            if (src_x > (float)(orig_w - 1))
+                src_x = (float)(orig_w - 1);
+            int16_t x0 = (int16_t)floorf(src_x);
+            int16_t x1 = (x0 + 1 < orig_w) ? (x0 + 1) : x0;
+            x0_cache[(size_t)sx] = x0;
+            x1_cache[(size_t)sx] = x1;
+            wx_cache[(size_t)sx] = src_x - (float)x0;
+        }
+
+        auto ink_of = [&](uint16_t px) -> float
+        {
+            if (px == fg_color)
+                return 1.0f;
+            if (px == gray_out)
+                return 0.5f;
+            return 0.0f;
+        };
+
+        for (int16_t sy = 0; sy < scaled_h; ++sy)
+        {
+            float src_y = ((float)sy + 0.5f) / scale_factor - 0.5f;
+            if (src_y < 0.0f)
+                src_y = 0.0f;
+            if (src_y > (float)(orig_h - 1))
+                src_y = (float)(orig_h - 1);
+            int16_t y0 = (int16_t)floorf(src_y);
+            int16_t y1 = (y0 + 1 < orig_h) ? (y0 + 1) : y0;
+            float wy = src_y - (float)y0;
+
+            int16_t run_start = -1;
+            uint16_t run_color = bg_color;
+
+            for (int16_t sx = 0; sx < scaled_w; ++sx)
+            {
+                int16_t x0 = x0_cache[(size_t)sx];
+                int16_t x1 = x1_cache[(size_t)sx];
+                float wx = wx_cache[(size_t)sx];
+
+                uint16_t p00 = bitmap[y0 * orig_w + x0];
+                uint16_t p10 = bitmap[y0 * orig_w + x1];
+                uint16_t p01 = bitmap[y1 * orig_w + x0];
+                uint16_t p11 = bitmap[y1 * orig_w + x1];
+
+                float i00 = ink_of(p00);
+                float i10 = ink_of(p10);
+                float i01 = ink_of(p01);
+                float i11 = ink_of(p11);
+
+                float top = i00 + (i10 - i00) * wx;
+                float bot = i01 + (i11 - i01) * wx;
+                float avg_ink = top + (bot - top) * wy;
+
+                bool has_pixel = false;
+                uint16_t out_color = bg_color;
+                if (avg_ink > fg_thr)
+                {
+                    has_pixel = true;
+                    out_color = fg_color;
+                }
+                else if (avg_ink > gray_thr)
+                {
+                    has_pixel = true;
+                    out_color = gray_out;
+                }
+
+                if (!has_pixel)
+                {
+                    if (run_start >= 0)
+                    {
+                        canvas->drawFastHLine(canvas_x + run_start, canvas_y + sy, sx - run_start, run_color);
+                        run_start = -1;
+                    }
+                    continue;
+                }
+
+                if (run_start < 0)
+                {
+                    run_start = sx;
+                    run_color = out_color;
+                }
+                else if (out_color != run_color)
+                {
+                    canvas->drawFastHLine(canvas_x + run_start, canvas_y + sy, sx - run_start, run_color);
+                    run_start = sx;
+                    run_color = out_color;
+                }
+            }
+
+            if (run_start >= 0)
+            {
+                canvas->drawFastHLine(canvas_x + run_start, canvas_y + sy, scaled_w - run_start, run_color);
+            }
+        }
+        return;
+    }
 
     // 遍历缩放后的每个像素
     for (int16_t sy = 0; sy < scaled_h; sy++)
@@ -496,13 +613,13 @@ static void render_v3_scaled(M5Canvas *canvas, uint16_t *bitmap,
 
                 uint16_t output_color;
 
-                // 根据墨水浓度映射到三阶颜色
-                if (avg_ink > 0.75f)
+                // 根据墨水浓度映射到三阶颜色（阈值已被提亮参数调整）
+                if (avg_ink > fg_thr)
                 {
                     // 浓度高 → 前景色
                     output_color = fg_color;
                 }
-                else if (avg_ink > 0.25f)
+                else if (avg_ink > gray_thr)
                 {
                     // 中等浓度 → 灰色
                     output_color = gray_out;
@@ -542,6 +659,88 @@ static void render_v2_binary_scaled(M5Canvas *canvas, const uint16_t *bitmap,
     {
         threshold = 0.28f * fmaxf(0.5f, scale_factor);
         threshold = fmaxf(0.14f, fminf(0.40f, threshold));
+    }
+
+    // 缩放提亮：按 scale_delta * 0.25 * strength 抬高覆盖率阈值，让更少像素被判为黑。
+    // strength=0: 无效果；1.0: 90%下约+0.025；3.0: 90%下约+0.075，明显可见。
+    float scale_delta = fabsf(scale_factor - 1.0f);
+    if (scale_delta > 0.01f && FONT_SCALE_LIGHTEN_STRENGTH > 0.0f)
+    {
+        float lighten_add = fminf(0.30f, scale_delta * 0.25f * FONT_SCALE_LIGHTEN_STRENGTH);
+        threshold += lighten_add;
+    }
+    threshold = fmaxf(0.12f, fminf(0.65f, threshold));
+
+    // 常见阅读缩放区间使用快速路径：双线性采样 + 水平线段绘制
+    const bool use_fast_path = (scale_factor >= 0.75f && scale_factor <= 1.5f);
+    if (use_fast_path)
+    {
+        std::vector<int16_t> x0_cache((size_t)scaled_w);
+        std::vector<int16_t> x1_cache((size_t)scaled_w);
+        std::vector<float> wx_cache((size_t)scaled_w);
+
+        for (int16_t sx = 0; sx < scaled_w; ++sx)
+        {
+            float src_x = ((float)sx + 0.5f) / scale_factor - 0.5f;
+            if (src_x < 0.0f)
+                src_x = 0.0f;
+            if (src_x > (float)(orig_w - 1))
+                src_x = (float)(orig_w - 1);
+            int16_t x0 = (int16_t)floorf(src_x);
+            int16_t x1 = (x0 + 1 < orig_w) ? (x0 + 1) : x0;
+            x0_cache[(size_t)sx] = x0;
+            x1_cache[(size_t)sx] = x1;
+            wx_cache[(size_t)sx] = src_x - (float)x0;
+        }
+
+        for (int16_t sy = 0; sy < scaled_h; ++sy)
+        {
+            float src_y = ((float)sy + 0.5f) / scale_factor - 0.5f;
+            if (src_y < 0.0f)
+                src_y = 0.0f;
+            if (src_y > (float)(orig_h - 1))
+                src_y = (float)(orig_h - 1);
+            int16_t y0 = (int16_t)floorf(src_y);
+            int16_t y1 = (y0 + 1 < orig_h) ? (y0 + 1) : y0;
+            float wy = src_y - (float)y0;
+
+            int16_t run_start = -1;
+            for (int16_t sx = 0; sx < scaled_w; ++sx)
+            {
+                int16_t x0 = x0_cache[(size_t)sx];
+                int16_t x1 = x1_cache[(size_t)sx];
+                float wx = wx_cache[(size_t)sx];
+
+                float b00 = (bitmap[y0 * orig_w + x0] != 0xFFFF) ? 1.0f : 0.0f;
+                float b10 = (bitmap[y0 * orig_w + x1] != 0xFFFF) ? 1.0f : 0.0f;
+                float b01 = (bitmap[y1 * orig_w + x0] != 0xFFFF) ? 1.0f : 0.0f;
+                float b11 = (bitmap[y1 * orig_w + x1] != 0xFFFF) ? 1.0f : 0.0f;
+
+                float top = b00 + (b10 - b00) * wx;
+                float bot = b01 + (b11 - b01) * wx;
+                float coverage_ratio = top + (bot - top) * wy;
+
+                bool on = coverage_ratio > threshold;
+                if (on)
+                {
+                    if (run_start < 0)
+                    {
+                        run_start = sx;
+                    }
+                }
+                else if (run_start >= 0)
+                {
+                    canvas->drawFastHLine(canvas_x + run_start, canvas_y + sy, sx - run_start, text_color);
+                    run_start = -1;
+                }
+            }
+
+            if (run_start >= 0)
+            {
+                canvas->drawFastHLine(canvas_x + run_start, canvas_y + sy, scaled_w - run_start, text_color);
+            }
+        }
+        return;
     }
 
     for (int16_t sy = 0; sy < scaled_h; sy++)
@@ -2270,7 +2469,7 @@ void bin_font_flush_canvas(bool trans, bool invert, bool quality, display_type e
             // 确定实际宽高：如果width和height都为0，使用默认值
             int actual_width = (width == 0 && height == 0) ? PAPER_S3_WIDTH : width;
             int actual_height = (width == 0 && height == 0) ? PAPER_S3_HEIGHT : height;
-            
+
             M5Canvas *clone = new M5Canvas(&M5.Display);
             if (clone)
             {
@@ -2822,7 +3021,7 @@ void bin_font_print(const std::string &text, uint8_t font_size, uint8_t color, i
                 if (needs_minor_shift(unicode))
                 {
                     // 标点符号向左调整20%的字体大小
-//                    float shift_f = g_bin_font.font_size * scale_factor * 0.2f;
+                    //                    float shift_f = g_bin_font.font_size * scale_factor * 0.2f;
                     float shift_f = g_bin_font.font_size * scale_factor * 0.25f;
                     int16_t shift_px = static_cast<int16_t>(std::lround(shift_f));
                     if (shift_px == 0 && g_bin_font.font_size > 0)
@@ -3262,12 +3461,23 @@ void bin_font_print(const std::string &text, uint8_t font_size, uint8_t color, i
                     }
                     else
                     {
-                        // 需要缩放：统一使用覆盖率缩放，提升轻微放大（如28->32）的笔画完整性。
-                        render_v2_binary_scaled(target_canvas, char_bitmap,
-                                                glyph->bitmapW, glyph->bitmapH,
-                                                scaled_width, scaled_height,
-                                                canvas_x, canvas_y,
-                                                scale_factor, text_color);
+                        // 需要缩放：V3字体使用灰度感知算法，V2字体使用覆盖率缩放。
+                        if (g_bin_font.version == 3)
+                        {
+                            render_v3_scaled(target_canvas, char_bitmap,
+                                             glyph->bitmapW, glyph->bitmapH,
+                                             scaled_width, scaled_height,
+                                             canvas_x, canvas_y,
+                                             scale_factor, dark);
+                        }
+                        else
+                        {
+                            render_v2_binary_scaled(target_canvas, char_bitmap,
+                                                    glyph->bitmapW, glyph->bitmapH,
+                                                    scaled_width, scaled_height,
+                                                    canvas_x, canvas_y,
+                                                    scale_factor, text_color);
+                        }
                     }
                 }
                 else

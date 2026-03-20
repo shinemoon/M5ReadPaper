@@ -176,6 +176,12 @@ public:
         saveBookmark();
     }
 
+    // 更新内容区宽度（例如字号缩放导致右边距变化时需要同步）
+    void setAreaWidth(int16_t w)
+    {
+        area_w = w;
+    }
+
     // 标记对象正在被关闭（用于避免后台索引在删除时仍使用对象）
     void markForClose();
     bool isClosing() const;

@@ -202,9 +202,9 @@ void StateMachineTask::handleMainMenuState(const SystemMessage_t *msg)
 
                     // 使用 config_update_current_book 来创建新的 BookHandle
                     // 这会自动处理配置更新和书签加载
-                    int16_t area_w = PAPER_S3_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
+                    int16_t area_w = PAPER_S3_WIDTH - MARGIN_LEFT - get_reading_effective_margin_right();
                     int16_t area_h = PAPER_S3_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM;
-                    float fsize = (float)get_font_size_from_file();
+                    float fsize = get_configured_reading_font_size(get_font_size_from_file());
 
                     BookHandle *new_book = config_update_current_book(book_path.c_str(), area_w, area_h, fsize);
 #include "current_book.h"

@@ -860,7 +860,7 @@ void WiFiHotspotManager::handleFileDelete() {
                 Serial.printf("[WIFI_HOTSPOT] 当前书籍已被删除: %s，尝试回退到默认文件\n", path.c_str());
 #endif
                 // 使用 config_update_current_book 来回退并持久化配置
-                int16_t area_w = PAPER_S3_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
+                int16_t area_w = PAPER_S3_WIDTH - MARGIN_LEFT - get_reading_effective_margin_right();
                 int16_t area_h = PAPER_S3_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM;
                 float fsize = SYSFONTSIZE;
                 BookHandle* newb = config_update_current_book("/spiffs/ReadPaper.txt", area_w, area_h, fsize);

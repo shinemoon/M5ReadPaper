@@ -93,6 +93,10 @@ enum display_type {
 
 #define BOOKMARKOFFSET 82 //0.618
 
+#define FONT_SCALE_MIN_PCT 80
+#define FONT_SCALE_MAX_PCT 150
+#define FONT_SCALE_DEFAULT_PCT 100
+
 
 /* 全局配置结构体 */
 struct GlobalConfig {
@@ -116,6 +120,9 @@ struct GlobalConfig {
 
     // 自动翻页速度，取值范围 1..255，默认 2
     uint8_t autospeed = 2;
+
+    // 正文阅读字号缩放百分比，仅作用于正文排版与分页
+    uint8_t font_scale_pct = FONT_SCALE_DEFAULT_PCT;
 
     // 主菜单文件列表限制（可通过配置文件调整，默认由宏 MAX_MAIN_MENU_FILE_COUNT 设定）
     uint16_t main_menu_file_count = MAX_MAIN_MENU_FILE_COUNT;
@@ -170,6 +177,15 @@ int8_t fontLoadLoc = 1;
 #define GREY_LEVEL_LIGHT  0xC618  // 浅灰 ~75% 亮度
 #define GREY_LEVEL_MID    0x8430  // 中灰 ~50% 亮度 (与 GREY_MAP_COLOR 相同)
 #define GREY_LEVEL_DARK   0x4208  // 深灰 ~25% 亮度
+
+// 缩放字体提亮强度。
+// 通过直接抬高「黑/灰/白」判定阈值实现提亮，效果由 scale_delta * 0.25 * strength 决定。
+// 0.0f: 关闭；1.0f: 轻微（90%下约 +0.025）；3.0f: 明显（90%下约 +0.075）。
+#define FONT_SCALE_LIGHTEN_STRENGTH 0.0f
+
+// 阅读区右边距补偿强度。
+// 1.0f 为当前默认力度；0.0f 表示关闭缩小时的额外右边距；>1.0f 表示补偿更强。
+#define FONT_SCALE_MARGIN_COMPENSATION_STRENGTH 1.5f
 
 
 //Lock internal param
