@@ -4,6 +4,16 @@
     "sections": [
         {
             "icon": "📖",
+            "title": "ReadPaper V1.7.5.2 固件更新",
+            "updates": [
+                {
+                    "category": "修正",
+                    "description": "V1.7.5.1导入的索引进度不可保存的恶性问题"
+                }
+            ]
+        },
+        {
+            "icon": "📖",
             "title": "ReadPaper V1.7.5.1 固件更新",
             "updates": [
                 {

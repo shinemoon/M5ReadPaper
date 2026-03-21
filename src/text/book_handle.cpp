@@ -1342,10 +1342,7 @@ bool BookHandle::jumpToPage(size_t page_index)
             bool font_size_changed = (cfg.font_base_size > 0 && current_font_file_size > 0 && cfg.font_base_size != current_font_file_size);
             // Note: font_name and font_version comparison removed - only font size matters for re-indexing
             // Same-size fonts assumed to have similar pagination impact
-            bool area_changed = (cfg.area_width != area_w || cfg.area_height != area_h);
-            bool encoding_changed = (cfg.encoding != encoding);
-
-            if (font_size_changed || area_changed || encoding_changed)
+            if (font_size_changed)
             {
                 // 请求停止当前索引并等待（最长5s），然后强制重建索引
                 Serial.println("[BH] jumpToPage: 检测到书签参数与当前不匹配且正在索引，尝试停止并强制重建索引");
@@ -3318,10 +3315,7 @@ void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool
             bool font_size_changed = (cfg.font_base_size > 0 && current_font_file_size > 0 && cfg.font_base_size != current_font_file_size);
             // Note: font_name and font_version comparison removed - only font size matters for re-indexing
             // Same-size fonts assumed to have similar pagination impact
-            bool area_changed = (cfg.area_width != area_w || cfg.area_height != area_h);
-            bool encoding_changed = (cfg.encoding != encoding);
-
-            if (font_size_changed || area_changed || encoding_changed)
+            if (font_size_changed)
             {
                 // 如果检测到差异，强制重建索引并跳回第一页
 #if DBG_BOOK_HANDLE
