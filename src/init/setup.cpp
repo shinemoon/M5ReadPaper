@@ -233,8 +233,8 @@ void setup()
 #endif
         strcpy(g_config.currentReadFile, "/spiffs/ReadPaper.txt"); // backward comp purpose
     }
-    // 获取显示区域参数（右边距随字号缩放比例动态调整）
-    int16_t area_w = PAPER_S3_WIDTH - MARGIN_LEFT - get_reading_effective_margin_right();
+    // 获取显示区域参数（左右边距按当前字号动态对称调整）
+    int16_t area_w = PAPER_S3_WIDTH - get_reading_effective_margin_left() - get_reading_effective_margin_right();
     int16_t area_h = PAPER_S3_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM;
     float fsize = get_configured_reading_font_size(get_font_size_from_file());
 

@@ -3358,10 +3358,11 @@ void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool
     TextPageResult current = currentPage();
     last_render_char_count_ = count_readable_codepoints(current.page_text);
     bin_font_clear_canvas(dark);
-    // 根据当前字号缩放比例动态计算右边距：小字号时增大右边距以保持左右视觉平衡
+    // 根据当前字号缩放比例动态计算左右对称边距，并保持总边距约为一个字宽
+    int16_t eff_margin_left = get_reading_effective_margin_left();
     int16_t eff_margin_right = get_reading_effective_margin_right();
     display_print(current.page_text.c_str(), font_size_param, TFT_BLACK, TL_DATUM,
-                  MARGIN_TOP, MARGIN_BOTTOM, MARGIN_LEFT, eff_margin_right, TFT_WHITE, true, dark);
+                  MARGIN_TOP, MARGIN_BOTTOM, eff_margin_left, eff_margin_right, TFT_WHITE, true, dark);
 
     // If this page contains any tag start positions, draw a small black dot at top-right
     // 【保护条件】只有在索引完全加载且有效时才检查和显示书签图标

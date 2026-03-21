@@ -58,8 +58,8 @@ void StateMachineTask::handleReadingQuickMenuState(const SystemMessage_t *msg)
             if (g_current_book)
             {
                 g_current_book->setFontSize(font_size);
-                // 同步更新 area_w：小字号时增大右边距，确保分页与渲染右边距一致
-                g_current_book->setAreaWidth(PAPER_S3_WIDTH - MARGIN_LEFT - get_reading_effective_margin_right());
+                // 同步更新 area_w：根据当前字号动态设置左右对称边距，确保分页与渲染一致
+                g_current_book->setAreaWidth(PAPER_S3_WIDTH - get_reading_effective_margin_left() - get_reading_effective_margin_right());
             }
             config_save();
             if (g_current_book)

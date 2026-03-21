@@ -433,10 +433,10 @@ static void render_v3_scaled(M5Canvas *canvas, uint16_t *bitmap,
     // 缩放时轻微提亮：降低墨水强度，缓解双线性采样造成的“偏深”观感。
     float scale_delta = fabsf(scale_factor - 1.0f);
     float lighten_amount = (scale_delta > 0.01f)
-                               ? fminf(0.35f, scale_delta * 0.25f * FONT_SCALE_LIGHTEN_STRENGTH)
+                               ? fmaxf(-0.25f, fminf(0.35f, scale_delta * 0.25f * FONT_SCALE_LIGHTEN_STRENGTH))
                                : 0.0f;
-    float fg_thr = fminf(0.95f, 0.75f + lighten_amount);
-    float gray_thr = fminf(0.80f, 0.25f + lighten_amount);
+    float fg_thr   = fmaxf(0.30f, fminf(0.95f, 0.75f + lighten_amount));
+    float gray_thr = fmaxf(0.05f, fminf(0.80f, 0.25f + lighten_amount));
 
     // 常见阅读缩放区间使用快速路径：双线性采样 + 同色水平线段绘制
     const bool use_fast_path = (scale_factor >= 0.75f && scale_factor <= 1.5f);
@@ -3229,8 +3229,9 @@ void bin_font_print(const std::string &text, uint8_t font_size, uint8_t color, i
         }
         line_count++;
 
-        // 计算当前行的起始x坐标
-        int16_t x = g_margin_left;
+        // 计算当前行的起始x坐标：统一向右shift半个字符的显示宽度
+        int16_t shift_offset = (int16_t)std::lround(g_bin_font.font_size * scale_factor / 2.0f);
+        int16_t x = g_margin_left + shift_offset;
 
         // 对于单行文本，根据对齐方式计算位置（适用于快速模式和质量模式）
         if (line_count == 1 && display_text.find('\n') == std::string::npos)
@@ -3245,27 +3246,27 @@ void bin_font_print(const std::string &text, uint8_t font_size, uint8_t color, i
             switch (text_align)
             {
             case TEXT_ALIGN_LEFT:
-                // 左对齐：margin_left作为左边距
-                x = margin_left;
+                // 左对齐：margin_left作为左边距，加上shift offset
+                x = margin_left + shift_offset;
                 break;
             case TEXT_ALIGN_CENTER:
-                // 居中对齐：基于area_width计算居中位置，margin_left作为额外偏移
-                x = (align_width - line_width) / 2 + margin_left;
+                // 居中对齐：基于area_width计算居中位置，margin_left作为额外偏移，加上shift offset
+                x = (align_width - line_width) / 2 + margin_left + shift_offset;
                 break;
             case TEXT_ALIGN_RIGHT:
-                // 右对齐：基于area_width从右边开始，margin_left作为右边距
-                x = align_width - line_width - margin_left;
+                // 右对齐：基于area_width从右边开始，margin_left作为左起点，加上shift offset
+                x = margin_left + align_width - line_width + shift_offset;
                 break;
             default:
                 // 默认左对齐
-                x = margin_left;
+                x = margin_left + shift_offset;
                 break;
             }
 
 #if DBG_BIN_FONT_PRINT
             const char *align_names[] = {"左对齐", "居中", "右对齐"};
-            Serial.printf("[BIN_FONT] 单行文本对齐: %s, 模式=%s, align_width=%d, line_width=%d, margin=%d, final_x=%d\n",
-                          align_names[text_align], fast_mode ? "快速" : "质量", align_width, line_width, margin_left, x);
+            Serial.printf("[BIN_FONT] 单行文本对齐: %s, 模式=%s, align_width=%d, line_width=%d, margin=%d, shift_offset=%d, final_x=%d\n",
+                          align_names[text_align], fast_mode ? "快速" : "质量", align_width, line_width, margin_left, shift_offset, x);
 #endif
         }
 

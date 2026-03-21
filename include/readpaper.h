@@ -181,11 +181,11 @@ int8_t fontLoadLoc = 1;
 // 缩放字体提亮强度。
 // 通过直接抬高「黑/灰/白」判定阈值实现提亮，效果由 scale_delta * 0.25 * strength 决定。
 // 0.0f: 关闭；1.0f: 轻微（90%下约 +0.025）；3.0f: 明显（90%下约 +0.075）。
-#define FONT_SCALE_LIGHTEN_STRENGTH 0.0f
+#define FONT_SCALE_LIGHTEN_STRENGTH -0.8f
 
 // 阅读区右边距补偿强度。
 // 1.0f 为当前默认力度；0.0f 表示关闭缩小时的额外右边距；>1.0f 表示补偿更强。
-#define FONT_SCALE_MARGIN_COMPENSATION_STRENGTH 1.5f
+#define FONT_SCALE_MARGIN_COMPENSATION_STRENGTH 1.0f
 
 
 //Lock internal param

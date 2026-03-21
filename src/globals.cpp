@@ -45,39 +45,43 @@ float get_configured_reading_font_size(uint8_t base_font_size)
 	return ((float)resolved_base_font_size * (float)scale_pct) / 100.0f;
 }
 
-// 按字体缩放动态修正右边距。
-// 使用“相对字体尺寸”的补偿，而不是固定像素：
-// 以基础字体的大致半角字宽（约 base_font_size * 0.5）为参照，
-// 再乘以缩小比例 ((100 - scale) / 100)。
-// 这样字体文件基础尺寸变化时，边距补偿也会同步变化。
+static int16_t get_reading_total_horizontal_margin()
+{
+	uint8_t base_font_size = get_font_size_from_file();
+	if (base_font_size == 0)
+	{
+		base_font_size = SYSFONTSIZE;
+	}
+
+	float configured_font_size = get_configured_reading_font_size(base_font_size);
+	float target_total_margin = configured_font_size * FONT_SCALE_MARGIN_COMPENSATION_STRENGTH;
+	int16_t total_margin = (int16_t)lroundf(target_total_margin);
+
+	if (total_margin < 2)
+	{
+		total_margin = 2;
+	}
+
+	if (total_margin > PAPER_S3_WIDTH - 2)
+	{
+		total_margin = PAPER_S3_WIDTH - 2;
+	}
+
+	// 为了保证左右边距严格相等，将总边距调整为偶数。
+	if ((total_margin & 0x1) != 0)
+	{
+		total_margin += 1;
+	}
+
+	return total_margin;
+}
+
+int16_t get_reading_effective_margin_left()
+{
+	return get_reading_total_horizontal_margin() / 2;
+}
+
 int16_t get_reading_effective_margin_right()
 {
-	uint8_t scale = clamp_font_scale_pct((int)g_config.font_scale_pct);
-	if (scale == 100)
-	{
-		return MARGIN_RIGHT;
-	}
-
-	int16_t extra = 0;
-	if (scale < 100)
-	{
-		uint8_t base_font_size = get_font_size_from_file();
-		if (base_font_size == 0)
-		{
-			base_font_size = SYSFONTSIZE;
-		}
-
-		float shrink_ratio = (100.0f - (float)scale) / 100.0f;
-		float reference_half_char_width = (float)base_font_size * 0.5f;
-		float compensation = reference_half_char_width * shrink_ratio;
-		compensation *= FONT_SCALE_MARGIN_COMPENSATION_STRENGTH;
-		extra = (int16_t)lroundf(compensation);
-	}
-	else
-	{
-		// 大字号不额外增加右边距，避免可用宽度变窄。
-		extra = 0;
-	}
-
-	return MARGIN_RIGHT + extra;
+	return get_reading_total_horizontal_margin() / 2;
 }
