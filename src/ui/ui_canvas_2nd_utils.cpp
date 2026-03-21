@@ -95,7 +95,7 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
         // opt: ind of selectd row
         // opt2: ind of current page
         // Title
-        bin_font_print("字体设置选择", 32, 0, 540, 0, y + 16, false, target, TEXT_ALIGN_CENTER, 450);
+        bin_font_print("字体设置选择", 32, 0, 540, -16, y + 16, false, target, TEXT_ALIGN_CENTER, 450);
 
         // Scan available fonts on SD (uses file_manager font scan API)
         // NOTE: adjust the call below to match your file_manager API if different.
@@ -106,7 +106,7 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
 
         if (fonts.empty())
         {
-            bin_font_print("未找到字体", 30, 0, 540, 0, y + 80, false, target, TEXT_ALIGN_CENTER, 450);
+            bin_font_print("未找到字体", 30, 0, 540, -15, y + 80, false, target, TEXT_ALIGN_CENTER, 450);
             break;
         }
 
@@ -166,7 +166,7 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
             //                 displayName += sty;
             //}
 
-            bin_font_print(displayName.c_str(), 30, 0, 400, 45, y_pos, false, target, TEXT_ALIGN_CENTER, 360);
+            bin_font_print(displayName.c_str(), 30, 0, 400, 30, y_pos, false, target, TEXT_ALIGN_CENTER, 360);
 
 #if DBG_FILE_MANAGER
             // Debug: 检查 displayName 中的每个 UTF-8 codepoint 在当前加载字体中是否存在
@@ -190,7 +190,7 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
             Serial.println();
 #endif
 
-            bin_font_print(std::to_string(static_cast<int>(fontSize)).c_str(), 28, 0, 540, 450, y_pos, false, target, TEXT_ALIGN_LEFT, 80);
+            bin_font_print(std::to_string(static_cast<int>(fontSize)).c_str(), 28, 0, 540, 436, y_pos, false, target, TEXT_ALIGN_LEFT, 80);
         }
 
         // Pagination controls: "上一页" / "下一页"
@@ -203,7 +203,7 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
             int pageNum = opt2 + 1; // opt2 is zero-based
             char pageBuf[32];
             snprintf(pageBuf, sizeof(pageBuf), "%d / %d", pageNum, pages);
-            bin_font_print(pageBuf, 20, 0, 540, 0, y + rectH - 78, false, target, TEXT_ALIGN_CENTER, 450);
+            bin_font_print(pageBuf, 20, 0, 540, -10, y + rectH - 78, false, target, TEXT_ALIGN_CENTER, 450);
         }
 
         // 左快进
@@ -234,15 +234,15 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
     }
     break;
     case Main2ndLevelMenuType::MAIN_2ND_MENU_CLEAN_BOOKMARK:
-        bin_font_print("确认清理", 32, 0, 540, 0, y + 16, false, target, TEXT_ALIGN_CENTER, 450);
+        bin_font_print("确认清理", 32, 0, 540, -16, y + 16, false, target, TEXT_ALIGN_CENTER, 450);
 
         draw_button(target, 188, y + 80 + 32, "恢复出厂", true, false); // SIX_TWO/THREE
 
-        bin_font_print("恢复出厂设置(书籍和图片不影响)", 28, 0, 540, 0, y + 32 + 80 + 60, true, target, TEXT_ALIGN_CENTER, 480);
+        bin_font_print("恢复出厂设置(书籍和图片不影响)", 28, 0, 540, -14, y + 32 + 80 + 60, true, target, TEXT_ALIGN_CENTER, 480);
 
         draw_button(target, 188, y + 32 + 80 + 50 + 80, "清理残存", true, false); // SIX_FOUR/FIVE
 
-        bin_font_print("清理无对应书籍的残留缓存内容", 28, 0, 540, 0, y + 32 + 80 + 50 + 60 + 80, true, target, TEXT_ALIGN_CENTER, 480);
+        bin_font_print("清理无对应书籍的残留缓存内容", 28, 0, 540, -14, y + 32 + 80 + 50 + 60 + 80, true, target, TEXT_ALIGN_CENTER, 480);
 
         break;
     case Main2ndLevelMenuType::MAIN_2ND_MENU_DISPLAY_SETTING:
@@ -256,7 +256,7 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
             p_h = 30;
             p_y = p_y + 120 + (refInd - 1) * 96;
         }
-        bin_font_print("阅读显示设置", 32, 0, 540, 0, y + 16, false, target, TEXT_ALIGN_CENTER, 450);
+        bin_font_print("阅读显示设置", 32, 0, 540, -16, y + 16, false, target, TEXT_ALIGN_CENTER, 450);
         // Button
         draw_label(target, 40, y + 121, "默认方向", true); // FIVE_ONE/TWO
         const int16_t rotationRowY = y + 120;
@@ -266,8 +266,8 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
         else
             // target->fillRect(360, rotationRowY - 4, 160, 36, TFT_LIGHTGREY);
             target->fillTriangle(360, rotationRowY + 4, 360, rotationRowY + 4 + 18, 360 + 12, rotationRowY + 4 + 9, TFT_BLACK);
-        bin_font_print("手柄向上", 28, 0, 540, 230, rotationRowY, true, target, TEXT_ALIGN_LEFT, 150);
-        bin_font_print("手柄向下", 28, 0, 540, 380, rotationRowY, true, target, TEXT_ALIGN_LEFT, 150);
+        bin_font_print("手柄向上", 28, 0, 540, 216, rotationRowY, true, target, TEXT_ALIGN_LEFT, 150);
+        bin_font_print("手柄向下", 28, 0, 540, 366, rotationRowY, true, target, TEXT_ALIGN_LEFT, 150);
 
         // Button
         draw_label(target, 40, y + 2 * 96 + 25, "翻页方式", true); // SIX_ONE/TWO
@@ -277,8 +277,8 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
             target->fillTriangle(210, pageStyleRowY + 4, 210, pageStyleRowY + 4 + 18, 210 + 12, pageStyleRowY + 4 + 9, TFT_BLACK);
         else
             target->fillTriangle(360, pageStyleRowY + 4, 360, pageStyleRowY + 4 + 18, 360 + 12, pageStyleRowY + 4 + 9, TFT_BLACK);
-        bin_font_print("右手习惯", 28, 0, 540, 230, pageStyleRowY, true, target, TEXT_ALIGN_LEFT, 150);
-        bin_font_print("左手习惯", 28, 0, 540, 380, pageStyleRowY, true, target, TEXT_ALIGN_LEFT, 150);
+        bin_font_print("右手习惯", 28, 0, 540, 216, pageStyleRowY, true, target, TEXT_ALIGN_LEFT, 150);
+        bin_font_print("左手习惯", 28, 0, 540, 366, pageStyleRowY, true, target, TEXT_ALIGN_LEFT, 150);
         // Button - 书签显示
         draw_label(target, 40, y + 3 * 96 + 25, "书签显示", true); // SIX_ONE/TWO
 
@@ -290,9 +290,9 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
         else
             target->fillTriangle(210, labelRowY + 4, 210, labelRowY + 4 + 18, 210 + 12, labelRowY + 4 + 9, TFT_BLACK);
 
-        bin_font_print("底部", 28, 0, 540, 230, labelRowY, true, target, TEXT_ALIGN_LEFT, 100);
-        bin_font_print("中部", 28, 0, 540, 330, labelRowY, true, target, TEXT_ALIGN_LEFT, 100);
-        bin_font_print("上部", 28, 0, 540, 430, labelRowY, true, target, TEXT_ALIGN_LEFT, 100);
+        bin_font_print("底部", 28, 0, 540, 216, labelRowY, true, target, TEXT_ALIGN_LEFT, 100);
+        bin_font_print("中部", 28, 0, 540, 316, labelRowY, true, target, TEXT_ALIGN_LEFT, 100);
+        bin_font_print("上部", 28, 0, 540, 416, labelRowY, true, target, TEXT_ALIGN_LEFT, 100);
 
         // Button - 书签主题
         draw_label(target, 40, y + 4 * 96 + 25, "书签主题", true); // SEVEN_ONE/TWO
@@ -305,9 +305,9 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
         else
             target->fillTriangle(210, themeRowY + 4, 210, themeRowY + 4 + 18, 210 + 12, themeRowY + 4 + 9, TFT_BLACK);
 
-        bin_font_print("深色", 28, 0, 540, 230, themeRowY, true, target, TEXT_ALIGN_LEFT, 100);
-        bin_font_print("浅色", 28, 0, 540, 330, themeRowY, true, target, TEXT_ALIGN_LEFT, 100);
-        bin_font_print("随机", 28, 0, 540, 430, themeRowY, true, target, TEXT_ALIGN_LEFT, 100);
+        bin_font_print("深色", 28, 0, 540, 216, themeRowY, true, target, TEXT_ALIGN_LEFT, 100);
+        bin_font_print("浅色", 28, 0, 540, 316, themeRowY, true, target, TEXT_ALIGN_LEFT, 100);
+        bin_font_print("随机", 28, 0, 540, 416, themeRowY, true, target, TEXT_ALIGN_LEFT, 100);
 
         // Button - 通用壁纸
         draw_label(target, 40, y + 5 * 96 + 25, "锁屏显示", true); // EIGHT_ONE/TWO
@@ -319,8 +319,8 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
         else
             target->fillTriangle(210, wallpaperRowY + 4, 210, wallpaperRowY + 4 + 18, 210 + 12, wallpaperRowY + 4 + 9, TFT_BLACK);
 
-        bin_font_print("默认", 28, 0, 540, 230, wallpaperRowY, true, target, TEXT_ALIGN_LEFT, 100);
-        bin_font_print("随机", 28, 0, 540, 330, wallpaperRowY, true, target, TEXT_ALIGN_LEFT, 100);
+        bin_font_print("默认", 28, 0, 540, 216, wallpaperRowY, true, target, TEXT_ALIGN_LEFT, 100);
+        bin_font_print("随机", 28, 0, 540, 316, wallpaperRowY, true, target, TEXT_ALIGN_LEFT, 100);
 #else
         if (strcmp(g_config.lockscreen_mode, "default") == 0)
             target->fillTriangle(210, wallpaperRowY + 4, 210, wallpaperRowY + 4 + 18, 210 + 12, wallpaperRowY + 4 + 9, TFT_BLACK);
@@ -329,16 +329,16 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
         else // online
             target->fillTriangle(410, wallpaperRowY + 4, 410, wallpaperRowY + 4 + 18, 410 + 12, wallpaperRowY + 4 + 9, TFT_BLACK);
 
-        bin_font_print("默认", 28, 0, 540, 230, wallpaperRowY, true, target, TEXT_ALIGN_LEFT, 100);
-        bin_font_print("随机", 28, 0, 540, 330, wallpaperRowY, true, target, TEXT_ALIGN_LEFT, 100);
-        bin_font_print("在线", 28, 0, 540, 430, wallpaperRowY, true, target, TEXT_ALIGN_LEFT, 100);
+        bin_font_print("默认", 28, 0, 540, 216, wallpaperRowY, true, target, TEXT_ALIGN_LEFT, 100);
+        bin_font_print("随机", 28, 0, 540, 316, wallpaperRowY, true, target, TEXT_ALIGN_LEFT, 100);
+        bin_font_print("在线", 28, 0, 540, 416, wallpaperRowY, true, target, TEXT_ALIGN_LEFT, 100);
 #endif
 
         break;
     }
     case Main2ndLevelMenuType::MAIN_2ND_MENU_CONNECT_METHOD:
     {
-        bin_font_print("连接方式", 36, 0, 540, 0, y + 16, false, target, TEXT_ALIGN_CENTER, 540);
+        bin_font_print("连接方式", 36, 0, 540, -18, y + 16, false, target, TEXT_ALIGN_CENTER, 540);
         // Show wireless and connection settings buttons
         // The wired UI is intentionally hidden; its touch region is moved to the
         // top-right 60x60 area of the center rectangle (handled in touch logic).
@@ -348,7 +348,7 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
         draw_button(target, btn_cx, btn_cy, "热点连接", true);
         // Connection settings button placeholder (hidden, touch disabled)
         int16_t btn_cy2 = btn_cy + 104;
-        bin_font_print("- Connecting People - ", 28, 0, 540, x, btn_cy2, false, target, TEXT_ALIGN_CENTER, rectW);
+        bin_font_print("- Connecting People - ", 28, 0, 540, x - 14, btn_cy2, false, target, TEXT_ALIGN_CENTER, rectW);
         //        bin_font_print("请按照说明连接WIFI", 28, 0, 540, 0, btn_cy + 45, false, g_canvas, TEXT_ALIGN_CENTER, 540);
 
         // Draw MSC indicator

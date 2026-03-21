@@ -29,13 +29,13 @@ void draw_reading_quick_menu(M5Canvas *canvas, uint8_t preview_font_scale_pct, b
 
     canvas->fillRect(52+g_config.autospeed*100, 894, 100, 50, TFT_LIGHTGRAY);
 
-    bin_font_print("I", 30, 0,100,52, 905,true,canvas,TEXT_ALIGN_CENTER,100);
+    bin_font_print("I", 30, 0,100,37, 905,true,canvas,TEXT_ALIGN_CENTER,100);
     canvas->fillRect(152, 894, 2, 50, TFT_LIGHTGRAY);
-    bin_font_print("II", 30, 0,100,152, 905,true,canvas,TEXT_ALIGN_CENTER,100);
+    bin_font_print("II", 30, 0,100,137, 905,true,canvas,TEXT_ALIGN_CENTER,100);
     canvas->fillRect(252, 894, 2, 50, TFT_LIGHTGRAY);
-    bin_font_print("III", 30, 0,100,252, 905,true,canvas,TEXT_ALIGN_CENTER,100);
+    bin_font_print("III", 30, 0,100,237, 905,true,canvas,TEXT_ALIGN_CENTER,100);
     canvas->fillRect(352, 894, 2, 50, TFT_LIGHTGRAY);
-    bin_font_print("IV", 30, 0,100,352, 905,true,canvas,TEXT_ALIGN_CENTER,100);
+    bin_font_print("IV", 30, 0,100,337, 905,true,canvas,TEXT_ALIGN_CENTER,100);
     canvas->fillRect(452, 894, 2, 50, TFT_LIGHTGRAY);
 
 
@@ -60,7 +60,7 @@ void draw_reading_quick_menu(M5Canvas *canvas, uint8_t preview_font_scale_pct, b
     canvas->drawRoundRect(251, 789, 300, 61, 10, TFT_BLACK);
     canvas->fillRoundRect(252, 792, 298, 54, 10, TFT_BLACK);
 //    canvas->fillRect(260, 800, 192, 38, TFT_BLACK);
-    bin_font_print("手动全刷", 30, 0,200,252, 805,false,canvas,TEXT_ALIGN_CENTER,200,false,false,false,true);
+    bin_font_print("手动全刷", 30, 0,200,237, 805,false,canvas,TEXT_ALIGN_CENTER,200,false,false,false,true);
     canvas->fillRect(452, 794, 2, 50, TFT_LIGHTGRAY);
     drawScrew(canvas,495, 819);
 
@@ -98,15 +98,15 @@ void draw_reading_quick_menu(M5Canvas *canvas, uint8_t preview_font_scale_pct, b
     canvas->fillRect(x_plus, inner_y + 2, 2, inner_h - 4, TFT_LIGHTGRAY);
     canvas->fillRect(x_screw, inner_y + 2, 2, inner_h - 4, TFT_LIGHTGRAY);
 
-    bin_font_print("字体比例", 30, 0, seg_w_title, x_title, scale_y + 18, false, canvas, TEXT_ALIGN_CENTER, seg_w_title, false, false, false, true);
+    bin_font_print("字体比例", 30, 0, seg_w_title, x_title - 15, scale_y + 18, false, canvas, TEXT_ALIGN_CENTER, seg_w_title, false, false, false, true);
 
-    bin_font_print("-", 30, 0, seg_w_minus, x_minus, scale_y + 15, true, canvas, TEXT_ALIGN_CENTER, seg_w_minus, false, false, false, true);
+    bin_font_print("-", 30, 0, seg_w_minus, x_minus - 15, scale_y + 15, true, canvas, TEXT_ALIGN_CENTER, seg_w_minus, false, false, false, true);
 
     char scale_buf[8];
     snprintf(scale_buf, sizeof(scale_buf), "%u%%", (unsigned)preview_font_scale_pct);
-    bin_font_print(scale_buf, 24, 0, seg_w_value, x_value, scale_y + 19, true, canvas, TEXT_ALIGN_CENTER, seg_w_value, false, false, false, true);
+    bin_font_print(scale_buf, 24, 0, seg_w_value, x_value - 12, scale_y + 19, true, canvas, TEXT_ALIGN_CENTER, seg_w_value, false, false, false, true);
 
-    bin_font_print("+", 30, 0, seg_w_plus, x_plus, scale_y + 15, true, canvas, TEXT_ALIGN_CENTER, seg_w_plus, false, false, false, true);
+    bin_font_print("+", 30, 0, seg_w_plus, x_plus - 15, scale_y + 15, true, canvas, TEXT_ALIGN_CENTER, seg_w_plus, false, false, false, true);
 
     drawScrew(canvas, x_screw + seg_w_screw / 2, scale_y + scale_h / 2);
 
@@ -116,7 +116,7 @@ void draw_reading_quick_menu(M5Canvas *canvas, uint8_t preview_font_scale_pct, b
     canvas->drawRoundRect(247, 706, 304, 63, 10, TFT_WHITE);
     canvas->fillRoundRect(251, 707, 300, 61, 10, TFT_BLACK);
     canvas->fillRoundRect(252, 710, 298, 54, 10, TFT_WHITE);
-    bin_font_print("联线待机", 30, 0, 200, 252, 723, false, canvas, TEXT_ALIGN_CENTER, 200, false, false, false);
+    bin_font_print("联线待机", 30, 0, 200, 237, 723, false, canvas, TEXT_ALIGN_CENTER, 200, false, false, false);
     canvas->fillRect(452, 712, 2, 50, TFT_LIGHTGRAY);
     drawScrew(canvas, 495, 737);
 

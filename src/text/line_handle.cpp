@@ -328,5 +328,54 @@ size_t find_break_position_scaled(const std::string &text, size_t start_pos, int
     {
         scale_factor = font_size / (float)base_font;
     }
-    return find_break_position(text, start_pos, max_width, vertical, scale_factor);
+
+    int16_t effective_width = max_width;
+    if (!vertical)
+    {
+        // Keep wrapping width consistent with horizontal rendering's right shift.
+        // Rendering starts at a right-shifted baseline; reserve the same amount for wrapping.
+        // Apply the same >125% damping as renderer to avoid over-shrinking effective width.
+        int16_t shift_px = 0;
+        float rendered_font_px = 0.0f;
+        if (font_size > 0.0f)
+        {
+            rendered_font_px = font_size;
+        }
+        else if (base_font > 0)
+        {
+            rendered_font_px = (float)base_font * scale_factor;
+        }
+
+        int16_t width_reserve_px = 0;
+        if (rendered_font_px > 0.0f)
+        {
+            float zoom_ratio = (base_font > 0) ? (rendered_font_px / (float)base_font) : 1.0f;
+            float shift_damping = 1.0f;
+            if (zoom_ratio > 1.25f)
+            {
+                float over = zoom_ratio - 1.25f;
+                shift_damping = 1.0f / (1.0f + 0.45f * over);
+            }
+            shift_px = (int16_t)std::lround(rendered_font_px * 0.5f * shift_damping);
+
+            // For wrapping, reserve slightly less width than render shift when zoomed in.
+            // This keeps large-font layouts from becoming overly narrow.
+            float reserve_ratio = 1.0f;
+            if (zoom_ratio > 1.30f)
+            {
+                float over = zoom_ratio - 1.30f;
+                // More permissive curve for large zoom levels: keep more effective line width.
+                reserve_ratio = 1.0f / (1.0f + 2.00f * over);
+                reserve_ratio = fmaxf(0.45f, reserve_ratio);
+            }
+            width_reserve_px = (int16_t)std::lround((float)shift_px * reserve_ratio);
+        }
+        else
+        {
+            width_reserve_px = shift_px;
+        }
+        effective_width = std::max<int16_t>(1, (int16_t)(max_width - width_reserve_px));
+    }
+
+    return find_break_position(text, start_pos, effective_width, vertical, scale_factor);
 }

@@ -3229,8 +3229,17 @@ void bin_font_print(const std::string &text, uint8_t font_size, uint8_t color, i
         }
         line_count++;
 
-        // 计算当前行的起始x坐标：统一向右shift半个字符的显示宽度
-        int16_t shift_offset = (int16_t)std::lround(g_bin_font.font_size * scale_factor / 2.0f);
+        // 计算当前行的起始x坐标：默认右移半字；当放大超过125%时做轻度抑制，
+        // 避免大字号下边距占用过大导致可用排版宽度明显变小。
+        float rendered_font_px = (float)g_bin_font.font_size * scale_factor;
+        float zoom_ratio = (g_bin_font.font_size > 0) ? (rendered_font_px / (float)g_bin_font.font_size) : 1.0f;
+        float shift_damping = 1.0f;
+        if (zoom_ratio > 1.30f)
+        {
+            float over = zoom_ratio - 1.30f;
+            shift_damping = 1.0f / (1.0f + 0.85f * over);
+        }
+        int16_t shift_offset = (int16_t)std::lround(rendered_font_px * 0.5f * shift_damping);
         int16_t x = g_margin_left + shift_offset;
 
         // 对于单行文本，根据对齐方式计算位置（适用于快速模式和质量模式）
