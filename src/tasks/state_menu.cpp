@@ -323,9 +323,9 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     snprintf(name_with_page, sizeof(name_with_page), "%zu", target_page);
                     // 页码
                     // bin_font_print(name_with_page, 24, 0, 540, 0, 800, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
-                    bin_font_print(name_with_page, 28, 0, 540, 0, 775, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
+                    bin_font_print(name_with_page, 28, 0, 540, -14, 775, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     snprintf(name_with_page, sizeof(name_with_page), "%zu", total_pages);
-                    bin_font_print(name_with_page, 28, 0, 540, 0, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
+                    bin_font_print(name_with_page, 28, 0, 540, -14, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
                     bin_font_flush_canvas(false,false,false,NOEFFECT,160,775,230,80); // PapeFWD
@@ -356,9 +356,9 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     snprintf(name_with_page, sizeof(name_with_page), "%zu", target_page);
                     // 页码
                     // bin_font_print(name_with_page, 24, 0, 540, 0, 800, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
-                    bin_font_print(name_with_page, 28, 0, 540, 0, 775, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
+                    bin_font_print(name_with_page, 28, 0, 540, -14, 775, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     snprintf(name_with_page, sizeof(name_with_page), "%zu", total_pages);
-                    bin_font_print(name_with_page, 28, 0, 540, 0, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
+                    bin_font_print(name_with_page, 28, 0, 540, -14, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
                     bin_font_flush_canvas(false,false,false,NOEFFECT,160,775,230,80); // PapeBWD
@@ -390,9 +390,9 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     snprintf(name_with_page, sizeof(name_with_page), "%zu", target_page);
                     // 页码
                     // bin_font_print(name_with_page, 24, 0, 540, 0, 800, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
-                    bin_font_print(name_with_page, 28, 0, 540, 0, 775, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
+                    bin_font_print(name_with_page, 28, 0, 540, -14, 775, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     snprintf(name_with_page, sizeof(name_with_page), "%zu", total_pages);
-                    bin_font_print(name_with_page, 28, 0, 540, 0, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
+                    bin_font_print(name_with_page, 28, 0, 540, -14, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
                     bin_font_flush_canvas(false,false,false,NOEFFECT,160,775,230,80); //MBWD 
@@ -422,9 +422,9 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     snprintf(name_with_page, sizeof(name_with_page), "%zu", target_page);
                     // 页码
                     // bin_font_print(name_with_page, 24, 0, 540, 0, 800, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
-                    bin_font_print(name_with_page, 28, 0, 540, 0, 775, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
+                    bin_font_print(name_with_page, 28, 0, 540, -14, 775, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     snprintf(name_with_page, sizeof(name_with_page), "%zu", total_pages);
-                    bin_font_print(name_with_page, 28, 0, 540, 0, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
+                    bin_font_print(name_with_page, 28, 0, 540, -14, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
                     bin_font_flush_canvas(false,false,false,NOEFFECT,160,775,230,80); //FFWD
@@ -456,9 +456,9 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     snprintf(name_with_page, sizeof(name_with_page), "%zu", target_page);
                     // 页码
                     // bin_font_print(name_with_page, 24, 0, 540, 0, 800, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
-                    bin_font_print(name_with_page, 28, 0, 540, 0, 775, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
+                    bin_font_print(name_with_page, 28, 0, 540, -14, 775, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     snprintf(name_with_page, sizeof(name_with_page), "%zu", total_pages);
-                    bin_font_print(name_with_page, 28, 0, 540, 0, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
+                    bin_font_print(name_with_page, 28, 0, 540, -14, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
                     bin_font_flush_canvas(false,false,false,NOEFFECT,160,775,230,80); //FWD
@@ -488,9 +488,9 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     snprintf(name_with_page, sizeof(name_with_page), "%zu", target_page);
                     // 页码
                     // bin_font_print(name_with_page, 24, 0, 540, 0, 800, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
-                    bin_font_print(name_with_page, 28, 0, 540, 0, 775, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
+                    bin_font_print(name_with_page, 28, 0, 540, -14, 775, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     snprintf(name_with_page, sizeof(name_with_page), "%zu", total_pages);
-                    bin_font_print(name_with_page, 28, 0, 540, 0, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
+                    bin_font_print(name_with_page, 28, 0, 540, -14, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
                     bin_font_flush_canvas(false,false,false,NOEFFECT,160,775,230,80); //MFWD

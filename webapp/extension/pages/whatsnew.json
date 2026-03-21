@@ -4,6 +4,20 @@
     "sections": [
         {
             "icon": "📖",
+            "title": "ReadPaper V1.7.5.1 固件更新",
+            "updates": [
+                {
+                    "category": "增强",
+                    "description": "优化不同字体尺寸排版"
+                },
+                {
+                    "category": "增强",
+                    "description": "字体比例调整预览"
+                }
+            ]
+        },
+        {
+            "icon": "📖",
             "title": "ReadPaper V1.7.5 固件更新",
             "updates": [
                 {
