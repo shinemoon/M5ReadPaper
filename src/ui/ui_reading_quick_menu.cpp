@@ -72,6 +72,30 @@ void draw_reading_quick_menu(M5Canvas *canvas, uint8_t preview_font_scale_pct, b
     const int16_t scale_w = 500;
     const int16_t scale_h = 63;
 
+    // === 字体比例预览字符：在scale bar正上方居中显示对应档位的汉字 ===
+    // 15档比例（80%~150%）对应"我知这世界如露水般短暂然而然而"，字号按对应比例渲染
+    {
+        static const uint8_t sc_vals[15] = {80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150};
+        static const char* const prev_chars[15] = {"我","知","这","世","界","如","露","水","般","短","暂","然","而","然","而"};
+        int idx = 4; // 默认100%
+        for (int i = 0; i < 15; ++i) {
+            if (preview_font_scale_pct == sc_vals[i]) { idx = i; break; }
+        }
+        uint8_t bfont = get_font_size_from_file();
+        if (bfont == 0) bfont = SYSFONTSIZE;
+        uint8_t cfsize = (uint8_t)((float)bfont * sc_vals[idx] / 100.0f + 0.5f);
+        if (cfsize < 8) cfsize = 8;
+        bool dark = g_config.dark;
+        // 清空预览区域（scale bar顶部向上72像素，匹配最大字号48px×1.5=72px的方形区域）
+        canvas->fillRect(0, scale_y - 72, PAPER_S3_WIDTH, 72, dark ? TFT_BLACK : TFT_WHITE);
+        // 居中绘制单个汉字，底部距banner顶留6px间隙
+        int16_t cy = scale_y - (int16_t)cfsize - 6;
+        bin_font_print(prev_chars[idx], cfsize, 0,
+                       PAPER_S3_WIDTH, 0, cy,
+                       false, canvas, TEXT_ALIGN_CENTER, PAPER_S3_WIDTH,
+                       false, false, false, dark);
+    }
+
     canvas->drawRoundRect(scale_x - 1, scale_y, scale_w + 2, scale_h, 10, TFT_WHITE);
     canvas->drawRoundRect(scale_x, scale_y + 1, scale_w, scale_h - 2, 10, TFT_BLACK);
     canvas->fillRoundRect(scale_x + 2, scale_y + 4, scale_w - 4, scale_h - 8, 10, TFT_BLACK);

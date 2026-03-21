@@ -29,11 +29,11 @@ constexpr int16_t QUICK_AUTOSPEED_Y = 889;
 constexpr int16_t QUICK_AUTOSPEED_W = 492;
 constexpr int16_t QUICK_AUTOSPEED_H = 62;
 
-// 字体比例条第三段（xxx%）局部刷新区域
-constexpr int16_t QUICK_SCALE_VALUE_X = 313;
-constexpr int16_t QUICK_SCALE_VALUE_Y = 624;
-constexpr int16_t QUICK_SCALE_VALUE_W = 110;
-constexpr int16_t QUICK_SCALE_VALUE_H = 63;
+// 字体比例条 + 预览字符 联合局部刷新区域（覆盖scale bar正上方72px预览区 + 整条scale bar）
+constexpr int16_t QUICK_SCALE_VALUE_X = 0;
+constexpr int16_t QUICK_SCALE_VALUE_Y = 552;
+constexpr int16_t QUICK_SCALE_VALUE_W = PAPER_S3_WIDTH;
+constexpr int16_t QUICK_SCALE_VALUE_H = 135; // 72px (预览区) + 63px (scale bar)
 }
 
 void StateMachineTask::handleReadingQuickMenuState(const SystemMessage_t *msg)
@@ -193,7 +193,7 @@ void StateMachineTask::handleReadingQuickMenuState(const SystemMessage_t *msg)
                         pending_font_scale_pct = new_scale;
                         pending_font_scale_dirty = true;
                         draw_reading_quick_menu(g_canvas, pending_font_scale_pct, pending_font_scale_dirty);
-                        bin_font_flush_canvas(false, false, false, NOEFFECT,
+                        bin_font_flush_canvas(false, false, false, VSHUTTER_REV,
                                               QUICK_SCALE_VALUE_X, QUICK_SCALE_VALUE_Y,
                                               QUICK_SCALE_VALUE_W, QUICK_SCALE_VALUE_H);
                     }
