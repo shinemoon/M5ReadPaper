@@ -168,6 +168,17 @@ void ApiRouter::registerRoutes(WebServer& server, WiFiHotspotManager& mgr) {
         server.send(204);
     });
 
+    // Device guide endpoint for device-management UI
+    server.on("/api/device_guide", HTTP_GET, [&](){
+        add_cors_headers(server);
+        mgr.handleDeviceGuide();
+    });
+
+    server.on("/api/device_guide", HTTP_OPTIONS, [&](){
+        add_cors_headers(server);
+        server.send(204);
+    });
+
     // WebDAV config endpoints
     server.on("/api/webdav_config", HTTP_GET, [&](){
         add_cors_headers(server);

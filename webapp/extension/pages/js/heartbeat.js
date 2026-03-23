@@ -1,17 +1,78 @@
 (function(){
+  const DEBUG_FLAG_KEY = 'device_mgmt_debug';
+  function isTruthyFlag(v){
+    if(v == null) return false;
+    const s = String(v).trim().toLowerCase();
+    return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+  }
+  function isDeviceMgmtDebugMode(){
+    try {
+      const q = new URLSearchParams(window.location.search || '');
+      let fromQuery = null;
+      if(q.has('debug')) fromQuery = q.get('debug');
+      if(q.has('dm_debug')) fromQuery = q.get('dm_debug');
+      if(q.has('device_debug')) fromQuery = q.get('device_debug');
+      if(q.has('debug_off') && isTruthyFlag(q.get('debug_off'))) fromQuery = '0';
+      if(fromQuery != null){
+        const on = isTruthyFlag(fromQuery);
+        try { localStorage.setItem(DEBUG_FLAG_KEY, on ? '1' : '0'); } catch(_){ }
+        return on;
+      }
+      try { return isTruthyFlag(localStorage.getItem(DEBUG_FLAG_KEY)); } catch(_){ return false; }
+    } catch(_){
+      return false;
+    }
+  }
+
   // Use the heartbeat endpoint implemented on the device
   const DEVICE_URL = 'http://192.168.4.1/heartbeat';
+  const GUIDE_URL = 'http://192.168.4.1/api/device_guide';
   const INTERVAL_MS = 5000;
+  const GUIDE_CACHE_TTL_MS = 15000;
   // start pessimistic: assume offline until heartbeat proves otherwise
   let online = false;
   let fileTabApplied = false;
+  let guideFetchInFlight = false;
+  const DEBUG_MODE = isDeviceMgmtDebugMode();
 
   // Global device info for webapp. Defaults as requested.
   window.deviceInfo = window.deviceInfo || { hw: 'M5Stack PaperS3', firmware: 'ReadPaper', version: 'V1.3' };
+  window.deviceGuideCache = window.deviceGuideCache || { guide: null, fetchedAt: 0 };
 
   function log(){ if(window.console) console.debug.apply(console, ['[heartbeat]'].concat(Array.from(arguments))); }
 
+  async function refreshDeviceGuideCache(force){
+    if(!online) return;
+    const now = Date.now();
+    const cache = window.deviceGuideCache || (window.deviceGuideCache = { guide: null, fetchedAt: 0 });
+    if(!force && cache.guide && (now - (cache.fetchedAt || 0) < GUIDE_CACHE_TTL_MS)) return;
+    if(guideFetchInFlight) return;
+    guideFetchInFlight = true;
+    try{
+      const r = await fetch(GUIDE_URL, {mode:'cors', cache:'no-store'});
+      if(!r || !r.ok) return;
+      const j = await r.json();
+      if(j && j.ok){
+        cache.guide = j;
+        cache.fetchedAt = Date.now();
+      }
+    }catch(e){
+      log('device_guide cache refresh failed', e && e.message ? e.message : e);
+    }finally{
+      guideFetchInFlight = false;
+    }
+  }
+
   async function checkOnce(){
+    if(DEBUG_MODE){
+      setOnline(true);
+      if(window.deviceInfo){
+        window.deviceInfo.hw = window.deviceInfo.hw || 'PaperS3-Debug';
+        window.deviceInfo.firmware = window.deviceInfo.firmware || 'ReadPaper';
+        window.deviceInfo.version = 'DEBUG-UI';
+      }
+      return;
+    }
     const controller = new AbortController();
     const timer = setTimeout(()=>controller.abort(), 2500);
     try{
@@ -36,6 +97,7 @@
                                          (window.deviceInfo && window.deviceInfo.version ? window.deviceInfo.version : 'V1.3') + ' @ ' +
                                          (window.deviceInfo && window.deviceInfo.hw ? window.deviceInfo.hw : 'M5Stack PaperS3');
             setOnline(true);
+            refreshDeviceGuideCache(false);
           } else {
             // JSON present but not reporting OK — keep offline
             log('heartbeat: JSON status not OK, treating as offline', j);
@@ -66,7 +128,7 @@
       fileTabEl.classList.add('disabled-until-heartbeat');
       fileTabEl.setAttribute('href', 'welcome.html');
       fileTabEl.setAttribute('aria-disabled', 'true');
-      if(statusEl) statusEl.textContent = '设备不在线，请确认设备已处于热点模式，而且本机已经连接。';
+      if(statusEl) statusEl.textContent = DEBUG_MODE ? 'DEBUG MODE：已放行设备管理入口，可离线调试 UI。' : '设备不在线，请确认设备已处于热点模式，而且本机已经连接。';
       log('device offline - UI applied');
     } else {
       fileTabEl.classList.remove('text-light');
@@ -74,7 +136,7 @@
       fileTabEl.classList.add('text-dark');
       fileTabEl.setAttribute('href', 'filemanager.html');
       fileTabEl.setAttribute('aria-disabled', 'false');
-      if(statusEl) statusEl.textContent = '';
+      if(statusEl) statusEl.textContent = DEBUG_MODE ? 'DEBUG MODE：设备管理使用本地测试向量。' : '';
       log('device online - UI applied');
     }
     return true;
@@ -103,6 +165,12 @@
 
     // try to apply immediately; if header not yet loaded, ensureApply will pick it up
     if(applyStateToFileTab(state)) fileTabApplied = true;
+
+    // clear guide cache on offline transition to avoid stale capability maps
+    if(!state && window.deviceGuideCache){
+      window.deviceGuideCache.guide = null;
+      window.deviceGuideCache.fetchedAt = 0;
+    }
   }
 
   function offlineClickHandler(e){
@@ -118,7 +186,7 @@
     try{
       const a = e.target.closest && e.target.closest('.tabs a[href="filemanager.html"]');
       if(!a) return;
-      if(!online){
+      if(!online && !DEBUG_MODE){
         e.preventDefault();
         // behave like offline click handler
         try{ window.location.href = 'welcome.html'; }catch(_){ }

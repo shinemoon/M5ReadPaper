@@ -47,13 +47,14 @@ Access-Control-Allow-Headers: Content-Type, X-Requested-With
 | 5 | `/rename` | GET | 重命名书籍（及伴随文件）|
 | 6 | `/sync_time` | POST | 同步设备时间 |
 | 7 | `/heartbeat` | GET | 健康检查 / 版本信息 |
-| 8 | `/api/reading_records` | GET | 查询阅读记录 |
-| 9 | `/api/webdav_config` | GET / POST | 读写 WebDAV 配置 |
-| 10 | `/api/wifi_config` | GET / POST | 读写 WiFi 连接配置 |
-| 11 | `/api/update_display` | POST | 单次推送显示内容（PNG + RDT） |
-| 12 | `/api/update_display_start` | POST | 分块推送：初始化 |
-| 13 | `/api/update_display_chunk` | POST | 分块推送：追加数据块 |
-| 14 | `/api/update_display_commit` | POST | 分块推送：提交（原子替换） |
+| 8 | `/api/device_guide` | GET | 设备管理页面 guide（模块开关+文件页签能力） |
+| 9 | `/api/reading_records` | GET | 查询阅读记录 |
+| 10 | `/api/webdav_config` | GET / POST | 读写 WebDAV 配置 |
+| 11 | `/api/wifi_config` | GET / POST | 读写 WiFi 连接配置 |
+| 12 | `/api/update_display` | POST | 单次推送显示内容（PNG + RDT） |
+| 13 | `/api/update_display_start` | POST | 分块推送：初始化 |
+| 14 | `/api/update_display_chunk` | POST | 分块推送：追加数据块 |
+| 15 | `/api/update_display_commit` | POST | 分块推送：提交（原子替换） |
 
 ---
 
@@ -287,7 +288,87 @@ curl "http://192.168.4.1/heartbeat"
 
 ---
 
-## 8) 阅读记录 — `/api/reading_records`
+## 8) 设备管理 Guide — `/api/device_guide`
+
+**方法**: GET
+
+**用途**:
+- 提供设备管理页面的能力声明。
+- 前端据此决定三大模块（文件管理/时间管理/设置管理）是否显示。
+- 文件管理页签、提示文案、是否支持目录层级、是否支持新建目录/重命名/阅读记录等均由该接口返回。
+
+**响应示例**（字段可扩展）：
+```json
+{
+  "ok": true,
+  "schema_version": 1,
+  "device": {
+    "hw": "M5Stack PaperS3",
+    "firmware": "ReadPaper",
+    "version": "V1.3",
+    "ip": "192.168.4.1",
+    "wifi_sta_connected": false,
+    "wifi_ap_clients": 1,
+    "upload_in_progress": false,
+    "current_book": "/sd/book/demo.txt"
+  },
+  "sections": {
+    "file_management": true,
+    "time_management": true,
+    "settings_management": true
+  },
+  "fileManagement": {
+    "required": true,
+    "tabs": [
+      {
+        "id": "book",
+        "apiTab": "book",
+        "title": "书籍",
+        "hint": "支持 unicode/GBK 编码的 txt 文件。",
+        "supportsHierarchy": true,
+        "allowUpload": true,
+        "allowDelete": true,
+        "allowRename": true,
+        "allowMkdir": true,
+        "allowReadingRecords": true,
+        "showIdxBadge": true
+      }
+    ]
+  },
+  "timeManagement": {
+    "enabled": true,
+    "allowSyncTime": true
+  },
+  "settingsManagement": {
+    "enabled": true,
+    "allowWifiConfig": true,
+    "allowWebdavConfig": true,
+    "hasWifiConfig": false,
+    "hasWebdavConfig": false
+  },
+  "endpoints": {
+    "heartbeat": "/heartbeat",
+    "list": "/list",
+    "upload": "/upload",
+    "download": "/download",
+    "delete": "/delete",
+    "rename": "/rename",
+    "mkdir": "/mkdir",
+    "sync_time": "/sync_time",
+    "reading_records": "/api/reading_records",
+    "wifi_config": "/api/wifi_config",
+    "webdav_config": "/api/webdav_config"
+  }
+}
+```
+
+**前端建议**:
+- `heartbeat` 用于在线探测；`/api/device_guide` 用于页面能力驱动。
+- 若 guide 获取失败，可回退到本地默认配置（例如 ReadPaper 既有四个文件分类）。
+
+---
+
+## 9) 阅读记录 — `/api/reading_records`
 
 **方法**: GET
 
@@ -326,7 +407,7 @@ curl "http://192.168.4.1/api/reading_records?books=/book/a.txt,/book/b.txt"
 
 ---
 
-## 9) WebDAV 配置 — `/api/webdav_config`
+## 10) WebDAV 配置 — `/api/webdav_config`
 
 **GET** — 读取当前 WebDAV 配置
 
@@ -368,7 +449,7 @@ curl -X POST -H "Content-Type: application/json" \
 
 ---
 
-## 10) WiFi 连接配置 — `/api/wifi_config`
+## 11) WiFi 连接配置 — `/api/wifi_config`
 
 **GET** — 读取当前 WiFi 配置（支持最多 3 组 SSID/密码）
 
@@ -408,7 +489,7 @@ curl -X POST -H "Content-Type: application/json" \
 
 ---
 
-## 11) 单次推送显示内容 — `/api/update_display`
+## 12) 单次推送显示内容 — `/api/update_display`
 
 **方法**: POST
 
@@ -438,7 +519,7 @@ curl -X POST -H "Content-Type: application/json" \
 
 ---
 
-## 12) 分块推送：初始化 — `/api/update_display_start`
+## 13) 分块推送：初始化 — `/api/update_display_start`
 
 **方法**: POST
 
@@ -466,7 +547,7 @@ curl -X POST -H "Content-Type: application/json" \
 
 ---
 
-## 13) 分块推送：追加数据块 — `/api/update_display_chunk`
+## 14) 分块推送：追加数据块 — `/api/update_display_chunk`
 
 **方法**: POST
 
@@ -493,7 +574,7 @@ curl -X POST -H "Content-Type: application/json" \
 
 ---
 
-## 14) 分块推送：提交 — `/api/update_display_commit`
+## 15) 分块推送：提交 — `/api/update_display_commit`
 
 **方法**: POST
 
