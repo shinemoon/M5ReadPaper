@@ -863,6 +863,23 @@
     }
   }
 
+  async function openBatchReadingRecordsFromSelection() {
+    if (selectedForDelete.size === 0) {
+      toast('请先选择要查看阅读记录的书籍', 'error', 3000);
+      return;
+    }
+    const books = Array.from(selectedForDelete).join(',');
+    console.log('[batchRecords] Selected books:', books);
+    try {
+      await fetchAndStoreReadingRecords(null, books);
+      console.log('[batchRecords] Records fetched and stored, opening window...');
+      window.open(`readingRecord.html?books=${encodeURIComponent(books)}&src=local`, '_blank');
+    } catch (e) {
+      console.error('[batchRecords] Failed:', e);
+      // Error already shown by fetchAndStoreReadingRecords
+    }
+  }
+
   function formatSize(bytes){
     if(bytes===0) return '0B';
     const units=['B','KB','MB','GB'];
@@ -1233,6 +1250,11 @@
       fileBody.querySelectorAll('button[data-record]').forEach(btn=>{
         btn.onclick = async ()=>{
           const bookPath = btn.getAttribute('data-record');
+          // If user multi-selected books, per-row "记录" follows batch behavior.
+          if (selectedForDelete.size > 1) {
+            await openBatchReadingRecordsFromSelection();
+            return;
+          }
           await fetchAndStoreReadingRecords(bookPath);
           window.open(`readingRecord.html?book=${encodeURIComponent(bookPath)}&src=local`, '_blank');
         };
@@ -1785,20 +1807,7 @@
   const btnBatchRecords = document.getElementById('btnBatchRecords');
   if(btnBatchRecords){
     btnBatchRecords.onclick = async ()=>{
-      if(selectedForDelete.size === 0){
-        toast('请先选择要查看阅读记录的书籍', 'error', 3000);
-        return;
-      }
-      const books = Array.from(selectedForDelete).join(',');
-      console.log('[btnBatchRecords] Selected books:', books);
-      try {
-        await fetchAndStoreReadingRecords(null, books);
-        console.log('[btnBatchRecords] Records fetched and stored, opening window...');
-        window.open(`readingRecord.html?books=${encodeURIComponent(books)}&src=local`, '_blank');
-      } catch (e) {
-        console.error('[btnBatchRecords] Failed:', e);
-        // Error already shown by fetchAndStoreReadingRecords
-      }
+      await openBatchReadingRecordsFromSelection();
     };
   }
 

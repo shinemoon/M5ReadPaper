@@ -233,7 +233,7 @@
             <div class="col-12">
                 <div class="tabs" id="moduleTabs">
                     <a id="tabFileManagement" class="active">文件管理</a>
-                    <a id="tabTimeManagement">时间管理</a>
+                    <a id="tabTimeManagement">时间记录</a>
                     <a id="tabSettingsManagement">设置管理</a>
                 </div>
             </div>
@@ -241,10 +241,22 @@
 
         <section id="timeSection" class="row" style="display:none">
             <div class="col-12 panel">
-                <div class="mb-05"><strong>时间管理</strong></div>
-                <div class="flex-row gap-small">
-                    <button id="btnSyncTime" class="button primary is-small">同步时间</button>
-                    <span id="timeSyncHint" class="muted">将浏览器当前时间同步到设备。</span>
+                <div class="row mt-1">
+                    <hr>
+                    <div class="col-12 upload-box rec-box" id="recBox">
+                        <div class="flex-row gap-small">
+                            <button id="btnSyncTime" class="button is-small">同步设备时间</button>
+                            <span class="muted">同步系统与设备时间</span>
+                        </div>
+                    </div>
+
+                    <div class="col-12 upload-box rec-box" id="recBox">
+                        <div class="flex-row gap-small">
+                            <button id="btnAllRecords" class="button is-small outline"
+                                title="查看所有书籍的阅读记录">下载阅读记录</button>
+                            <span class="muted">导出阅读记录</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -271,7 +283,8 @@
                     <div class="col-6 upload-box" id="webdavSettingsCard">
                         <div class="mb-05"><strong>WebDAV 配置</strong></div>
                         <div class="row">
-                            <div class="col-12 mb-05"><input id="webdavUrl" type="text" placeholder="https://example.com/dav/" /></div>
+                            <div class="col-12 mb-05"><input id="webdavUrl" type="text"
+                                    placeholder="https://example.com/dav/" /></div>
                             <div class="col-12 mb-05"><input id="webdavUsername" type="text" placeholder="用户名" /></div>
                             <div class="col-12 mb-05"><input id="webdavPassword" type="text" placeholder="密码" /></div>
                             <div class="col-12 flex-row gap-small">
@@ -289,89 +302,86 @@
 
         <section id="fileSection">
 
-        <div class="row">
-            <div class="col-5 upload-box" id="uploadBox">
-                <div class="mb-05"><strong id="uploadTitle">书籍-文件上传</strong></div>
-                <input id="fileInput" type="file" multiple class="hidden" />
-                <div class="flex-row gap-small">
-                    <button id="btnSelect" class="button is-small">选择</button>
-                    <button id="btnUpload" class="button primary is-small" disabled>上传</button>
-                    <button id="btnDeleteSelected" class="button is-small outline" disabled
-                        style="margin-left:.5rem">删除</button>
-                    <span id="uploadInfo" class="muted"></span>
+            <div class="row">
+                <div class="col-5 upload-box" id="uploadBox">
+                    <div class="mb-05"><strong id="uploadTitle">书籍-文件上传</strong></div>
+                    <input id="fileInput" type="file" multiple class="hidden" />
+                    <div class="flex-row gap-small">
+                        <button id="btnSelect" class="button is-small">选择</button>
+                        <button id="btnUpload" class="button primary is-small" disabled>上传</button>
+                        <button id="btnDeleteSelected" class="button is-small outline" disabled
+                            style="margin-left:.5rem">删除</button>
+                        <span id="uploadInfo" class="muted"></span>
+                    </div>
                 </div>
+
+                <div class="col-5 upload-box" id="scbackBox" style="display:none">
+                    <div class="mb-05"><strong>截图背景设置</strong></div>
+                    <input id="scbackFileInput" type="file" accept="image/*" class="hidden" />
+                    <div class="flex-row gap-small">
+                        <button id="btnScbackSelect" class="button is-small">选择</button>
+                        <button id="btnScbackUpload" class="button primary is-small" disabled>上传</button>
+                        <button id="btnScbackDelete" class="button is-small outline">删除</button>
+                        <!--span id="scbackInfo" class="muted">仅支持文件名为 scback.png，上传到 SD 根目录。</span-->
+                    </div>
+                </div>
+
             </div>
 
-            <div class="col-5 upload-box" id="scbackBox" style="display:none">
-                <div class="mb-05"><strong>截图背景设置</strong></div>
-                <input id="scbackFileInput" type="file" accept="image/*" class="hidden" />
-                <div class="flex-row gap-small">
-                    <button id="btnScbackSelect" class="button is-small">选择</button>
-                    <button id="btnScbackUpload" class="button primary is-small" disabled>上传</button>
-                    <button id="btnScbackDelete" class="button is-small outline">删除</button>
-                    <!--span id="scbackInfo" class="muted">仅支持文件名为 scback.png，上传到 SD 根目录。</span-->
+            <div class="row">
+                <div class="col-12 bg-dark text-light" style="padding-left:20px;">> <span id="uploadStatus"></span>
                 </div>
             </div>
-
-            <div class="col-5 upload-box rec-box" id="recBox">
-                <div class="mb-05"><strong>阅读记录</strong></div>
-                <div class="flex-row gap-small">
-                    <button id="btnBatchRecords" class="button is-small outline" title="查看选中书籍的阅读记录">批量</button>
-                    <button id="btnAllRecords" class="button is-small outline" title="查看所有书籍的阅读记录">全部</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="row">
-            <div class="col-12 bg-dark text-light" style="padding-left:20px;">> <span id="uploadStatus"></span></div>
-        </div>
-        <div class="row">
-            <div class="col col-12">
-                <div class="panel">
-                    <div class="row mb-05">
-                        <div class="col-12 flex-row gap-small " id="combnav">
-                            <div class="tabs is-full col-12" id="catTabs">
-                                <span id="catTabItems"></span>
-                                <button id="btnMkdir" class="button is-small outline" style="margin-left:auto;display:none" title="新建子目录">+ 新建目录</button>
+            <div class="row">
+                <div class="col col-12">
+                    <div class="panel">
+                        <div class="row mb-05">
+                            <div class="col-12 flex-row gap-small " id="combnav">
+                                <div class="tabs is-full col-12" id="catTabs">
+                                    <span id="catTabItems"></span>
+                                    <button id="btnMkdir" class="button is-small outline"
+                                        style="margin-left:auto;display:none" title="新建子目录">+ 新建目录</button>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- breadcrumb bar (only visible in books subdirectory) -->
+                        <div class="row mb-05" id="bookPathBarRow" style="display:none">
+                            <div class="col-12" id="bookPathBar"></div>
+                        </div>
+                        <div class="row mb-05">
+                            <p id="hint" class="muted col-12 bg-dark text-white" style="padding-left:30px;">支持
+                                unicode/GBK
+                                编码的 txt 文件。</p>
+                        </div>
+                        <div class="row mt-1">
+                            <div class="col-12">
+                                <table class="striped file-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:5%"><input id="selectAll" type="checkbox" title="全选" />
+                                            </th>
+                                            <th style="width:35%">名称</th>
+                                            <th style="width:15%">大小</th>
+                                            <th style="width:15%">当前</th>
+                                            <th style="width:30%" class="nowrap">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="fileBody">
+                                        <tr>
+                                            <td colspan="5" class="text-center">加载中...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                <div id="pager" class="pagination hidden">
+                                    <button id="prevBtn" class="button is-small outline">上一页</button>
+                                    <span id="pageInfo" class="muted"></span>
+                                    <button id="nextBtn" class="button is-small outline">下一页</button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <!-- breadcrumb bar (only visible in books subdirectory) -->
-                    <div class="row mb-05" id="bookPathBarRow" style="display:none">
-                        <div class="col-12" id="bookPathBar"></div>
-                    </div>
-                    <div class="row mb-05">
-                        <p id="hint" class="muted col-12 bg-dark text-white" style="padding-left:30px;">支持 unicode/GBK
-                            编码的 txt 文件。</p>
-                    </div>
-                    <div class="row mt-1">
-                        <div class="col-12">
-                            <table class="striped file-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width:5%"><input id="selectAll" type="checkbox" title="全选" /></th>
-                                        <th style="width:35%">名称</th>
-                                        <th style="width:15%">大小</th>
-                                        <th style="width:15%">当前</th>
-                                        <th style="width:30%" class="nowrap">操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="fileBody">
-                                    <tr>
-                                        <td colspan="5" class="text-center">加载中...</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                            <div id="pager" class="pagination hidden">
-                                <button id="prevBtn" class="button is-small outline">上一页</button>
-                                <span id="pageInfo" class="muted"></span>
-                                <button id="nextBtn" class="button is-small outline">下一页</button>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
-        </div>
         </section>
     </main>
 
