@@ -101,6 +101,18 @@
       username:'debug_user',
       password:'debug_pass',
     },
+    advConfig: {
+      display: {
+        invert: { title: '反转', value: false, hint: '颜色反转' },
+        contrast: { title: '对比度', value: 3, hint: '调整屏幕对比度' },
+      },
+      power: {
+        auto_sleep_min: { title: '自动睡眠时间', value: 15, hint: '单位:分钟,0表示禁用' },
+      },
+      features: {
+        experimental_layout: { title: '实验性布局', value: true, hint: '启用实验性界面布局' },
+      }
+    },
     readingRecords: [
       { bookname:'正在阅读样例.txt', total_hours:12, total_minutes:44, hourly_records:{'2026032209':32,'2026032310':18} },
       { bookname:'基地.txt', total_hours:5, total_minutes:20, hourly_records:{'2026032215':20,'2026032311':40} },
@@ -280,6 +292,17 @@
       }
     }
 
+    if(path === '/api/advconfig'){
+      if(method === 'GET') return debugJson({ ok:true, config: debugState.advConfig });
+      if(method === 'POST'){
+        let body = {};
+        try { body = JSON.parse((init && init.body) || '{}'); } catch(_){ }
+        const cfg = (body && typeof body === 'object' && body.config !== undefined) ? body.config : body;
+        if(cfg && typeof cfg === 'object') debugState.advConfig = cfg;
+        return debugJson({ ok:true, config: debugState.advConfig });
+      }
+    }
+
     if(path === '/sync_time' && method === 'POST') return debugText('Time synced (debug mock)', 200);
 
     if(path === '/api/reading_records' && method === 'GET'){
@@ -408,6 +431,10 @@
   const webdavPassword = el('webdavPassword');
   const btnLoadWebdavSettings = el('btnLoadWebdavSettings');
   const btnSaveWebdavSettings = el('btnSaveWebdavSettings');
+  const advSettingsCard = el('advSettingsCard');
+  const advConfigForm = el('advConfigForm');
+  const btnLoadAdvConfig = el('btnLoadAdvConfig');
+  const btnSaveAdvConfig = el('btnSaveAdvConfig');
   const recBox = el('recBox');
 
   const defaultGuide = {
@@ -535,6 +562,114 @@
     if(webdavPassword) webdavPassword.value = c.password || '';
   }
 
+  function setAdvSettingsVisible(visible){
+    if(advSettingsCard) advSettingsCard.style.display = visible ? '' : 'none';
+  }
+
+  function hasAdvConfigValue(v){
+    if(v == null) return false;
+    if(Array.isArray(v)) return v.length > 0;
+    if(typeof v === 'object') return Object.keys(v).length > 0;
+    return false;
+  }
+
+  function resolveAdvConfigFromPayload(payload){
+    if(!payload || typeof payload !== 'object') return null;
+    if(Object.prototype.hasOwnProperty.call(payload, 'config')) return payload.config;
+    if(Object.prototype.hasOwnProperty.call(payload, 'advconfig')) return payload.advconfig;
+    if(Object.prototype.hasOwnProperty.call(payload, 'data')) return payload.data;
+    // Allow direct dictionary payload (without wrapper fields)
+    if(!Object.prototype.hasOwnProperty.call(payload, 'ok')) return payload;
+    return null;
+  }
+
+  function _advRenderField(dataKey, fieldDef) {
+    const row = document.createElement('div');
+    row.className = 'adv-cfg-row';
+    const labelEl = document.createElement('label');
+    labelEl.className = 'adv-cfg-label';
+    labelEl.textContent = fieldDef.title || dataKey;
+    if (fieldDef.hint) labelEl.title = fieldDef.hint;
+    row.appendChild(labelEl);
+    let ctrl;
+    const value = fieldDef.value;
+    const vtype = typeof value;
+    if (vtype === 'boolean') {
+      ctrl = document.createElement('input');
+      ctrl.type = 'checkbox';
+      ctrl.checked = value;
+      ctrl.className = 'adv-cfg-checkbox';
+    } else if (vtype === 'number') {
+      ctrl = document.createElement('input');
+      ctrl.type = 'number';
+      ctrl.value = String(value);
+      ctrl.className = 'adv-cfg-ctrl';
+    } else {
+      ctrl = document.createElement('input');
+      ctrl.type = 'text';
+      ctrl.value = String(value == null ? '' : value);
+      ctrl.className = 'adv-cfg-ctrl';
+    }
+    ctrl.dataset.advKey = dataKey;
+    ctrl.dataset.advType = vtype;
+    row.appendChild(ctrl);
+    return row;
+  }
+
+  function renderAdvConfigForm(cfg) {
+    const container = document.getElementById('advConfigForm');
+    if (!container) return;
+    container.innerHTML = '';
+    container._advOrig = cfg;
+    if (!cfg || typeof cfg !== 'object') return;
+    for (const [sectionKey, sectionVal] of Object.entries(cfg)) {
+      const isGroup = sectionVal !== null && typeof sectionVal === 'object' && !Array.isArray(sectionVal);
+      if (isGroup) {
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'adv-cfg-group';
+        const titleEl = document.createElement('div');
+        titleEl.className = 'adv-cfg-group-title';
+        titleEl.textContent = sectionKey;
+        groupDiv.appendChild(titleEl);
+        for (const [key, fieldDef] of Object.entries(sectionVal)) {
+          const isField = fieldDef && typeof fieldDef === 'object' && 'value' in fieldDef;
+          if (isField) {
+            groupDiv.appendChild(_advRenderField(`${sectionKey}.${key}`, fieldDef));
+          }
+        }
+        container.appendChild(groupDiv);
+      } else if (sectionVal && typeof sectionVal === 'object' && 'value' in sectionVal) {
+        container.appendChild(_advRenderField(sectionKey, sectionVal));
+      }
+    }
+  }
+
+  function readAdvConfigForm() {
+    const container = document.getElementById('advConfigForm');
+    if (!container) return {};
+    const result = JSON.parse(JSON.stringify(container._advOrig || {}));
+    container.querySelectorAll('[data-adv-key]').forEach(ctrl => {
+      const parts = ctrl.dataset.advKey.split('.');
+      let target = result;
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (typeof target[parts[i]] !== 'object' || target[parts[i]] === null) target[parts[i]] = {};
+        target = target[parts[i]];
+      }
+      const lastKey = parts[parts.length - 1];
+      const fieldDef = target[lastKey];
+      if (fieldDef && typeof fieldDef === 'object' && 'value' in fieldDef) {
+        if (ctrl.dataset.advType === 'boolean') {
+          fieldDef.value = ctrl.checked;
+        } else if (ctrl.dataset.advType === 'number') {
+          fieldDef.value = Number(ctrl.value);
+        } else {
+          fieldDef.value = ctrl.value;
+        }
+      }
+    });
+    return result;
+  }
+
   async function loadWifiSettings(){
     const r = await fetch(`${API_BASE}/api/wifi_config`, { cache: 'no-store' });
     if(!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -581,12 +716,74 @@
     setWebdavForm(j.config || payload.config);
   }
 
-  async function initializeSettingsData(){
+  async function loadAdvancedSettings(){
+    if(!advConfigForm){
+      return false;
+    }
     try {
-      await Promise.all([loadWifiSettings(), loadWebdavSettings()]);
-      setSettingsStatus('设置已同步。');
+      const r = await fetch(`${API_BASE}/api/advconfig`, { cache: 'no-store' });
+      if(!r.ok){
+        setAdvSettingsVisible(false);
+        return false;
+      }
+      const j = await r.json();
+      const cfg = resolveAdvConfigFromPayload(j);
+      if(!hasAdvConfigValue(cfg)){
+        setAdvSettingsVisible(false);
+        return false;
+      }
+      renderAdvConfigForm(cfg);
+      setAdvSettingsVisible(true);
+      return true;
+    } catch(_){
+      setAdvSettingsVisible(false);
+      return false;
+    }
+  }
+
+  async function saveAdvancedSettings(){
+    if(!advConfigForm) throw new Error('高级设置表单不存在');
+    const parsed = readAdvConfigForm();
+
+    const r = await fetch(`${API_BASE}/api/advconfig`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config: parsed }),
+    });
+
+    let j = null;
+    try { j = await r.json(); } catch(_){ j = null; }
+    if(!r.ok || (j && j.ok === false)) throw new Error((j && j.message) || `HTTP ${r.status}`);
+
+    const returnedCfg = resolveAdvConfigFromPayload(j);
+    if(hasAdvConfigValue(returnedCfg)){
+      renderAdvConfigForm(returnedCfg);
+      setAdvSettingsVisible(true);
+    }
+  }
+
+  async function initializeSettingsData(){
+    const errors = [];
+
+    try {
+      await loadWifiSettings();
     } catch(e){
-      setSettingsStatus('设置加载失败: ' + (e.message || e), true);
+      errors.push('WiFi: ' + (e.message || e));
+    }
+
+    try {
+      await loadWebdavSettings();
+    } catch(e){
+      errors.push('WebDAV: ' + (e.message || e));
+    }
+
+    // Endpoint may be absent/empty; in that case keep advanced section hidden and continue silently.
+    await loadAdvancedSettings();
+
+    if(errors.length){
+      setSettingsStatus('设置部分加载失败: ' + errors.join('；'), true);
+    } else {
+      setSettingsStatus('设置已同步。');
     }
   }
 
@@ -1754,6 +1951,31 @@
         toast('WebDAV 配置保存失败: ' + (e.message || e), 'error', 4000);
       } finally {
         btnSaveWebdavSettings.disabled = false;
+      }
+    };
+  }
+
+  if(btnLoadAdvConfig){
+    btnLoadAdvConfig.onclick = async ()=>{
+      const loaded = await loadAdvancedSettings();
+      if(loaded){
+        setSettingsStatus('高级设置已刷新。');
+      }
+    };
+  }
+
+  if(btnSaveAdvConfig){
+    btnSaveAdvConfig.onclick = async ()=>{
+      btnSaveAdvConfig.disabled = true;
+      try {
+        await saveAdvancedSettings();
+        setSettingsStatus('高级设置保存成功。');
+        toast('高级设置已保存', 'success');
+      } catch(e){
+        setSettingsStatus('高级设置保存失败: ' + (e.message || e), true);
+        toast('高级设置保存失败: ' + (e.message || e), 'error', 4000);
+      } finally {
+        btnSaveAdvConfig.disabled = false;
       }
     };
   }

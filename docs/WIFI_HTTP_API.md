@@ -55,6 +55,7 @@ Access-Control-Allow-Headers: Content-Type, X-Requested-With
 | 13 | `/api/update_display_start` | POST | 分块推送：初始化 |
 | 14 | `/api/update_display_chunk` | POST | 分块推送：追加数据块 |
 | 15 | `/api/update_display_commit` | POST | 分块推送：提交（原子替换） |
+| 16 | `/api/advconfig` | GET / POST | 读写高级可定制配置项 |
 
 ---
 
@@ -357,8 +358,9 @@ curl "http://192.168.4.1/heartbeat"
     "sync_time": "/sync_time",
     "reading_records": "/api/reading_records",
     "wifi_config": "/api/wifi_config",
-    "webdav_config": "/api/webdav_config"
-  }
+      "webdav_config": "/api/webdav_config",
+      "advconfig": "/api/advconfig"
+    }
 }
 ```
 
@@ -486,6 +488,110 @@ curl -X POST -H "Content-Type: application/json" \
 或 `{"config": {"ssid": "...", "password": "..."}}`（写入第 0 组）。
 
 **响应**: 同 GET，包含保存后的全部配置。失败时返回 500。
+
+---
+
+## 16) 高级可定制配置 — `/api/advconfig`
+
+**方法**: GET / POST
+
+**用途**: 读写设备上可用的高级配置项（任意嵌套键值字典）。前端通过该接口实现"高级设置"面板——仅当接口返回非空配置字典时才显示入口，接口不存在或返回空则静默隐藏。
+
+### GET — 读取当前高级配置
+
+**响应**（字段内容因固件版本而异）：
+```json
+{
+  "ok": true,
+  "config": {
+    "display": {
+      "invert": { "title": "反转", "value": false, "hint": "颜色反转" },
+      "contrast": { "title": "对比度", "value": 3, "hint": "调整屏幕对比度" }
+    },
+    "power": {
+      "auto_sleep_min": { "title": "自动睡眠时间", "value": 15, "hint": "单位:分钟,0表示禁用" }
+    },
+    "features": {
+      "experimental_layout": { "title": "实验性布局", "value": true, "hint": "启用实验性界面布局" }
+    }
+  }
+}
+```
+
+- 若设备无高级配置（或功能不可用），可返回 `{"ok": true, "config": {}}` 或直接 404。
+- 前端行为：`config` 为空对象 / null / 空数组 / 404 均视为"无高级设置"，隐藏入口。
+
+### POST — 保存高级配置
+
+**请求体（JSON）**：
+```json
+{
+  "config": {
+    "display": {
+      "invert": { "title": "反转", "value": false, "hint": "颜色反转" },
+      "contrast": { "title": "对比度", "value": 3, "hint": "调整屏幕对比度" }
+    },
+    "power": {
+      "auto_sleep_min": { "title": "自动睡眠时间", "value": 15, "hint": "单位:分钟,0表示禁用" }
+    }
+  }
+}
+```
+
+**响应**：保存成功后返回写入的配置（与 GET 格式相同）：
+```json
+{
+  "ok": true,
+  "config": { ... }
+}
+```
+
+失败时返回 500 并带 `"message"` 字段。
+
+**配置字段结构**（每个配置项都必须是字典形式）:
+
+```js
+"field_name": {
+  "title": "字段显示名称",
+  "value": 实际值,
+  "hint": "鼠标悬停提示"
+}
+```
+
+| 属性 | 说明 |
+|------|------|
+| `title` | 前端显示的中文名称 |
+| `value` | 实际值；类型为 `boolean` / `number` / `string` |
+| `hint` | 可选，鼠标悬停时的提示信息 |
+
+**值类型与前端控件对应**:
+
+| `value` 类型 | 前端控件 |
+|-------------|----------|
+| `boolean` | 复选框 |
+| `number` | 数字输入框 |
+| `string` | 文本输入框 |
+
+**示例**:
+```bash
+curl "http://192.168.4.1/api/advconfig"
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"config":{"power":{"auto_sleep_min":30}}}' \
+  http://192.168.4.1/api/advconfig
+```
+```js
+// 读取
+const r = await fetch('http://192.168.4.1/api/advconfig');
+const { config } = await r.json();
+// 保存（部分或全量均可）
+await fetch('http://192.168.4.1/api/advconfig', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ config }),
+});
+```
+
+> **注意**: 设备端当前暂未实现此接口（返回 404 是合法行为）。webapp 在收到任何非 2xx 状态码或空配置时静默忽略，不显示高级设置入口。
 
 ---
 
