@@ -6,6 +6,7 @@
 #include <vector>
 #include <cstring>
 #include <algorithm>
+#include <cmath>
 #include <M5Unified.h>
 #include "readpaper.h"
 #include "readpaper.h"
@@ -153,11 +154,12 @@ int16_t calculate_text_width(const std::string &text, size_t start_pos, size_t e
 size_t find_break_position(const std::string &text, size_t start_pos, int16_t max_width, bool vertical, float scale_factor)
 {
     size_t best_break = start_pos;
-    int16_t best_break_width = 0;  // 新增：记录 best_break 位置时的实际显示宽度（不含空格本身）
+    float best_break_width = 0.0f;  // 记录 best_break 位置时的实际显示宽度（不含空格本身）
     size_t current_pos = start_pos;
     const uint8_t *utf8 = (const uint8_t *)text.c_str() + start_pos;
     const uint8_t *end = (const uint8_t *)text.c_str() + text.length();
-    int16_t current_width = 0;
+    float current_width = 0.0f;
+    float effective_max_width = (float)max_width;
     // Track last included character (start offset and unicode) so we can detect
     // if the line currently would end with an opening-pair punctuation.
     uint32_t last_included_unicode = 0;
@@ -179,34 +181,40 @@ size_t find_break_position(const std::string &text, size_t start_pos, int16_t ma
 
         bool glyph_exists = bin_font_has_glyph(unicode);
 
-        int16_t char_dimension;
+        float char_dimension;
         if (vertical)
         {
             // 竖排模式下，标点符号旋转后宽高互换
             if (is_chinese_punctuation(unicode) && glyph_exists)
             {
                 // 标点符号旋转90度后，使用位图宽度(bitmapW)作为竖直方向的尺寸
-                char_dimension = (int16_t)(bin_font_get_glyph_bitmapW(unicode) * scale_factor);
+                char_dimension = (float)bin_font_get_glyph_bitmapW(unicode) * scale_factor;
             }
             else
             {
-                char_dimension = glyph_exists ? (int16_t)(bin_font_get_glyph_bitmapH(unicode) * scale_factor) : (int16_t)(bin_font_get_font_size() * scale_factor);
+                char_dimension = glyph_exists
+                                     ? (float)bin_font_get_glyph_bitmapH(unicode) * scale_factor
+                                     : (float)bin_font_get_font_size() * scale_factor;
             }
         }
         else
         {
-            char_dimension = glyph_exists ? (int16_t)(bin_font_get_glyph_width(unicode) * scale_factor) : (int16_t)(bin_font_get_font_size() * scale_factor / 2);
+            char_dimension = glyph_exists
+                                 ? (float)bin_font_get_glyph_width(unicode) * scale_factor
+                                 : ((float)bin_font_get_font_size() * scale_factor / 2.0f);
         }
 
         if (!glyph_exists || bin_font_get_glyph_bitmap_size(unicode) == 0)
         {
             // Match rendering fallback: use half of base font size scaled by scale_factor
-            char_dimension = (int16_t)(bin_font_get_font_size() * scale_factor / 2);
+            char_dimension = (float)bin_font_get_font_size() * scale_factor / 2.0f;
         }
 
-        int16_t char_spacing = vertical ? CHAR_SPACING_VERTICAL : (int16_t)(CHAR_SPACING_HORIZONTAL * scale_factor);
+        float char_spacing = vertical
+                                 ? (float)CHAR_SPACING_VERTICAL
+                                 : ((float)CHAR_SPACING_HORIZONTAL * scale_factor);
 
-        if (current_width + char_dimension + char_spacing > max_width)
+        if (current_width + char_dimension + char_spacing > effective_max_width)
         {
             // 行宽度即将用完，当前字符放不下了
             
@@ -221,9 +229,9 @@ size_t find_break_position(const std::string &text, size_t start_pos, int16_t ma
                 if (next_unicode == 0 || next_unicode == '\n' || !is_high_priority_forbidden_line_start(next_unicode))
                 {
                     // 检查强行加入该标点后是否在可接受范围内（允许稍微超出，例如不超过1.15倍）
-                    int16_t total_width_with_punct = current_width + char_dimension + char_spacing;
+                    float total_width_with_punct = current_width + char_dimension + char_spacing;
 
-                    if (total_width_with_punct <= max_width * 1.15f)
+                    if (total_width_with_punct <= effective_max_width * 1.15f)
                     {
                         // 将该禁止行首标点强行包含进当前行
                         current_pos = utf8 - (const uint8_t *)text.c_str();
@@ -238,10 +246,9 @@ size_t find_break_position(const std::string &text, size_t start_pos, int16_t ma
                 // 关键修复：只有在 best_break 距离当前位置不太远时才使用
                 // 如果best_break位置到当前位置的距离超过max_width的40%，说明中间有大量可放下的内容
                 // 此时应该就近断行而不是回退到遥远的空格位置
-                size_t distance = (size_t)(prev_utf8 - (const uint8_t *)text.c_str()) - best_break;
-                int16_t distance_width = current_width - best_break_width;
+                float distance_width = current_width - best_break_width;
                 
-                if (distance_width <= max_width * 0.4f)
+                if (distance_width <= (float)max_width * 0.4f)
                 {
                     // 距离合理，使用best_break（空格断点）
                     size_t piece_len = best_break - start_pos;
@@ -321,5 +328,54 @@ size_t find_break_position_scaled(const std::string &text, size_t start_pos, int
     {
         scale_factor = font_size / (float)base_font;
     }
-    return find_break_position(text, start_pos, max_width, vertical, scale_factor);
+
+    int16_t effective_width = max_width;
+    if (!vertical)
+    {
+        // Keep wrapping width consistent with horizontal rendering's right shift.
+        // Rendering starts at a right-shifted baseline; reserve the same amount for wrapping.
+        // Apply the same >125% damping as renderer to avoid over-shrinking effective width.
+        int16_t shift_px = 0;
+        float rendered_font_px = 0.0f;
+        if (font_size > 0.0f)
+        {
+            rendered_font_px = font_size;
+        }
+        else if (base_font > 0)
+        {
+            rendered_font_px = (float)base_font * scale_factor;
+        }
+
+        int16_t width_reserve_px = 0;
+        if (rendered_font_px > 0.0f)
+        {
+            float zoom_ratio = (base_font > 0) ? (rendered_font_px / (float)base_font) : 1.0f;
+            float shift_damping = 1.0f;
+            if (zoom_ratio > 1.25f)
+            {
+                float over = zoom_ratio - 1.25f;
+                shift_damping = 1.0f / (1.0f + 0.45f * over);
+            }
+            shift_px = (int16_t)std::lround(rendered_font_px * 0.5f * shift_damping);
+
+            // For wrapping, reserve slightly less width than render shift when zoomed in.
+            // This keeps large-font layouts from becoming overly narrow.
+            float reserve_ratio = 1.0f;
+            if (zoom_ratio > 1.30f)
+            {
+                float over = zoom_ratio - 1.30f;
+                // More permissive curve for large zoom levels: keep more effective line width.
+                reserve_ratio = 1.0f / (1.0f + 2.00f * over);
+                reserve_ratio = fmaxf(0.45f, reserve_ratio);
+            }
+            width_reserve_px = (int16_t)std::lround((float)shift_px * reserve_ratio);
+        }
+        else
+        {
+            width_reserve_px = shift_px;
+        }
+        effective_width = std::max<int16_t>(1, (int16_t)(max_width - width_reserve_px));
+    }
+
+    return find_break_position(text, start_pos, effective_width, vertical, scale_factor);
 }

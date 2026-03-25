@@ -47,13 +47,15 @@ Access-Control-Allow-Headers: Content-Type, X-Requested-With
 | 5 | `/rename` | GET | 重命名书籍（及伴随文件）|
 | 6 | `/sync_time` | POST | 同步设备时间 |
 | 7 | `/heartbeat` | GET | 健康检查 / 版本信息 |
-| 8 | `/api/reading_records` | GET | 查询阅读记录 |
-| 9 | `/api/webdav_config` | GET / POST | 读写 WebDAV 配置 |
-| 10 | `/api/wifi_config` | GET / POST | 读写 WiFi 连接配置 |
-| 11 | `/api/update_display` | POST | 单次推送显示内容（PNG + RDT） |
-| 12 | `/api/update_display_start` | POST | 分块推送：初始化 |
-| 13 | `/api/update_display_chunk` | POST | 分块推送：追加数据块 |
-| 14 | `/api/update_display_commit` | POST | 分块推送：提交（原子替换） |
+| 8 | `/api/device_guide` | GET | 设备管理页面 guide（模块开关+文件页签能力） |
+| 9 | `/api/reading_records` | GET | 查询阅读记录 |
+| 10 | `/api/webdav_config` | GET / POST | 读写 WebDAV 配置 |
+| 11 | `/api/wifi_config` | GET / POST | 读写 WiFi 连接配置 |
+| 12 | `/api/update_display` | POST | 单次推送显示内容（PNG + RDT） |
+| 13 | `/api/update_display_start` | POST | 分块推送：初始化 |
+| 14 | `/api/update_display_chunk` | POST | 分块推送：追加数据块 |
+| 15 | `/api/update_display_commit` | POST | 分块推送：提交（原子替换） |
+| 16 | `/api/advconfig` | GET / POST | 读写高级可定制配置项 |
 
 ---
 
@@ -287,7 +289,88 @@ curl "http://192.168.4.1/heartbeat"
 
 ---
 
-## 8) 阅读记录 — `/api/reading_records`
+## 8) 设备管理 Guide — `/api/device_guide`
+
+**方法**: GET
+
+**用途**:
+- 提供设备管理页面的能力声明。
+- 前端据此决定三大模块（文件管理/时间管理/设置管理）是否显示。
+- 文件管理页签、提示文案、是否支持目录层级、是否支持新建目录/重命名/阅读记录等均由该接口返回。
+
+**响应示例**（字段可扩展）：
+```json
+{
+  "ok": true,
+  "schema_version": 1,
+  "device": {
+    "hw": "M5Stack PaperS3",
+    "firmware": "ReadPaper",
+    "version": "V1.3",
+    "ip": "192.168.4.1",
+    "wifi_sta_connected": false,
+    "wifi_ap_clients": 1,
+    "upload_in_progress": false,
+    "current_book": "/sd/book/demo.txt"
+  },
+  "sections": {
+    "file_management": true,
+    "time_management": true,
+    "settings_management": true
+  },
+  "fileManagement": {
+    "required": true,
+    "tabs": [
+      {
+        "id": "book",
+        "apiTab": "book",
+        "title": "书籍",
+        "hint": "支持 unicode/GBK 编码的 txt 文件。",
+        "supportsHierarchy": true,
+        "allowUpload": true,
+        "allowDelete": true,
+        "allowRename": true,
+        "allowMkdir": true,
+        "allowReadingRecords": true,
+        "showIdxBadge": true
+      }
+    ]
+  },
+  "timeManagement": {
+    "enabled": true,
+    "allowSyncTime": true
+  },
+  "settingsManagement": {
+    "enabled": true,
+    "allowWifiConfig": true,
+    "allowWebdavConfig": true,
+    "hasWifiConfig": false,
+    "hasWebdavConfig": false
+  },
+  "endpoints": {
+    "heartbeat": "/heartbeat",
+    "list": "/list",
+    "upload": "/upload",
+    "download": "/download",
+    "delete": "/delete",
+    "rename": "/rename",
+    "mkdir": "/mkdir",
+    "sync_time": "/sync_time",
+    "reading_records": "/api/reading_records",
+    "wifi_config": "/api/wifi_config",
+      "webdav_config": "/api/webdav_config",
+      "advconfig": "/api/advconfig"
+    }
+}
+```
+
+**前端建议**:
+- `heartbeat` 用于在线探测；`/api/device_guide` 用于页面能力驱动。
+- 若 guide 获取失败，可回退到本地默认配置（例如 ReadPaper 既有四个文件分类）。
+
+---
+
+## 9) 阅读记录 — `/api/reading_records`
 
 **方法**: GET
 
@@ -326,7 +409,7 @@ curl "http://192.168.4.1/api/reading_records?books=/book/a.txt,/book/b.txt"
 
 ---
 
-## 9) WebDAV 配置 — `/api/webdav_config`
+## 10) WebDAV 配置 — `/api/webdav_config`
 
 **GET** — 读取当前 WebDAV 配置
 
@@ -368,7 +451,7 @@ curl -X POST -H "Content-Type: application/json" \
 
 ---
 
-## 10) WiFi 连接配置 — `/api/wifi_config`
+## 11) WiFi 连接配置 — `/api/wifi_config`
 
 **GET** — 读取当前 WiFi 配置（支持最多 3 组 SSID/密码）
 
@@ -408,7 +491,117 @@ curl -X POST -H "Content-Type: application/json" \
 
 ---
 
-## 11) 单次推送显示内容 — `/api/update_display`
+## 16) 高级可定制配置 — `/api/advconfig`
+
+**方法**: GET / POST
+
+**用途**: 读写设备上可用的高级配置项（任意嵌套键值字典）。前端通过该接口实现"高级设置"面板——仅当接口返回非空配置字典时才显示入口，接口不存在或返回空则静默隐藏。
+
+### GET — 读取当前高级配置
+
+**响应**（字段内容因固件版本而异）：
+```json
+{
+  "ok": true,
+  "config": {
+    "reading": {
+      "font_size": { "title": "字体大小", "value": 2, "options": ["16", "20", "24", "28"], "hint": "选择字体像素大小" },
+      "invert": { "title": "反转显示", "value": false, "hint": "颜色反转" }
+    },
+    "system": {
+      "contrast": { "title": "对比度", "value": 3, "options": ["低", "中低", "中", "中高", "高"], "hint": "调整屏幕对比度" },
+      "auto_sleep_min": { "title": "自动睡眠时间", "value": 15, "hint": "单位:分钟,0表示禁用" }
+    },
+    "text": {
+      "encoding": { "title": "文本编码", "value": 0, "options": ["UTF-8", "GBK", "GB2312"], "hint": "选择默认文本编码" },
+      "experimental_layout": { "title": "实验性布局", "value": true, "hint": "启用实验性界面布局" }
+    }
+  }
+}
+```
+
+- 若设备无高级配置（或功能不可用），可返回 `{"ok": true, "config": {}}` 或直接 404。
+- 前端行为：`config` 为空对象 / null / 空数组 / 404 均视为"无高级设置"，隐藏入口。
+- **分组标题本地化**：前端会将 `reading` / `system` / `text` 自动显示为「阅读设置」/「系统设置」/「文本设置」；其他 key 原样显示。
+
+### POST — 保存高级配置
+
+**请求体（JSON）**：
+```json
+{
+  "config": {
+    "reading": {
+      "font_size": { "title": "字体大小", "value": 2, "options": ["16", "20", "24", "28"], "hint": "选择字体像素大小" },
+      "invert": { "title": "反转显示", "value": false, "hint": "颜色反转" }
+    },
+    "system": {
+      "auto_sleep_min": { "title": "自动睡眠时间", "value": 30, "hint": "单位:分钟,0表示禁用" }
+    }
+  }
+}
+```
+
+**响应**：保存成功后返回写入的配置（与 GET 格式相同）：
+```json
+{
+  "ok": true,
+  "config": { ... }
+}
+```
+
+失败时返回 500 并带 `"message"` 字段。
+
+**配置字段结构**（每个配置项都必须是字典形式）:
+
+```js
+"field_name": {
+  "title": "字段显示名称",
+  "value": 实际值,
+  "options": ["选项A", "选项B"],  // 可选，枚举类型时提供
+  "hint": "鼠标悬停提示"
+}
+```
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `title` | string | 前端显示的中文名称 |
+| `value` | boolean / number / string | 实际值；枚举类型时为选项索引（整数） |
+| `options` | string[] | **可选**。存在时 `value` 为该数组的索引，前端渲染为下拉框 |
+| `hint` | string | 可选，鼠标悬停时的提示信息 |
+
+**值类型与前端控件对应**:
+
+| `value` 类型 | `options` 存在 | 前端控件 |
+|-------------|----------------|----------|
+| `boolean` | — | 复选框 |
+| `number` | 否 | 数字输入框 |
+| `number` | 是 | 下拉框（`options[value]` 为当前选项文本）|
+| `string` | — | 文本输入框 |
+
+**示例**:
+```bash
+curl "http://192.168.4.1/api/advconfig"
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"config":{"system":{"auto_sleep_min":{"title":"自动睡眠时间","value":30,"hint":"单位:分钟,0表示禁用"}}}}' \
+  http://192.168.4.1/api/advconfig
+```
+```js
+// 读取
+const r = await fetch('http://192.168.4.1/api/advconfig');
+const { config } = await r.json();
+// 保存（部分或全量均可）
+await fetch('http://192.168.4.1/api/advconfig', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ config }),
+});
+```
+
+> **注意**: 设备端当前暂未实现此接口（返回 404 是合法行为）。webapp 在收到任何非 2xx 状态码或空配置时静默忽略，不显示高级设置入口。
+
+---
+
+## 12) 单次推送显示内容 — `/api/update_display`
 
 **方法**: POST
 
@@ -438,7 +631,7 @@ curl -X POST -H "Content-Type: application/json" \
 
 ---
 
-## 12) 分块推送：初始化 — `/api/update_display_start`
+## 13) 分块推送：初始化 — `/api/update_display_start`
 
 **方法**: POST
 
@@ -466,7 +659,7 @@ curl -X POST -H "Content-Type: application/json" \
 
 ---
 
-## 13) 分块推送：追加数据块 — `/api/update_display_chunk`
+## 14) 分块推送：追加数据块 — `/api/update_display_chunk`
 
 **方法**: POST
 
@@ -493,7 +686,7 @@ curl -X POST -H "Content-Type: application/json" \
 
 ---
 
-## 14) 分块推送：提交 — `/api/update_display_commit`
+## 15) 分块推送：提交 — `/api/update_display_commit`
 
 **方法**: POST
 

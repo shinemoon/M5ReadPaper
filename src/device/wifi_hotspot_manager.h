@@ -128,6 +128,7 @@ private:
     void handleNotFound();
     void handleFileUploadPost();
     void handleReadingRecords();
+    void handleDeviceGuide();
     void handleWebdavConfigGet();
     void handleWebdavConfigUpdate();
     void handleWifiConfigGet();

@@ -1,6 +1,8 @@
 // Global symbols used across the project
 #pragma once
 
+#include "readpaper.h"
+
 // Use the compatibility wrapper which exposes `g_current_book` as a macro
 #include "current_book.h"
 
@@ -60,3 +62,10 @@ extern esp_sleep_wakeup_cause_t g_wake_cause;
 
 // 默认唤醒周期（分钟），可被其他模块读取/修改
 extern int refreshPeriod;
+
+uint8_t clamp_font_scale_pct(int scale_pct);
+float get_configured_reading_font_size(uint8_t base_font_size);
+// 根据当前字体缩放比例计算有效左边距，和右边距保持一致。
+int16_t get_reading_effective_margin_left();
+// 根据当前字体缩放比例计算有效右边距：小字号时适当增加右边距以保持视觉平衡
+int16_t get_reading_effective_margin_right();

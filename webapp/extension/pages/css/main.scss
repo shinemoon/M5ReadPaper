@@ -926,6 +926,60 @@ body {
     }
 }
 
+/* 高级设置动态表单 */
+.adv-cfg-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+.adv-cfg-group {
+    border: 1px solid var(--dm-border, #dbe4ef);
+    border-radius: 0.25rem;
+    padding: 0.6rem 0.85rem;
+    background: #fafcff;
+
+    .adv-cfg-group-title {
+        font-weight: 700;
+        font-size: 0.82em;
+        color: var(--dm-muted, #6b7280);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 0.45rem;
+        padding-bottom: 0.3rem;
+        border-bottom: 1px solid var(--dm-border, #dbe4ef);
+    }
+}
+
+.adv-cfg-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.22rem 0;
+
+    .adv-cfg-label {
+        flex: 1 1 auto;
+        font-size: 0.9em;
+        color: var(--dm-ink, #1f2937);
+        font-weight: normal;
+    }
+
+    .adv-cfg-ctrl {
+        flex: 0 0 auto;
+        min-width: 7rem;
+        max-width: 13rem;
+    }
+
+    .adv-cfg-checkbox {
+        flex: 0 0 auto;
+        width: 1.1rem;
+        height: 1.1rem;
+        cursor: pointer;
+    }
+}
+
 .dragover {
     background: #fffceb;
 }

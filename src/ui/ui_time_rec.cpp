@@ -113,7 +113,7 @@ void draw_time_rec_screen(M5Canvas *canvas)
     drawScrew(canvas, 30, 930);
     drawScrew(canvas, 510, 930);
 
-    bin_font_print("阅读时间记录", 32, TFT_BLACK, PAPER_S3_WIDTH, 0, 14, true, canvas, TEXT_ALIGN_CENTER, 0, false, false, false, true);
+    bin_font_print("阅读时间记录", 32, TFT_BLACK, PAPER_S3_WIDTH, -16, 14, true, canvas, TEXT_ALIGN_CENTER, 0, false, false, false, true);
 
     // 获取 rec 文件路径
     std::string rec_file_path = getRecordFileName(g_current_book->filePath());
@@ -129,14 +129,14 @@ void draw_time_rec_screen(M5Canvas *canvas)
     int16_t total_min = g_current_book->getReadMin();
     char total_str[64];
     snprintf(total_str, sizeof(total_str), "总计: %dh%dm", total_hour, total_min);
-    bin_font_print(total_str, 26, TFT_BLACK, (PAPER_S3_WIDTH) / 2, PAPER_S3_WIDTH / 2, 75, false, canvas, TEXT_ALIGN_CENTER ,(PAPER_S3_WIDTH/2));
+    bin_font_print(total_str, 26, TFT_BLACK, (PAPER_S3_WIDTH) / 2, PAPER_S3_WIDTH / 2 - 13, 75, false, canvas, TEXT_ALIGN_CENTER ,(PAPER_S3_WIDTH/2));
 //    bin_font_print(g_current_book->getBookName(), 26, TFT_BLACK, (PAPER_S3_WIDTH) / 2 - 20, 20, 75, false, canvas, TEXT_ALIGN_LEFT);
-    bin_font_print(g_current_book->getBookName(), 26, TFT_BLACK, (PAPER_S3_WIDTH) / 2 - 20, 20, 75, false, canvas, TEXT_ALIGN_LEFT,(PAPER_S3_WIDTH/2-20));
+    bin_font_print(g_current_book->getBookName(), 26, TFT_BLACK, (PAPER_S3_WIDTH) / 2 - 20, 7, 75, false, canvas, TEXT_ALIGN_LEFT,(PAPER_S3_WIDTH/2-20));
 
     // 如果没有历史记录，显示提示信息
     if (daily_records.empty())
     {
-        bin_font_print("暂无历史记录", 24, TFT_BLACK, PAPER_S3_WIDTH, 0, 400, true, canvas, TEXT_ALIGN_CENTER);
+    bin_font_print("暂无历史记录", 24, TFT_BLACK, PAPER_S3_WIDTH, -12, 400, true, canvas, TEXT_ALIGN_CENTER);
     }
     else
     {
@@ -236,7 +236,7 @@ void draw_time_rec_screen(M5Canvas *canvas)
                 char label[16];
                 snprintf(label, sizeof(label), "%c%c/%c%c",
                          date_str[4], date_str[5], date_str[6], date_str[7]);
-                bin_font_print(label, 16, TFT_BLACK, 120, 20, y + 6, false, canvas, TEXT_ALIGN_LEFT);
+                bin_font_print(label, 16, TFT_BLACK, 120, 12, y + 6, false, canvas, TEXT_ALIGN_LEFT);
             }
 
             int32_t minutes = mins_vec[i];
@@ -296,13 +296,13 @@ void draw_time_rec_screen(M5Canvas *canvas)
         char lbl[32];
         // 0
         format_min_label(0, lbl, sizeof(lbl));
-        bin_font_print(lbl, 18, TFT_BLACK, 80, x0 - 10, axis_y + 8, false, canvas, TEXT_ALIGN_LEFT);
+        bin_font_print(lbl, 18, TFT_BLACK, 80, x0 - 19, axis_y + 8, false, canvas, TEXT_ALIGN_LEFT);
         // max/2
         format_min_label(max_minutes / 2, lbl, sizeof(lbl));
-        bin_font_print(lbl, 18, TFT_BLACK, 80, x0 + (x1 - x0) / 2 - 10, axis_y + 8, false, canvas, TEXT_ALIGN_LEFT);
+        bin_font_print(lbl, 18, TFT_BLACK, 80, x0 + (x1 - x0) / 2 - 19, axis_y + 8, false, canvas, TEXT_ALIGN_LEFT);
         // max
         format_min_label(max_minutes, lbl, sizeof(lbl));
-        bin_font_print(lbl, 18, TFT_BLACK, 80, x1 - 10, axis_y + 8, false, canvas, TEXT_ALIGN_LEFT);
+        bin_font_print(lbl, 18, TFT_BLACK, 80, x1 - 19, axis_y + 8, false, canvas, TEXT_ALIGN_LEFT);
 
         // 在当前图下方绘制最近6个月的每月累计分钟图（竖向柱状图：横轴=月份，纵轴=分钟数）
         const int month_chart_w = 440;
@@ -377,7 +377,7 @@ void draw_time_rec_screen(M5Canvas *canvas)
             // 月份标签（横轴下方）
             char mon_lbl[16];
             snprintf(mon_lbl, sizeof(mon_lbl), "%02d/%02d", months[i].second, months[i].first % 100);
-            bin_font_print(mon_lbl, 14, TFT_BLACK, bar_width + 20, x - 10, chart_bottom + 8, false, canvas, TEXT_ALIGN_CENTER);
+            bin_font_print(mon_lbl, 14, TFT_BLACK, bar_width + 20, x - 17, chart_bottom + 8, false, canvas, TEXT_ALIGN_CENTER);
 
             // 分钟数标签（柱子顶部上方）
             if (mins > 0)
@@ -393,12 +393,12 @@ void draw_time_rec_screen(M5Canvas *canvas)
                 {
                     snprintf(mval, sizeof(mval), "%dm", mins);
                 }
-                bin_font_print(mval, 16, TFT_BLACK, bar_width + 20, x - 10, bar_top - 18, false, canvas, TEXT_ALIGN_CENTER);
+                bin_font_print(mval, 16, TFT_BLACK, bar_width + 20, x - 18, bar_top - 18, false, canvas, TEXT_ALIGN_CENTER);
             }
         }
 
         // bin_font_print("近六月", 20, TFT_BLACK, 120, month_left, chart_bottom + 10,false,canvas,TEXT_ALIGN_CENTER,120,true,true,true);
-        bin_font_print("近六月", 24, TFT_BLACK, 120, 440 , 480 , false, canvas, TEXT_ALIGN_CENTER, 120, true, false, true);
+        bin_font_print("近六月", 24, TFT_BLACK, 120, 428 , 480 , false, canvas, TEXT_ALIGN_CENTER, 120, true, false, true);
 
         // 在月度图下方绘制时段分布图（高100，宽500）
         // 统计四个时段：04:00-12:00, 12:00-20:00, 20:00-04:00, 无小时信息
@@ -519,30 +519,30 @@ void draw_time_rec_screen(M5Canvas *canvas)
         */
         canvas->drawRect(pie_center_x + 120, pie_center_y - 60, 16, 16);
         snprintf(label, sizeof(label), "[04-12]: %d mins ", morning_mins);
-        bin_font_print(label, 18, TFT_BLACK, 260, pie_center_x + 150, pie_center_y - 60, false, canvas, TEXT_ALIGN_LEFT);
+        bin_font_print(label, 18, TFT_BLACK, 260, pie_center_x + 141, pie_center_y - 60, false, canvas, TEXT_ALIGN_LEFT);
 
         canvas->drawRect(pie_center_x + 120, pie_center_y - 20, 16, 16);
         canvas->fillRect(pie_center_x + 122, pie_center_y - 18, 12, 12, TFT_BLACK);
         snprintf(label, sizeof(label), "[12-20]: %d mins ", afternoon_mins);
-        bin_font_print(label, 18, TFT_BLACK, 260, pie_center_x + 150, pie_center_y - 20, false, canvas, TEXT_ALIGN_LEFT);
+        bin_font_print(label, 18, TFT_BLACK, 260, pie_center_x + 141, pie_center_y - 20, false, canvas, TEXT_ALIGN_LEFT);
 
         canvas->drawRect(pie_center_x + 120, pie_center_y + 20, 16, 16);
         canvas->fillRect(pie_center_x + 122, pie_center_y + 22, 12, 12, TFT_DARKGRAY);
         snprintf(label, sizeof(label), "[20-04]: %d mins ", night_mins);
-        bin_font_print(label, 18, TFT_BLACK, 260, pie_center_x + 150, pie_center_y + 20, false, canvas, TEXT_ALIGN_LEFT);
+        bin_font_print(label, 18, TFT_BLACK, 260, pie_center_x + 141, pie_center_y + 20, false, canvas, TEXT_ALIGN_LEFT);
 
         canvas->drawRect(pie_center_x + 120, pie_center_y + 60, 16, 16);
         canvas->fillRect(pie_center_x + 122, pie_center_y + 62, 12, 12, TFT_LIGHTGRAY);
         snprintf(label, sizeof(label), "[未知]: %d mins ", unknown_mins);
-        bin_font_print(label, 18, TFT_BLACK, 260, pie_center_x + 150, pie_center_y + 60, false, canvas, TEXT_ALIGN_LEFT);
+        bin_font_print(label, 18, TFT_BLACK, 260, pie_center_x + 141, pie_center_y + 60, false, canvas, TEXT_ALIGN_LEFT);
 
-        bin_font_print("时段统计", 24, TFT_BLACK, 140, pie_center_y - 68, 20, false, canvas, TEXT_ALIGN_CENTER, 120, true, false, true);
+        bin_font_print("时段统计", 24, TFT_BLACK, 140, pie_center_y - 80, 20, false, canvas, TEXT_ALIGN_CENTER, 120, true, false, true);
 
-        bin_font_print("完整报告请于浏览器扩展查阅和导出", 24, TFT_BLACK, PAPER_S3_WIDTH, 0, pie_center_y + 160, false, canvas, TEXT_ALIGN_CENTER);
+        bin_font_print("完整报告请于浏览器扩展查阅和导出", 24, TFT_BLACK, PAPER_S3_WIDTH, -12, pie_center_y + 160, false, canvas, TEXT_ALIGN_CENTER);
     }
 
     // draw_button(canvas, BACK_BTN_X, BACK_BTN_Y, "返回阅读", true,false, 0.8f);
-    bin_font_print("返回阅读", 32, 0, 540, 0, BACK_BTN_Y, false, canvas, TEXT_ALIGN_CENTER);
+    bin_font_print("返回阅读", 32, 0, 540, -16, BACK_BTN_Y, false, canvas, TEXT_ALIGN_CENTER);
 }
 
 bool is_point_in_time_rec_back_button(int16_t x, int16_t y)

@@ -64,7 +64,14 @@ void display_print(const char *text, float text_size, uint16_t text_color, uint8
 
     // 打印文本（会自动处理换行和光标管理）
     bool drawBottom = (g_current_book && g_current_book->getDrawBottom());
-    bin_font_print(text_str, 0, 0, area_width, margin_left, margin_top, fastmode, g_canvas, TEXT_ALIGN_LEFT, 0, (g_current_book && g_current_book->getKeepOrg()), drawBottom, vertical, dark);
+    uint8_t render_font_size = 0;
+    if (text_size > 0.5f)
+    {
+        if (text_size > 255.0f)
+            text_size = 255.0f;
+        render_font_size = (uint8_t)(text_size + 0.5f);
+    }
+    bin_font_print(text_str, render_font_size, 0, area_width, margin_left, margin_top, fastmode, g_canvas, TEXT_ALIGN_LEFT, 0, (g_current_book && g_current_book->getKeepOrg()), drawBottom, vertical, dark);
 
     // print but not flush
 }
@@ -318,12 +325,12 @@ void fontLoad()
 #endif
     }
 
-    // 字体加载成功后，更新全局字体大小为字体文件中的实际大小
+    // 字体加载成功后，按配置更新正文实际字号
     extern float font_size;
-    font_size = (float)get_font_size_from_file();
+    font_size = get_configured_reading_font_size(get_font_size_from_file());
 
 #if DBG_UI_DISPLAY
-    Serial.printf("[DISPLAY] 字体大小: %.0f\n", font_size);
+    Serial.printf("[DISPLAY] 字体大小: %.2f (scale=%u%%)\n", font_size, g_config.font_scale_pct);
 #endif
 
     // 关键修复：字体加载后，清空 canvas 并重置光标，确保初始状态正确

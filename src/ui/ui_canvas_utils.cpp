@@ -235,13 +235,13 @@ bool show_reading_menu(M5Canvas *canvas, bool refresh, readingMenuArea area)
     // Bottom
     // bin_font_print(name_with_page, 21, 0, 540, 0, 770, false, nullptr, TEXT_ALIGN_CENTER); // 0.7f * 30 = 21
     //  Top
-    bin_font_print(name_with_page, 21, 0, 540, 0, 5, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.7f * 30 = 21
+    bin_font_print(name_with_page, 21, 0, 540, -10, 5, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.7f * 30 = 21
     snprintf(name_with_page, sizeof(name_with_page), "%zu", cur_page);
     // 页码
     // bin_font_print(name_with_page, 24, 0, 540, 0, 800, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
-    bin_font_print(name_with_page, 28, 0, 540, 0, 775, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
+    bin_font_print(name_with_page, 28, 0, 540, -14, 775, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
     snprintf(name_with_page, sizeof(name_with_page), "%zu", total_page);
-    bin_font_print(name_with_page, 28, 0, 540, 0, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
+    bin_font_print(name_with_page, 28, 0, 540, -14, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
 
     canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
@@ -260,17 +260,17 @@ bool show_reading_menu(M5Canvas *canvas, bool refresh, readingMenuArea area)
         int pct = (int)(prog + 0.5f);
         char progress_text[64];
         snprintf(progress_text, sizeof(progress_text), "索引中 %d%%", pct);
-        bin_font_print(progress_text, 24, 0, 170, 96, 146, true, nullptr, TEXT_ALIGN_CENTER, 300);
+        bin_font_print(progress_text, 24, 0, 170, 84, 146, true, nullptr, TEXT_ALIGN_CENTER, 300);
     }
     else
     {
-        bin_font_print("重新索引", 28, 0, 170, 88, 144, true, nullptr, TEXT_ALIGN_CENTER, 300);
+        bin_font_print("重新索引", 28, 0, 170, 74, 144, true, nullptr, TEXT_ALIGN_CENTER, 300);
     }
 
     // 获取阅读时间记录
 
     // bin_font_print("已读 ", 24, 0, 50, 310, 146, false, nullptr, TEXT_ALIGN_LEFT, 120, true, true, false, true);
-    bin_font_print("已读 ", 28, 0, 50, 300, 144, false, nullptr, TEXT_ALIGN_LEFT, 120, false, false, false, true);
+    bin_font_print("已读 ", 28, 0, 50, 286, 144, false, nullptr, TEXT_ALIGN_LEFT, 120, false, false, false, true);
     // 已读时间小时数/分钟数：从bm文件获取（已与rec文件第一行同步）
     char read_hour_str[16] = "0";
     char read_min_str[8] = "00";
@@ -292,11 +292,11 @@ bool show_reading_menu(M5Canvas *canvas, bool refresh, readingMenuArea area)
         snprintf(read_min_str, sizeof(read_min_str), "%02d", rm);
     }
     // 已读时间小时数
-    bin_font_print(read_hour_str, 28, 0, 80, 365, 144, true, nullptr, TEXT_ALIGN_CENTER, 80);
+    bin_font_print(read_hour_str, 28, 0, 80, 351, 144, true, nullptr, TEXT_ALIGN_CENTER, 80);
     //    bin_font_print(":", 24, 0, 120, 440, 146, true, nullptr, TEXT_ALIGN_CENTER, 30);
     // 已读时间分钟数
     // bin_font_print(read_min_str, 24, 0, 80, 452, 146, false, nullptr, TEXT_ALIGN_CENTER, 80, true, false, false, true);
-    bin_font_print(read_min_str, 28, 0, 80, 452, 144, false, nullptr, TEXT_ALIGN_CENTER, 80, false, false, false, true);
+    bin_font_print(read_min_str, 28, 0, 80, 438, 144, false, nullptr, TEXT_ALIGN_CENTER, 80, false, false, false, true);
 
     // 0间
     // 获取当前时间（0ms 超时，不阻塞；无论是否同步直接显示当前 RTC 值）
@@ -305,7 +305,7 @@ bool show_reading_menu(M5Canvas *canvas, bool refresh, readingMenuArea area)
     {
         char time_str[32];
         snprintf(time_str, sizeof(time_str), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
-        bin_font_print(time_str, 18, 0, 200, 24, 6, true, nullptr, TEXT_ALIGN_LEFT);
+        bin_font_print(time_str, 18, 0, 200, 15, 6, true, nullptr, TEXT_ALIGN_LEFT);
     }
 
 #if DBG_UI_CANVAS_UTILS
@@ -411,7 +411,8 @@ void draw_button(M5Canvas *canvas, int16_t cx, int16_t cy, const char *text, boo
     uint8_t font_size = (uint8_t)std::max(1, (int)roundf(32.0f * ratio));
     int16_t area_width = (int16_t)std::max(1, (int)(160 * ratio));
     int16_t max_length = area_width;
-    bin_font_print(text, font_size, text_color, area_width, cx, cy - (int16_t)roundf(4.0f * ratio), fastmode, canvas, TEXT_ALIGN_CENTER, max_length, false, false, false, inverted);
+    int16_t shift_comp = (int16_t)std::lround((float)font_size / 2.0f);
+    bin_font_print(text, font_size, text_color, area_width, cx - shift_comp, cy - (int16_t)roundf(4.0f * ratio), fastmode, canvas, TEXT_ALIGN_CENTER, max_length, false, false, false, inverted);
 }
 
 void draw_label(M5Canvas *canvas, int16_t cx, int16_t cy, const char *text, bool inverted, bool second)
@@ -619,7 +620,7 @@ void drawBottomUI(M5Canvas *canvas, int16_t x, int16_t y)
     canvas->fillCircle(x + 450 + 45, y + 50, 22, TFT_BLACK);
     canvas->fillCircle(x + 450 + 45, y + 50, 20, TFT_WHITE);
     canvas->fillCircle(x + 450 + 45, y + 50, 18, TFT_BLACK);
-    bin_font_print("?", 32, 0, 50, x + 450 + 22, y + 50 - 16, false, canvas, TEXT_ALIGN_CENTER, 80, true, false, false, true);
+    bin_font_print("?", 32, 0, 50, x + 450 + 6, y + 50 - 16, false, canvas, TEXT_ALIGN_CENTER, 80, true, false, false, true);
 
     // ROW II
     y = y + 100;
@@ -1085,7 +1086,7 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
     {
         char page_info[64]; // 增加缓冲区大小
         snprintf(page_info, sizeof(page_info), "第%d页/共%d页", current_page + 1, total_pages);
-        bin_font_print(page_info, 20, 0, 180, 360, 100, false, g_canvas, TEXT_ALIGN_CENTER, 180);
+        bin_font_print(page_info, 20, 0, 180, 350, 100, false, g_canvas, TEXT_ALIGN_CENTER, 180);
 
         //        char file_count[64]; // 增加缓冲区大小
         //       snprintf(file_count, sizeof(file_count), "共%d个文件", total_files);
@@ -1152,7 +1153,7 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
         {
             display_name = shorten_book_name(raw_entry, 8);
         }
-        bin_font_print(display_name.c_str(), 28, 0, 320, 15 + delta_x, text_y, true, g_canvas, TEXT_ALIGN_LEFT, 320);
+        bin_font_print(display_name.c_str(), 28, 0, 320, 1 + delta_x, text_y, true, g_canvas, TEXT_ALIGN_LEFT, 320);
 
 #if DBG_UI_CANVAS_UTILS
         Serial.printf("[MAIN_MENU] 显示文件 %d (索引%d): %s at y=%d\n", i, file_index, book_files[file_index].c_str(), text_y);

@@ -145,6 +145,8 @@ bool config_save()
         // sync runtime global autospeed into saved config
         g_config.autospeed = ::autospeed;
         config_file.printf("autospeed=%u\n", g_config.autospeed);
+        g_config.font_scale_pct = clamp_font_scale_pct(g_config.font_scale_pct);
+        config_file.printf("font_scale_pct=%u\n", g_config.font_scale_pct);
 
         // fastrefresh: whether to use fast partial refresh strategy
         config_file.printf("fastrefresh=%s\n", g_config.fastrefresh ? "true" : "false");
@@ -389,6 +391,10 @@ static int32_t config_load_from_file(const char* path, GlobalConfig& out_config,
             if (v > 255) v = 255;
             temp_config.autospeed = (uint8_t)v;
         }
+        else if (key == "font_scale_pct")
+        {
+            temp_config.font_scale_pct = clamp_font_scale_pct(value.toInt());
+        }
         else if (key == "main_menu_file_count")
         {
             int v = value.toInt();
@@ -498,6 +504,7 @@ static void init_config_defaults(GlobalConfig& config)
     config.dark = false;
     config.fastrefresh = false;
     config.autospeed = 2;
+    config.font_scale_pct = FONT_SCALE_DEFAULT_PCT;
     // 主菜单文件默认上限
     config.main_menu_file_count = MAX_MAIN_MENU_FILE_COUNT;
 
@@ -682,6 +689,7 @@ void config_reset_to_defaults()
     g_config.dark = false;
     g_config.fastrefresh = false;
     g_config.autospeed = 2;
+    g_config.font_scale_pct = FONT_SCALE_DEFAULT_PCT;
 
     // 同步运行时全局变量
     ::autospeed = g_config.autospeed;

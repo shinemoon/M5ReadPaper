@@ -860,7 +860,7 @@ void WiFiHotspotManager::handleFileDelete() {
                 Serial.printf("[WIFI_HOTSPOT] 当前书籍已被删除: %s，尝试回退到默认文件\n", path.c_str());
 #endif
                 // 使用 config_update_current_book 来回退并持久化配置
-                int16_t area_w = PAPER_S3_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
+                int16_t area_w = PAPER_S3_WIDTH - get_reading_effective_margin_left() - get_reading_effective_margin_right();
                 int16_t area_h = PAPER_S3_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM;
                 float fsize = SYSFONTSIZE;
                 BookHandle* newb = config_update_current_book("/spiffs/ReadPaper.txt", area_w, area_h, fsize);
@@ -1680,6 +1680,166 @@ void WiFiHotspotManager::handleReadingRecords() {
 #if DBG_WIFI_HOTSPOT
     Serial.printf("[WIFI_HOTSPOT] /api/reading_records 完成，处理了 %d/%d 本书\n", processed, totalBooks);
 #endif
+}
+
+void WiFiHotspotManager::handleDeviceGuide() {
+    if (!webServer) {
+        return;
+    }
+
+    String hw = "M5Stack PaperS3";
+    String firmware = "ReadPaper";
+    String version = "V1.3";
+
+    if (SPIFFS.exists("/version")) {
+        File vf = SPIFFS.open("/version", "r");
+        if (vf) {
+            int lineNo = 0;
+            while (vf.available() && lineNo < 3) {
+                String line = vf.readStringUntil('\n');
+                while (line.endsWith("\r")) {
+                    line.remove(line.length() - 1);
+                }
+                if (lineNo == 0 && line.length()) {
+                    hw = line;
+                } else if (lineNo == 1 && line.length()) {
+                    firmware = line;
+                } else if (lineNo == 2 && line.length()) {
+                    version = line;
+                }
+                lineNo++;
+            }
+            vf.close();
+        }
+    }
+
+    String currentBookPath = "";
+    {
+        std::shared_ptr<BookHandle> current_book = current_book_shared();
+        if (current_book) {
+            currentBookPath = String(current_book->filePath().c_str());
+        } else if (strlen(g_config.currentReadFile) > 0) {
+            currentBookPath = String(g_config.currentReadFile);
+        }
+    }
+
+    bool hasWebdav = strlen(g_config.webdav_url) > 0;
+    bool hasWifiConfig = false;
+    for (int i = 0; i < 3; i++) {
+        if (strlen(g_config.wifi_ssid[i]) > 0) {
+            hasWifiConfig = true;
+            break;
+        }
+    }
+
+    JsonDocument doc;
+    doc["ok"] = true;
+    doc["schema_version"] = 1;
+
+    JsonObject device = doc["device"].to<JsonObject>();
+    device["hw"] = hw;
+    device["firmware"] = firmware;
+    device["version"] = version;
+    device["ip"] = getIPAddress();
+    device["wifi_sta_connected"] = g_wifi_sta_connected;
+    device["wifi_ap_clients"] = getConnectedClients();
+    device["upload_in_progress"] = isUploadInProgress();
+    device["current_book"] = currentBookPath;
+
+    JsonObject sections = doc["sections"].to<JsonObject>();
+    sections["file_management"] = true;
+    sections["time_management"] = true;
+    sections["settings_management"] = true;
+
+    JsonObject fileManagement = doc["fileManagement"].to<JsonObject>();
+    fileManagement["required"] = true;
+    JsonArray tabs = fileManagement["tabs"].to<JsonArray>();
+
+    {
+        JsonObject tab = tabs.add<JsonObject>();
+        tab["id"] = "book";
+        tab["apiTab"] = "book";
+        tab["title"] = "书籍";
+        tab["hint"] = "支持 unicode/GBK 编码的 txt 文件。";
+        tab["supportsHierarchy"] = true;
+        tab["allowUpload"] = true;
+        tab["allowDelete"] = true;
+        tab["allowRename"] = true;
+        tab["allowMkdir"] = true;
+        tab["allowReadingRecords"] = true;
+        tab["showIdxBadge"] = true;
+    }
+    {
+        JsonObject tab = tabs.add<JsonObject>();
+        tab["id"] = "font";
+        tab["apiTab"] = "font";
+        tab["title"] = "字体";
+        tab["hint"] = "请上传工具生成的 font.bin。";
+        tab["supportsHierarchy"] = false;
+        tab["allowUpload"] = true;
+        tab["allowDelete"] = true;
+        tab["allowRename"] = false;
+        tab["allowMkdir"] = false;
+        tab["allowReadingRecords"] = false;
+        tab["showIdxBadge"] = false;
+    }
+    {
+        JsonObject tab = tabs.add<JsonObject>();
+        tab["id"] = "image";
+        tab["apiTab"] = "image";
+        tab["title"] = "锁屏";
+        tab["hint"] = "锁屏图片建议 540x960，支持透明 png。";
+        tab["supportsHierarchy"] = false;
+        tab["allowUpload"] = true;
+        tab["allowDelete"] = true;
+        tab["allowRename"] = false;
+        tab["allowMkdir"] = false;
+        tab["allowReadingRecords"] = false;
+        tab["showIdxBadge"] = false;
+    }
+    {
+        JsonObject tab = tabs.add<JsonObject>();
+        tab["id"] = "screenshot";
+        tab["apiTab"] = "screenshot";
+        tab["title"] = "截图";
+        tab["hint"] = "设备截图存储目录。";
+        tab["supportsHierarchy"] = false;
+        tab["allowUpload"] = false;
+        tab["allowDelete"] = true;
+        tab["allowRename"] = false;
+        tab["allowMkdir"] = false;
+        tab["allowReadingRecords"] = false;
+        tab["showIdxBadge"] = false;
+        tab["supportsScback"] = true;
+    }
+
+    JsonObject timeManagement = doc["timeManagement"].to<JsonObject>();
+    timeManagement["enabled"] = true;
+    timeManagement["allowSyncTime"] = true;
+
+    JsonObject settingsManagement = doc["settingsManagement"].to<JsonObject>();
+    settingsManagement["enabled"] = true;
+    settingsManagement["allowWifiConfig"] = true;
+    settingsManagement["allowWebdavConfig"] = true;
+    settingsManagement["hasWifiConfig"] = hasWifiConfig;
+    settingsManagement["hasWebdavConfig"] = hasWebdav;
+
+    JsonObject endpoints = doc["endpoints"].to<JsonObject>();
+    endpoints["heartbeat"] = "/heartbeat";
+    endpoints["list"] = "/list";
+    endpoints["upload"] = "/upload";
+    endpoints["download"] = "/download";
+    endpoints["delete"] = "/delete";
+    endpoints["rename"] = "/rename";
+    endpoints["mkdir"] = "/mkdir";
+    endpoints["sync_time"] = "/sync_time";
+    endpoints["reading_records"] = "/api/reading_records";
+    endpoints["wifi_config"] = "/api/wifi_config";
+    endpoints["webdav_config"] = "/api/webdav_config";
+
+    String payload;
+    serializeJson(doc, payload);
+    webServer->send(200, "application/json", payload);
 }
 
 void WiFiHotspotManager::handleWebdavConfigGet() {

@@ -4,10 +4,64 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>文件管理 · ReadPaper Utils</title>
+    <title>设备管理 · ReadPaper Utils</title>
     <link rel="stylesheet" href="../vendors/chota.css">
     <link rel="stylesheet" href="css/main.css">
     <style>
+        :root {
+            --dm-ink: #1f2937;
+            --dm-muted: #6b7280;
+            --dm-surface: #f7fafc;
+            --dm-border: #dbe4ef;
+            --dm-primary: #f04f0f;
+            --dm-primary-soft: #fff1e9;
+            --dm-file-accent: #0f766e;
+            --dm-file-accent-soft: #e6fffb;
+            --dm-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+        }
+
+        #moduleTabs {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.3rem;
+            border: 1px solid var(--dm-border);
+            border-radius: 0;
+            background: linear-gradient(180deg, #ffffff 0%, #f5f8fc 100%);
+            box-shadow: var(--dm-shadow);
+            flex-wrap: wrap;
+        }
+
+        #moduleTabs a {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 6.5rem;
+            padding: 0.42rem 0.9rem;
+            border-radius: 0;
+            color: var(--dm-muted);
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 160ms ease;
+            border: 1px solid transparent;
+            background: transparent;
+        }
+
+        #moduleTabs a:hover {
+            color: var(--dm-ink);
+            background: #ffffff;
+            border-color: #e7edf5;
+        }
+
+        #moduleTabs a.active {
+            color: #ffffff;
+            border-color: var(--dm-primary);
+            background: linear-gradient(120deg, #f04f0f 0%, #d9470c 100%);
+            box-shadow: 0 6px 14px rgba(240, 79, 15, 0.28);
+        }
+
         .idx-badge {
             display: inline-block;
             background: #2f6e2f;
@@ -37,15 +91,130 @@
             word-break: break-all;
         }
 
+        #combnav {
+            margin-bottom: 0.15rem;
+        }
+
+        #catTabs {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            flex-wrap: wrap;
+            padding: 0.5rem;
+            border: 1px solid var(--dm-border);
+            border-radius: 0;
+            background: linear-gradient(180deg, #ffffff 0%, #f9fbfe 100%);
+        }
+
+        #catTabItems {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+            flex: 1 1 auto;
+            min-width: 12rem;
+        }
+
+        #catTabItems a {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.34rem 0.82rem;
+            min-height: 2rem;
+            border-radius: 0;
+            border: 1px solid #d7e3f0;
+            background: #ffffff;
+            color: #365068;
+            font-weight: 700;
+            text-decoration: none;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: all 140ms ease;
+        }
+
+        #catTabItems a:hover {
+            border-color: #b8cbdf;
+            color: #1f3b53;
+            transform: translateY(-1px);
+        }
+
+        #catTabItems a.active {
+            color: var(--dm-file-accent);
+            border-color: #9ee3d8;
+            background: linear-gradient(120deg, var(--dm-file-accent-soft) 0%, #d9fbf5 100%);
+            box-shadow: 0 4px 12px rgba(15, 118, 110, 0.2);
+        }
+
+        #btnMkdir {
+            margin-left: auto;
+            white-space: nowrap;
+            border-color: #ffc9ad;
+            color: #b84b19;
+            background: var(--dm-primary-soft);
+        }
+
+        #btnMkdir:hover {
+            background: #ffe4d6;
+            border-color: #ffb791;
+        }
+
         /* breadcrumb path display for book subdirs */
         #bookPathBar {
             font-size: 0.85em;
-            padding: 2px 8px;
-            background: #1a1a2e;
-            color: #aaa;
-            border-radius: 4px;
+            padding: 0.35rem 0.6rem;
+            background: #1c2430;
+            color: #dde4f0;
+            border-radius: 0.5rem;
             margin-bottom: 4px;
             display: none;
+            border: 1px solid #283445;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+
+        #bookPathBar .crumb {
+            color: #f2f7ff;
+            cursor: pointer;
+        }
+
+        #bookPathBar .crumb:hover {
+            text-decoration: underline;
+        }
+
+        #bookPathBar .crumb-sep {
+            opacity: 0.75;
+            margin: 0 0.2rem;
+        }
+
+        @media (max-width: 760px) {
+            #moduleTabs {
+                display: flex;
+                width: 100%;
+            }
+
+            #moduleTabs a {
+                flex: 1 1 calc(33.333% - 0.4rem);
+                min-width: 0;
+            }
+
+            #catTabs {
+                align-items: stretch;
+            }
+
+            #catTabItems {
+                min-width: 0;
+            }
+
+            #catTabItems a {
+                flex: 1 1 auto;
+            }
+
+            #btnMkdir {
+                margin-left: 0;
+                width: 100%;
+                justify-content: center;
+            }
         }
     </style>
     <link rel="icon" href="../../assets/favicon.png">
@@ -56,98 +225,176 @@
     <div data-include="partials/header.html"></div>
     <main role="main" class="container" aria-labelledby="page-title">
         <div class="row">
-            <h1 id="page-title" class="is-hidden">文件管理</h1>
+            <h1 id="page-title" class="is-hidden">设备管理</h1>
             <div id="device-info" class="muted"></div>
         </div>
 
-        <div class="row">
-            <div class="col-5 upload-box" id="uploadBox">
-                <div class="mb-05"><strong id="uploadTitle">书籍-文件上传</strong></div>
-                <input id="fileInput" type="file" multiple class="hidden" />
-                <div class="flex-row gap-small">
-                    <button id="btnSelect" class="button is-small">选择</button>
-                    <button id="btnUpload" class="button primary is-small" disabled>上传</button>
-                    <button id="btnDeleteSelected" class="button is-small outline" disabled
-                        style="margin-left:.5rem">删除</button>
-                    <button id="btnMkdir" class="button is-small outline" title="在当前目录新建子目录" style="display:none">新建目录</button>
-                    <span id="uploadInfo" class="muted"></span>
-                </div>
-            </div>
-
-            <div class="col-5 upload-box" id="scbackBox" style="display:none">
-                <div class="mb-05"><strong>截图背景设置</strong></div>
-                <input id="scbackFileInput" type="file" accept="image/*" class="hidden" />
-                <div class="flex-row gap-small">
-                    <button id="btnScbackSelect" class="button is-small">选择</button>
-                    <button id="btnScbackUpload" class="button primary is-small" disabled>上传</button>
-                    <button id="btnScbackDelete" class="button is-small outline">删除</button>
-                    <!--span id="scbackInfo" class="muted">仅支持文件名为 scback.png，上传到 SD 根目录。</span-->
-                </div>
-            </div>
-
-            <div class="col-5 upload-box rec-box" id="recBox">
-                <div class="mb-05"><strong>阅读记录</strong></div>
-                <div class="flex-row gap-small">
-                    <button id="btnSyncTime" class="button primary is-small">同步时间</button>
-                    <button id="btnBatchRecords" class="button is-small outline" title="查看选中书籍的阅读记录">批量</button>
-                    <button id="btnAllRecords" class="button is-small outline" title="查看所有书籍的阅读记录">全部</button>
+        <div class="row mb-05">
+            <div class="col-12">
+                <div class="tabs" id="moduleTabs">
+                    <a id="tabFileManagement" class="active">文件管理</a>
+                    <a id="tabTimeManagement">时间记录</a>
+                    <a id="tabSettingsManagement">设置管理</a>
                 </div>
             </div>
         </div>
 
-        <div class="row">
-            <div class="col-12 bg-dark text-light" style="padding-left:20px;">> <span id="uploadStatus"></span></div>
-        </div>
-        <div class="row">
-            <div class="col col-12">
-                <div class="panel">
-                    <div class="row mb-05">
-                        <div class="col-12 flex-row gap-small " id="combnav">
-                            <div class="tabs is-full col-12" id="catTabs">
-                                <a data-cat="book" class="active">书籍</a>
-                                <button id="btnMkdir" class="button is-small outline" style="margin-left:auto;display:none" title="新建子目录">+ 新建目录</button>
-                                <a data-cat="font">字体</a>
-                                <a data-cat="image">锁屏</a>
-                                <a data-cat="screenshot">截图</a>
-                            </div>
+        <section id="timeSection" class="row" style="display:none">
+            <div class="col-12 panel">
+                <div class="row mt-1">
+                    <hr>
+                    <div class="col-12 upload-box rec-box" id="recBox">
+                        <div class="flex-row gap-small">
+                            <button id="btnSyncTime" class="button is-small">同步设备时间</button>
+                            <span class="muted">同步系统与设备时间</span>
                         </div>
                     </div>
-                    <!-- breadcrumb bar (only visible in books subdirectory) -->
-                    <div class="row mb-05" id="bookPathBarRow" style="display:none">
-                        <div class="col-12" id="bookPathBar"></div>
-                    </div>
-                    <div class="row mb-05">
-                        <p id="hint" class="muted col-12 bg-dark text-white" style="padding-left:30px;">支持 unicode/GBK
-                            编码的 txt 文件。</p>
-                    </div>
-                    <div class="row mt-1">
-                        <div class="col-12">
-                            <table class="striped file-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width:5%"><input id="selectAll" type="checkbox" title="全选" /></th>
-                                        <th style="width:35%">名称</th>
-                                        <th style="width:15%">大小</th>
-                                        <th style="width:15%">当前</th>
-                                        <th style="width:30%" class="nowrap">操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="fileBody">
-                                    <tr>
-                                        <td colspan="5" class="text-center">加载中...</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                            <div id="pager" class="pagination hidden">
-                                <button id="prevBtn" class="button is-small outline">上一页</button>
-                                <span id="pageInfo" class="muted"></span>
-                                <button id="nextBtn" class="button is-small outline">下一页</button>
-                            </div>
+
+                    <div class="col-12 upload-box rec-box" id="recBox">
+                        <div class="flex-row gap-small">
+                            <button id="btnAllRecords" class="button is-small outline"
+                                title="查看所有书籍的阅读记录">下载阅读记录</button>
+                            <span class="muted">导出阅读记录</span>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
+
+        <section id="settingsSection" class="row" style="display:none">
+            <div class="col-12 panel">
+                <div class="mb-05"><strong>设置管理</strong></div>
+                <div class="row">
+                    <div class="col-6 upload-box" id="wifiSettingsCard">
+                        <div class="mb-05"><strong>WiFi 配置（最多3组）</strong></div>
+                        <div class="row">
+                            <div class="col-12 mb-05"><input id="wifiSsid0" type="text" placeholder="SSID #1" /></div>
+                            <div class="col-12 mb-05"><input id="wifiPass0" type="text" placeholder="密码 #1" /></div>
+                            <div class="col-12 mb-05"><input id="wifiSsid1" type="text" placeholder="SSID #2" /></div>
+                            <div class="col-12 mb-05"><input id="wifiPass1" type="text" placeholder="密码 #2" /></div>
+                            <div class="col-12 mb-05"><input id="wifiSsid2" type="text" placeholder="SSID #3" /></div>
+                            <div class="col-12 mb-05"><input id="wifiPass2" type="text" placeholder="密码 #3" /></div>
+                            <div class="col-12 flex-row gap-small">
+                                <button id="btnLoadWifiSettings" class="button is-small outline">刷新</button>
+                                <button id="btnSaveWifiSettings" class="button primary is-small">保存</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 upload-box" id="webdavSettingsCard">
+                        <div class="mb-05"><strong>WebDAV 配置</strong></div>
+                        <div class="row">
+                            <div class="col-12 mb-05"><input id="webdavUrl" type="text"
+                                    placeholder="https://example.com/dav/" /></div>
+                            <div class="col-12 mb-05"><input id="webdavUsername" type="text" placeholder="用户名" /></div>
+                            <div class="col-12 mb-05"><input id="webdavPassword" type="text" placeholder="密码" /></div>
+                            <div class="col-12 flex-row gap-small">
+                                <button id="btnLoadWebdavSettings" class="button is-small outline">刷新</button>
+                                <button id="btnSaveWebdavSettings" class="button primary is-small">保存</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-1">
+                    <div class="col-12 upload-box" id="advSettingsCard" style="display:none">
+                        <div class="mb-05"><strong>高级设置</strong></div>
+                        <div class="row">
+                            <div id="advConfigForm" class="adv-cfg-form col-12 mb-05"></div>
+                            <div class="col-12 flex-row gap-small mt-05">
+                                <button id="btnLoadAdvConfig" class="button is-small outline">刷新</button>
+                                <button id="btnSaveAdvConfig" class="button primary is-small">保存</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-1">
+                    <div class="col-12 muted" id="settingsStatus"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="fileSection">
+
+            <div class="row">
+                <div class="col-5 upload-box" id="uploadBox">
+                    <div class="mb-05"><strong id="uploadTitle">书籍-文件上传</strong></div>
+                    <input id="fileInput" type="file" multiple class="hidden" />
+                    <div class="flex-row gap-small">
+                        <button id="btnSelect" class="button is-small">选择</button>
+                        <button id="btnUpload" class="button primary is-small" disabled>上传</button>
+                        <button id="btnDeleteSelected" class="button is-small outline" disabled
+                            style="margin-left:.5rem">删除</button>
+                        <span id="uploadInfo" class="muted"></span>
+                    </div>
+                </div>
+
+                <div class="col-5 upload-box" id="scbackBox" style="display:none">
+                    <div class="mb-05"><strong>截图背景设置</strong></div>
+                    <input id="scbackFileInput" type="file" accept="image/*" class="hidden" />
+                    <div class="flex-row gap-small">
+                        <button id="btnScbackSelect" class="button is-small">选择</button>
+                        <button id="btnScbackUpload" class="button primary is-small" disabled>上传</button>
+                        <button id="btnScbackDelete" class="button is-small outline">删除</button>
+                        <!--span id="scbackInfo" class="muted">仅支持文件名为 scback.png，上传到 SD 根目录。</span-->
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="row">
+                <div class="col-12 bg-dark text-light" style="padding-left:20px;">> <span id="uploadStatus"></span>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col col-12">
+                    <div class="panel">
+                        <div class="row mb-05">
+                            <div class="col-12 flex-row gap-small " id="combnav">
+                                <div class="tabs is-full col-12" id="catTabs">
+                                    <span id="catTabItems"></span>
+                                    <button id="btnMkdir" class="button is-small outline"
+                                        style="margin-left:auto;display:none" title="新建子目录">+ 新建目录</button>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- breadcrumb bar (only visible in books subdirectory) -->
+                        <div class="row mb-05" id="bookPathBarRow" style="display:none">
+                            <div class="col-12" id="bookPathBar"></div>
+                        </div>
+                        <div class="row mb-05">
+                            <p id="hint" class="muted col-12 bg-dark text-white" style="padding-left:30px;">支持
+                                unicode/GBK
+                                编码的 txt 文件。</p>
+                        </div>
+                        <div class="row mt-1">
+                            <div class="col-12">
+                                <table class="striped file-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:5%"><input id="selectAll" type="checkbox" title="全选" />
+                                            </th>
+                                            <th style="width:35%">名称</th>
+                                            <th style="width:15%">大小</th>
+                                            <th style="width:15%">当前</th>
+                                            <th style="width:30%" class="nowrap">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="fileBody">
+                                        <tr>
+                                            <td colspan="5" class="text-center">加载中...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                <div id="pager" class="pagination hidden">
+                                    <button id="prevBtn" class="button is-small outline">上一页</button>
+                                    <span id="pageInfo" class="muted"></span>
+                                    <button id="nextBtn" class="button is-small outline">下一页</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
     </main>
 
     <div class="toast-container" id="toasts"></div>

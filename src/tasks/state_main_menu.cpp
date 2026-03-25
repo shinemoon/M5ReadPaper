@@ -142,7 +142,7 @@ void StateMachineTask::handleMainMenuState(const SystemMessage_t *msg)
                 if (g_current_book)
                 {
                     g_current_book->loadBookmarkAndJump();
-                    g_current_book->renderCurrentPage(0, g_canvas);
+                    g_current_book->renderCurrentPage(font_size, g_canvas);
                 }
                 currentState_ = STATE_READING;
             }
@@ -202,9 +202,9 @@ void StateMachineTask::handleMainMenuState(const SystemMessage_t *msg)
 
                     // 使用 config_update_current_book 来创建新的 BookHandle
                     // 这会自动处理配置更新和书签加载
-                    int16_t area_w = PAPER_S3_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
+                    int16_t area_w = PAPER_S3_WIDTH - get_reading_effective_margin_left() - get_reading_effective_margin_right();
                     int16_t area_h = PAPER_S3_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM;
-                    float fsize = (float)get_font_size_from_file();
+                    float fsize = get_configured_reading_font_size(get_font_size_from_file());
 
                     BookHandle *new_book = config_update_current_book(book_path.c_str(), area_w, area_h, fsize);
 #include "current_book.h"
@@ -221,7 +221,7 @@ void StateMachineTask::handleMainMenuState(const SystemMessage_t *msg)
 #if DBG_STATE_MACHINE_TASK
                             sm_dbg_printf("成功加载书籍: %s, 总页数: %zu\n", book_path.c_str(), new_sp->getTotalPages());
 #endif
-                            new_sp->renderCurrentPage(0, g_canvas);
+                            new_sp->renderCurrentPage(fsize, g_canvas);
                             currentState_ = STATE_READING;
                         }
                         else

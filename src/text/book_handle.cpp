@@ -21,6 +21,7 @@
 #include "text/bin_font_print.h"
 #include "config/config_manager.h"
 #include "device/safe_fs.h"
+#include "globals.h"
 // tag handling (auto/manual tags)
 #include "text/tags_handle.h"
 // font buffer for page caching
@@ -226,7 +227,7 @@ void removeIndexFilesForBookForPath(const std::string &book_file_path)
 BookHandle::BookHandle(const std::string &path, std::int16_t area_w_, std::int16_t area_h_, float fsize,
                        TextEncoding enc)
     : file_path(path), file_handle(), cur_pos(0), area_w(area_w_), area_h(area_h_),
-      font_size(get_font_size_from_file()), encoding(enc), // 使用字体文件中的实际大小
+    font_size(fsize > 0.0f ? fsize : (float)get_font_size_from_file()), encoding(enc),
       font_cache_initialized(false),                       // 【初始化】字体缓存标志
       history_head(0), history_count(0), current_page_index(0), page_completed(false),
       indexing_in_progress(false), indexing_should_stop(false),
@@ -1190,6 +1191,18 @@ TextPageResult BookHandle::prevPage()
 
 TextPageResult BookHandle::currentPage()
 {
+    // 先同步运行时字号，再决定是否可复用缓存页；
+    // 否则字号刚变化时会被早返回拦住，导致首帧仍显示旧比例。
+    extern float font_size;
+    if (fabs(this->font_size - font_size) > 0.01f)
+    {
+        this->font_size = font_size;
+        last_page.success = false;
+#if DBG_BOOK_HANDLE
+        Serial.printf("[BH] currentPage: 字号变化，失效缓存页并更新为 %.2f\n", font_size);
+#endif
+    }
+
     if (last_page.success && last_page.file_pos == cur_pos)
         return last_page;
 
@@ -1215,17 +1228,6 @@ TextPageResult BookHandle::currentPage()
 
     // 保存当前文件位置
     size_t saved_pos = saveCurrentPosition();
-
-    // 使用全局 font_size 而非成员变量，确保切换字体后立即生效
-    extern float font_size;
-    // 同步更新成员变量，确保后续保存书签时使用正确的值
-    if (fabs(this->font_size - font_size) > 0.01f)
-    {
-        this->font_size = font_size;
-#if DBG_BOOK_HANDLE
-        Serial.printf("[BH] currentPage: 检测到字体大小变化，更新为 %.2f\n", font_size);
-#endif
-    }
 
     // Determine next page boundary to limit reading within current page
     size_t max_byte_pos = SIZE_MAX;
@@ -1340,10 +1342,7 @@ bool BookHandle::jumpToPage(size_t page_index)
             bool font_size_changed = (cfg.font_base_size > 0 && current_font_file_size > 0 && cfg.font_base_size != current_font_file_size);
             // Note: font_name and font_version comparison removed - only font size matters for re-indexing
             // Same-size fonts assumed to have similar pagination impact
-            bool area_changed = (cfg.area_width != area_w || cfg.area_height != area_h);
-            bool encoding_changed = (cfg.encoding != encoding);
-
-            if (font_size_changed || area_changed || encoding_changed)
+            if (font_size_changed)
             {
                 // 请求停止当前索引并等待（最长5s），然后强制重建索引
                 Serial.println("[BH] jumpToPage: 检测到书签参数与当前不匹配且正在索引，尝试停止并强制重建索引");
@@ -3316,10 +3315,7 @@ void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool
             bool font_size_changed = (cfg.font_base_size > 0 && current_font_file_size > 0 && cfg.font_base_size != current_font_file_size);
             // Note: font_name and font_version comparison removed - only font size matters for re-indexing
             // Same-size fonts assumed to have similar pagination impact
-            bool area_changed = (cfg.area_width != area_w || cfg.area_height != area_h);
-            bool encoding_changed = (cfg.encoding != encoding);
-
-            if (font_size_changed || area_changed || encoding_changed)
+            if (font_size_changed)
             {
                 // 如果检测到差异，强制重建索引并跳回第一页
 #if DBG_BOOK_HANDLE
@@ -3352,12 +3348,134 @@ void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool
         }
     }
 
+    int16_t eff_margin_left = get_reading_effective_margin_left();
+    int16_t eff_margin_right = get_reading_effective_margin_right();
+
+    // 仅对正文渲染路径应用定制宽度策略（不修改底层字体函数）：
+    // 1) shift 始终等于 (PAPER_S3_WIDTH - area_width) / 2
+    // 2) area_width 基于 PAPER_S3_WIDTH - 当前显示字符宽度；放大时按 (2 - ratio) 放宽扣减
+    //    char_w = base_font * ratio（即当前显示字号）
+    //    subtract_w = char_w * (2 - ratio)
+    //    area_width = PAPER_S3_WIDTH - subtract_w
+    if (!getVerticalText())
+    {
+        uint8_t base_font = get_font_size_from_file();
+        if (base_font == 0)
+        {
+            base_font = SYSFONTSIZE;
+        }
+
+        float rendered_font_px = font_size_param;
+        if (rendered_font_px <= 0.0f)
+        {
+            rendered_font_px = get_configured_reading_font_size(base_font);
+        }
+
+        // 与 display_print/bin_font_print 保持完全一致的字号口径（uint8四舍五入）。
+        uint8_t render_font_size_u8 = 0;
+        if (rendered_font_px > 0.5f)
+        {
+            float clamped_px = rendered_font_px;
+            if (clamped_px > 255.0f)
+            {
+                clamped_px = 255.0f;
+            }
+            render_font_size_u8 = (uint8_t)(clamped_px + 0.5f);
+        }
+        if (render_font_size_u8 > 0)
+        {
+            rendered_font_px = (float)render_font_size_u8;
+        }
+
+        float ratio = (base_font > 0) ? (rendered_font_px / (float)base_font) : 1.0f;
+        if (ratio < 0.0f)
+        {
+            ratio = 0.0f;
+        }
+        if (ratio > 2.0f)
+        {
+            ratio = 2.0f;
+        }
+
+        float subtract_w_f = rendered_font_px * (2.0f - ratio);
+
+        // bin_font_print 会在 margin_left 基础上再加内部 shift，
+        // 这里按当前底层公式做反向补偿，保证最终位移满足 desired_shift。
+        float shift_damping = 1.0f;
+        if (ratio > 1.30f)
+        {
+            float over = ratio - 1.30f;
+            shift_damping = 1.0f / (1.0f + 0.85f * over);
+        }
+        int16_t internal_shift = (int16_t)std::lround(rendered_font_px * 0.5f * shift_damping);
+
+        // line_handle::find_break_position_scaled 会再扣一段 width_reserve_px。
+        // 这里在正文路径先回补同等量，避免“补偿一个字宽”被二次抵消。
+        float wrap_shift_damping = 1.0f;
+        if (ratio > 1.25f)
+        {
+            float over = ratio - 1.25f;
+            wrap_shift_damping = 1.0f / (1.0f + 0.45f * over);
+        }
+        int16_t wrap_shift_px = (int16_t)std::lround(rendered_font_px * 0.5f * wrap_shift_damping);
+
+        float reserve_ratio = 1.0f;
+        if (ratio > 1.30f)
+        {
+            float over = ratio - 1.30f;
+            reserve_ratio = 1.0f / (1.0f + 2.00f * over);
+            reserve_ratio = fmaxf(0.45f, reserve_ratio);
+        }
+        int16_t wrap_reserve_px = (int16_t)std::lround((float)wrap_shift_px * reserve_ratio);
+
+        int16_t logical_margin = (int16_t)std::lround(subtract_w_f);
+        if (logical_margin < 2)
+        {
+            logical_margin = 2;
+        }
+        if (logical_margin > PAPER_S3_WIDTH - 2)
+        {
+            logical_margin = PAPER_S3_WIDTH - 2;
+        }
+
+        // 目标法则的逻辑宽度（最终想要的有效排版宽度）
+        int16_t logical_area_width = PAPER_S3_WIDTH - logical_margin;
+        // 考虑断行时pullin标点会溶宽，额外扣掉0.4倍当前显示字符宽度作为预留
+        int16_t pullin_reserve = (int16_t)std::lround(rendered_font_px * 0.4f);
+        logical_area_width -= pullin_reserve;
+
+        // read_text_page 内部会再扣一次 width_reserve，这里预补偿到 area_w，
+        // 使最终有效排版宽度回到 logical_area_width。
+        int16_t layout_area_width = logical_area_width + wrap_reserve_px;
+        if (layout_area_width < 1)
+        {
+            layout_area_width = 1;
+        }
+        if (layout_area_width > PAPER_S3_WIDTH - 1)
+        {
+            layout_area_width = PAPER_S3_WIDTH - 1;
+        }
+        if (area_w != layout_area_width)
+        {
+            area_w = layout_area_width;
+            last_page.success = false;
+        }
+
+        // 左margin严格等于 (PAPER_S3_WIDTH - area_width) / 2
+        // 其中area_width是断行用的layout_area_width（已包含wrap_reserve预补偿）
+        int16_t total_margin = PAPER_S3_WIDTH - layout_area_width;
+        eff_margin_left = total_margin / 2;
+        eff_margin_right = total_margin - eff_margin_left;
+    }
+
     // 获取当前页内容进行渲染（避免复制大字符串）
+    // 注意：currentPage/read_text_page 会使用上面同步后的 area_w 做断行。
     TextPageResult current = currentPage();
     last_render_char_count_ = count_readable_codepoints(current.page_text);
     bin_font_clear_canvas(dark);
+
     display_print(current.page_text.c_str(), font_size_param, TFT_BLACK, TL_DATUM,
-                  MARGIN_TOP, MARGIN_BOTTOM, MARGIN_LEFT, MARGIN_RIGHT, TFT_WHITE, true, dark);
+                  MARGIN_TOP, MARGIN_BOTTOM, eff_margin_left, eff_margin_right, TFT_WHITE, true, dark);
 
     // If this page contains any tag start positions, draw a small black dot at top-right
     // 【保护条件】只有在索引完全加载且有效时才检查和显示书签图标
@@ -3399,7 +3517,7 @@ void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool
             // 将页面索引转换为字符串再打印，避免将 size_t 传递为字符串参数
             std::string page_num = std::to_string(current_page_index + 1);
             // bin_font_print(page_num.c_str(), 20, 0, PAPER_S3_WIDTH - 5, 0, 920 + 15, true, nullptr, TEXT_ALIGN_RIGHT, 0, true, false, false, dark);
-            bin_font_print(page_num.c_str(), 20, 0, PAPER_S3_WIDTH - 5, 0, 920 + 15, false, nullptr, TEXT_ALIGN_RIGHT, 0, true, false, false, dark);
+            bin_font_print(page_num.c_str(), 20, 0, PAPER_S3_WIDTH - 25, 0, 920 + 15, false, nullptr, TEXT_ALIGN_RIGHT, 0, true, false, false, dark);
         }
         // 计算阅读进度
         float progress = (float)(current_page_index + 1) / (float)page_positions.size();

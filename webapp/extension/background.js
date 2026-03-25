@@ -125,10 +125,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function handleWebDAVFetch(url, options = {}) {
   try {
     console.log('[Background WebDAV]', options.method || 'GET', url);
+    let normalizedUrl = url;
+    let urlObj;
     
     // 确保有权限访问目标 origin
     try {
-      const urlObj = new URL(url);
+      urlObj = new URL(url);
+      if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+        throw new Error(`仅支持 http/https WebDAV 地址: ${url}`);
+      }
+      normalizedUrl = urlObj.toString();
       const origin = urlObj.origin + "/*";
       
       const hasPermission = await new Promise((resolve) => {
@@ -166,14 +172,50 @@ async function handleWebDAVFetch(url, options = {}) {
       }
       delete fetchOptions._bodyIsBlob;
     }
+
+    const controller = new AbortController();
+    const timeoutMs = typeof options._timeoutMs === 'number' && options._timeoutMs > 0
+      ? options._timeoutMs
+      : 15000;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    fetchOptions.signal = controller.signal;
+    delete fetchOptions._timeoutMs;
     
-    const response = await fetch(url, fetchOptions);
+    let response;
+    try {
+      response = await fetch(normalizedUrl, fetchOptions);
+    } catch (fetchError) {
+      const method = String(fetchOptions.method || 'GET').toUpperCase();
+      const isHttps = urlObj && urlObj.protocol === 'https:';
+      const isAbort = fetchError && fetchError.name === 'AbortError';
+      const diagnosticParts = [];
+
+      diagnosticParts.push(`WebDAV ${method} 请求失败`);
+      diagnosticParts.push(normalizedUrl);
+
+      if (isAbort) {
+        diagnosticParts.push(`请求超时（>${timeoutMs}ms）`);
+      } else if (isHttps) {
+        diagnosticParts.push('HTTPS 连接失败');
+        diagnosticParts.push('若是自签名证书，浏览器扩展无法直接访问');
+      } else {
+        diagnosticParts.push('网络不可达或服务器拒绝连接');
+      }
+
+      diagnosticParts.push('请检查 URL、端口、网络连通性，以及证书是否受系统信任');
+
+      const diagnosticMessage = diagnosticParts.join('；');
+      console.warn('[Background WebDAV] Fetch 失败:', diagnosticMessage, fetchError);
+      throw new Error(diagnosticMessage);
+    } finally {
+      clearTimeout(timer);
+    }
     
     console.log('[Background WebDAV] 响应状态:', response.status, response.statusText);
     
     const contentType = response.headers.get('content-type') || '';
     console.log('[Background WebDAV] Content-Type:', contentType);
-    console.log('[Background WebDAV] URL:', url);
+    console.log('[Background WebDAV] URL:', normalizedUrl);
     
     // 读取响应体
     let body = null;
@@ -240,7 +282,11 @@ async function handleWebDAVFetch(url, options = {}) {
     
     return result;
   } catch (error) {
-    console.error('[Background WebDAV] Fetch 失败:', error);
+    if (error && error.name === 'Error' && typeof error.message === 'string' && error.message.includes('WebDAV')) {
+      console.warn('[Background WebDAV] 请求失败:', error.message);
+    } else {
+      console.error('[Background WebDAV] Fetch 失败:', error);
+    }
     throw error;
   }
 }

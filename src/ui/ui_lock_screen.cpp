@@ -462,7 +462,7 @@ static void draw_name_banner(M5Canvas *canvas, const char *name_with_page, int32
     canvas->drawWideLine(0, basey + 50, 545, basey + 50, 1.1f, invert ? TFT_WHITE : TFT_BLACK);
 
     // 绘制书名
-    bin_font_print(name_with_page, 24, TFT_BLACK, LOCKBOOKNAMEWIDTH, (PAPER_S3_WIDTH-LOCKBOOKNAMEWIDTH)/2 - 12, basey + 20 - 1, false, canvas, TEXT_ALIGN_CENTER, LOCKBOOKNAMEWIDTH, g_current_book ? g_current_book->getKeepOrg() : false);
+    bin_font_print(name_with_page, 24, TFT_BLACK, LOCKBOOKNAMEWIDTH, (PAPER_S3_WIDTH-LOCKBOOKNAMEWIDTH)/2 - 24, basey + 20 - 1, false, canvas, TEXT_ALIGN_CENTER, LOCKBOOKNAMEWIDTH, g_current_book ? g_current_book->getKeepOrg() : false);
 
     // 尝试获取并显示当前章节名（如果存在TOC）
     if (g_current_book && g_current_book->isOpen())
@@ -482,7 +482,7 @@ static void draw_name_banner(M5Canvas *canvas, const char *name_with_page, int32
                     // 在书名下方绘制章节名（使用较小字号）
                     // canvas->fillRect(0, basey + 52, PAPER_S3_WIDTH, 40, 0xF7DE);
                     canvas->fillRect(0, basey + 52, PAPER_S3_WIDTH, 40, TFT_BLACK);
-                    bin_font_print(toc_title.c_str(), 24, 0, LOCKBOOKNAMEWIDTH, (PAPER_S3_WIDTH-LOCKBOOKNAMEWIDTH)/2-12, basey + 60, false, canvas, TEXT_ALIGN_CENTER, LOCKBOOKNAMEWIDTH, false, false, false, true);
+                    bin_font_print(toc_title.c_str(), 24, 0, LOCKBOOKNAMEWIDTH, (PAPER_S3_WIDTH-LOCKBOOKNAMEWIDTH)/2-24, basey + 60, false, canvas, TEXT_ALIGN_CENTER, LOCKBOOKNAMEWIDTH, false, false, false, true);
                     canvas->drawWideLine(0, basey + 90, 540, basey + 90, 1.1, invert ? TFT_WHITE : TFT_BLACK);
                     //                    canvas->drawWideLine(30, basey + 65, 30, basey + 75, 2.0, invert ? TFT_WHITE : TFT_BLACK);
                     //                   canvas->drawWideLine(510, basey + 65, 510, basey + 75, 2.0, invert ? TFT_WHITE : TFT_BLACK);
@@ -519,7 +519,7 @@ static void draw_vertical_banner(M5Canvas *canvas, const std::string &digest, in
 
     // Render digest vertically: area_width=900 (large value), vertical=true (last param true)
     // bin_font_print(digest.c_str(), 28, fg, 900, 120, 960 - basew - offsetx, false, canvas, TEXT_ALIGN_LEFT, 900, false, g_current_book->getKeepOrg(), true);
-    bin_font_print(digest.c_str(), 28, fg, 900, 100, 960 - basew - offsetx, false, canvas, TEXT_ALIGN_LEFT, 900, true, true, true);
+    bin_font_print(digest.c_str(), 28, fg, 900, 86, 960 - basew - offsetx, false, canvas, TEXT_ALIGN_LEFT, 900, true, true, true);
 
     // canvas->fillRect(basex, 760, basew, 100, TFT_BLACK);
     canvas->fillRect(basex, 0, basew, 80, TFT_BLACK);
@@ -924,7 +924,7 @@ void show_lockscreen(int16_t area_width, int16_t area_height, float font_size, c
                     g_canvas->fillRect(0, basey, 540, baseh, theme_strip_bg);
                     g_canvas->drawRect(0, basey, 540, baseh, TFT_BLACK);
 
-                    bin_font_print(g_current_book->getCurrentDigest().c_str(), 28, theme_strip_fg, 540, 100, basey + 20, false, g_canvas, TEXT_ALIGN_LEFT, 0, false, true);
+                    bin_font_print(g_current_book->getCurrentDigest().c_str(), 28, theme_strip_fg, 540, 86, basey + 20, false, g_canvas, TEXT_ALIGN_LEFT, 0, false, true);
                     // head
                     g_canvas->fillRect(0, basey, 60, baseh, TFT_BLACK);
                     g_canvas->drawLine(60, basey + 5, 540, basey + 5, theme_strip_fg);
