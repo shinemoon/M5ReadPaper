@@ -102,14 +102,17 @@
       password:'debug_pass',
     },
     advConfig: {
-      display: {
-        invert: { title: '反转', value: false, hint: '颜色反转' },
-        contrast: { title: '对比度', value: 3, hint: '调整屏幕对比度' },
+      reading: {
+        font_size: { title: '字体大小', value: 2, options: ['16', '20', '24', '28'], hint: '选择字体像素大小' },
+        line_spacing: { title: '行间距', value: 1, options: ['紧凑', '标准', '宽松'], hint: '选择行间距模式' },
+        invert: { title: '反转显示', value: false, hint: '颜色反转' },
       },
-      power: {
+      system: {
+        contrast: { title: '对比度', value: 3, options: ['低', '中低', '中', '中高', '高'], hint: '调整屏幕对比度' },
         auto_sleep_min: { title: '自动睡眠时间', value: 15, hint: '单位:分钟,0表示禁用' },
       },
-      features: {
+      text: {
+        encoding: { title: '文本编码', value: 0, options: ['UTF-8', 'GBK', 'GB2312'], hint: '选择默认文本编码' },
         experimental_layout: { title: '实验性布局', value: true, hint: '启用实验性界面布局' },
       }
     },
@@ -599,6 +602,16 @@
       ctrl.type = 'checkbox';
       ctrl.checked = value;
       ctrl.className = 'adv-cfg-checkbox';
+    } else if (vtype === 'number' && Array.isArray(fieldDef.options)) {
+      ctrl = document.createElement('select');
+      ctrl.className = 'adv-cfg-ctrl';
+      fieldDef.options.forEach((opt, idx) => {
+        const o = document.createElement('option');
+        o.value = idx;
+        o.textContent = opt;
+        if (idx === value) o.selected = true;
+        ctrl.appendChild(o);
+      });
     } else if (vtype === 'number') {
       ctrl = document.createElement('input');
       ctrl.type = 'number';
@@ -627,9 +640,10 @@
       if (isGroup) {
         const groupDiv = document.createElement('div');
         groupDiv.className = 'adv-cfg-group';
+        const groupTitles = { reading: '阅读设置', system: '系统设置', text: '文本设置' };
         const titleEl = document.createElement('div');
         titleEl.className = 'adv-cfg-group-title';
-        titleEl.textContent = sectionKey;
+        titleEl.textContent = groupTitles[sectionKey] || sectionKey;
         groupDiv.appendChild(titleEl);
         for (const [key, fieldDef] of Object.entries(sectionVal)) {
           const isField = fieldDef && typeof fieldDef === 'object' && 'value' in fieldDef;
