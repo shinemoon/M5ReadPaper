@@ -504,14 +504,16 @@ curl -X POST -H "Content-Type: application/json" \
 {
   "ok": true,
   "config": {
-    "display": {
-      "invert": { "title": "反转", "value": false, "hint": "颜色反转" },
-      "contrast": { "title": "对比度", "value": 3, "hint": "调整屏幕对比度" }
+    "reading": {
+      "font_size": { "title": "字体大小", "value": 2, "options": ["16", "20", "24", "28"], "hint": "选择字体像素大小" },
+      "invert": { "title": "反转显示", "value": false, "hint": "颜色反转" }
     },
-    "power": {
+    "system": {
+      "contrast": { "title": "对比度", "value": 3, "options": ["低", "中低", "中", "中高", "高"], "hint": "调整屏幕对比度" },
       "auto_sleep_min": { "title": "自动睡眠时间", "value": 15, "hint": "单位:分钟,0表示禁用" }
     },
-    "features": {
+    "text": {
+      "encoding": { "title": "文本编码", "value": 0, "options": ["UTF-8", "GBK", "GB2312"], "hint": "选择默认文本编码" },
       "experimental_layout": { "title": "实验性布局", "value": true, "hint": "启用实验性界面布局" }
     }
   }
@@ -520,6 +522,7 @@ curl -X POST -H "Content-Type: application/json" \
 
 - 若设备无高级配置（或功能不可用），可返回 `{"ok": true, "config": {}}` 或直接 404。
 - 前端行为：`config` 为空对象 / null / 空数组 / 404 均视为"无高级设置"，隐藏入口。
+- **分组标题本地化**：前端会将 `reading` / `system` / `text` 自动显示为「阅读设置」/「系统设置」/「文本设置」；其他 key 原样显示。
 
 ### POST — 保存高级配置
 
@@ -527,12 +530,12 @@ curl -X POST -H "Content-Type: application/json" \
 ```json
 {
   "config": {
-    "display": {
-      "invert": { "title": "反转", "value": false, "hint": "颜色反转" },
-      "contrast": { "title": "对比度", "value": 3, "hint": "调整屏幕对比度" }
+    "reading": {
+      "font_size": { "title": "字体大小", "value": 2, "options": ["16", "20", "24", "28"], "hint": "选择字体像素大小" },
+      "invert": { "title": "反转显示", "value": false, "hint": "颜色反转" }
     },
-    "power": {
-      "auto_sleep_min": { "title": "自动睡眠时间", "value": 15, "hint": "单位:分钟,0表示禁用" }
+    "system": {
+      "auto_sleep_min": { "title": "自动睡眠时间", "value": 30, "hint": "单位:分钟,0表示禁用" }
     }
   }
 }
@@ -554,29 +557,32 @@ curl -X POST -H "Content-Type: application/json" \
 "field_name": {
   "title": "字段显示名称",
   "value": 实际值,
+  "options": ["选项A", "选项B"],  // 可选，枚举类型时提供
   "hint": "鼠标悬停提示"
 }
 ```
 
-| 属性 | 说明 |
-|------|------|
-| `title` | 前端显示的中文名称 |
-| `value` | 实际值；类型为 `boolean` / `number` / `string` |
-| `hint` | 可选，鼠标悬停时的提示信息 |
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `title` | string | 前端显示的中文名称 |
+| `value` | boolean / number / string | 实际值；枚举类型时为选项索引（整数） |
+| `options` | string[] | **可选**。存在时 `value` 为该数组的索引，前端渲染为下拉框 |
+| `hint` | string | 可选，鼠标悬停时的提示信息 |
 
 **值类型与前端控件对应**:
 
-| `value` 类型 | 前端控件 |
-|-------------|----------|
-| `boolean` | 复选框 |
-| `number` | 数字输入框 |
-| `string` | 文本输入框 |
+| `value` 类型 | `options` 存在 | 前端控件 |
+|-------------|----------------|----------|
+| `boolean` | — | 复选框 |
+| `number` | 否 | 数字输入框 |
+| `number` | 是 | 下拉框（`options[value]` 为当前选项文本）|
+| `string` | — | 文本输入框 |
 
 **示例**:
 ```bash
 curl "http://192.168.4.1/api/advconfig"
 curl -X POST -H "Content-Type: application/json" \
-  -d '{"config":{"power":{"auto_sleep_min":30}}}' \
+  -d '{"config":{"system":{"auto_sleep_min":{"title":"自动睡眠时间","value":30,"hint":"单位:分钟,0表示禁用"}}}}' \
   http://192.168.4.1/api/advconfig
 ```
 ```js
