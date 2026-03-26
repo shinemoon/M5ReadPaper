@@ -47,7 +47,7 @@ Access-Control-Allow-Headers: Content-Type, X-Requested-With
 | 5 | `/rename` | GET | 重命名书籍（及伴随文件）|
 | 6 | `/sync_time` | POST | 同步设备时间 |
 | 7 | `/heartbeat` | GET | 健康检查 / 版本信息 |
-| 8 | `/api/device_guide` | GET | 设备管理页面 guide（模块开关+文件页签能力） |
+| 8 | `/api/device_guide` `/api/guide` | GET | 设备管理页面 guide（模块开关+文件页签能力，`/api/guide` 为归一化别名） |
 | 9 | `/api/reading_records` | GET | 查询阅读记录 |
 | 10 | `/api/webdav_config` | GET / POST | 读写 WebDAV 配置 |
 | 11 | `/api/wifi_config` | GET / POST | 读写 WiFi 连接配置 |
@@ -289,7 +289,7 @@ curl "http://192.168.4.1/heartbeat"
 
 ---
 
-## 8) 设备管理 Guide — `/api/device_guide`
+## 8) 设备管理 Guide — `/api/device_guide` / `/api/guide`
 
 **方法**: GET
 
@@ -297,6 +297,7 @@ curl "http://192.168.4.1/heartbeat"
 - 提供设备管理页面的能力声明。
 - 前端据此决定三大模块（文件管理/时间管理/设置管理）是否显示。
 - 文件管理页签、提示文案、是否支持目录层级、是否支持新建目录/重命名/阅读记录等均由该接口返回。
+- 推荐优先使用 `/api/guide`，`/api/device_guide` 保留兼容。
 
 **响应示例**（字段可扩展）：
 ```json
@@ -317,6 +318,11 @@ curl "http://192.168.4.1/heartbeat"
     "file_management": true,
     "time_management": true,
     "settings_management": true
+  },
+  "modules": {
+    "file": true,
+    "time": true,
+    "settings": true
   },
   "fileManagement": {
     "required": true,
@@ -359,10 +365,16 @@ curl "http://192.168.4.1/heartbeat"
     "reading_records": "/api/reading_records",
     "wifi_config": "/api/wifi_config",
       "webdav_config": "/api/webdav_config",
-      "advconfig": "/api/advconfig"
+      "advconfig": "/api/advconfig",
+      "device_guide": "/api/device_guide",
+      "guide": "/api/guide"
     }
 }
 ```
+
+    兼容字段说明：
+    - 现有前端继续使用 camelCase：`fileManagement`、`timeManagement`、`settingsManagement`。
+    - 归一化客户端可使用 snake_case：`file_management`、`time_management`、`settings_management`。
 
 **前端建议**:
 - `heartbeat` 用于在线探测；`/api/device_guide` 用于页面能力驱动。

@@ -169,12 +169,21 @@ void ApiRouter::registerRoutes(WebServer& server, WiFiHotspotManager& mgr) {
     });
 
     // Device guide endpoint for device-management UI
+    // /api/guide is a normalized alias for cross-device clients.
     server.on("/api/device_guide", HTTP_GET, [&](){
+        add_cors_headers(server);
+        mgr.handleDeviceGuide();
+    });
+    server.on("/api/guide", HTTP_GET, [&](){
         add_cors_headers(server);
         mgr.handleDeviceGuide();
     });
 
     server.on("/api/device_guide", HTTP_OPTIONS, [&](){
+        add_cors_headers(server);
+        server.send(204);
+    });
+    server.on("/api/guide", HTTP_OPTIONS, [&](){
         add_cors_headers(server);
         server.send(204);
     });

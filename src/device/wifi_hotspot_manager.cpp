@@ -1735,6 +1735,7 @@ void WiFiHotspotManager::handleDeviceGuide() {
     JsonDocument doc;
     doc["ok"] = true;
     doc["schema_version"] = 1;
+    doc["schema"] = "readpaper.device_guide.v1";
 
     JsonObject device = doc["device"].to<JsonObject>();
     device["hw"] = hw;
@@ -1750,6 +1751,12 @@ void WiFiHotspotManager::handleDeviceGuide() {
     sections["file_management"] = true;
     sections["time_management"] = true;
     sections["settings_management"] = true;
+
+    // Normalized alias for cross-device clients.
+    JsonObject modules = doc["modules"].to<JsonObject>();
+    modules["file"] = true;
+    modules["time"] = true;
+    modules["settings"] = true;
 
     JsonObject fileManagement = doc["fileManagement"].to<JsonObject>();
     fileManagement["required"] = true;
@@ -1836,6 +1843,24 @@ void WiFiHotspotManager::handleDeviceGuide() {
     endpoints["reading_records"] = "/api/reading_records";
     endpoints["wifi_config"] = "/api/wifi_config";
     endpoints["webdav_config"] = "/api/webdav_config";
+    endpoints["device_guide"] = "/api/device_guide";
+    endpoints["guide"] = "/api/guide";
+
+    // Normalized snake_case aliases while keeping old camelCase keys.
+    JsonObject fileManagementCompat = doc["file_management"].to<JsonObject>();
+    fileManagementCompat["required"] = true;
+    fileManagementCompat["tabs"] = tabs;
+
+    JsonObject timeManagementCompat = doc["time_management"].to<JsonObject>();
+    timeManagementCompat["enabled"] = true;
+    timeManagementCompat["allow_sync_time"] = true;
+
+    JsonObject settingsManagementCompat = doc["settings_management"].to<JsonObject>();
+    settingsManagementCompat["enabled"] = true;
+    settingsManagementCompat["allow_wifi_config"] = true;
+    settingsManagementCompat["allow_webdav_config"] = true;
+    settingsManagementCompat["has_wifi_config"] = hasWifiConfig;
+    settingsManagementCompat["has_webdav_config"] = hasWebdav;
 
     String payload;
     serializeJson(doc, payload);
