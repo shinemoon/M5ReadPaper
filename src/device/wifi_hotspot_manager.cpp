@@ -2038,6 +2038,115 @@ void WiFiHotspotManager::handleWifiConfigUpdate() {
     webServer->send(saved ? 200 : 500, "application/json", payload);
 }
 
+void WiFiHotspotManager::handleAdvConfigGet() {
+    if (!webServer) {
+        return;
+    }
+
+    JsonDocument doc;
+    doc["ok"] = true;
+
+    JsonObject config = doc["config"].to<JsonObject>();
+    JsonObject reading = config["reading"].to<JsonObject>();
+    JsonObject tradeoff = reading["font_render_tradeoff_level"].to<JsonObject>();
+    tradeoff["title"] = "缩放渲染档位";
+    uint8_t level = get_font_render_tradeoff_level();
+    // UI 仅暴露两档：0=速度，1=高质。内部均衡档(1)对外映射为速度。
+    tradeoff["value"] = (level == FONT_RENDER_TRADEOFF_QUALITY) ? 1 : 0;
+    JsonArray options = tradeoff["options"].to<JsonArray>();
+    options.add("速度");
+    options.add("高质");
+    tradeoff["hint"] = "速度更快但细节略降；高质更稳但稍慢";
+
+    String payload;
+    serializeJson(doc, payload);
+    webServer->send(200, "application/json", payload);
+}
+
+void WiFiHotspotManager::handleAdvConfigUpdate() {
+    if (!webServer) {
+        return;
+    }
+
+    String body = webServer->arg("plain");
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, body);
+    if (err) {
+        webServer->send(400, "application/json", "{\"ok\":false,\"message\":\"invalid json\"}");
+        return;
+    }
+
+    int level = get_font_render_tradeoff_level();
+    bool has_update = false;
+
+    auto extract_level = [&](JsonVariantConst node) -> bool {
+        if (node.is<int>()) {
+            level = node.as<int>();
+            return true;
+        }
+        if (node.is<JsonObjectConst>()) {
+            JsonObjectConst obj = node.as<JsonObjectConst>();
+            JsonVariantConst value_node = obj["value"];
+            if (value_node.is<int>()) {
+                int raw = value_node.as<int>();
+                JsonVariantConst options_node = obj["options"];
+                if (options_node.is<JsonArrayConst>() && options_node.as<JsonArrayConst>().size() == 2) {
+                    // 新 UI 仅两档：0=速度, 1=高质
+                    level = (raw <= 0) ? FONT_RENDER_TRADEOFF_FAST : FONT_RENDER_TRADEOFF_QUALITY;
+                } else {
+                    // 兼容旧三档或纯 value 结构
+                    level = raw;
+                }
+                return true;
+            }
+        }
+        return false;
+    };
+
+    if (doc["config"].is<JsonObjectConst>()) {
+        JsonObjectConst config = doc["config"].as<JsonObjectConst>();
+        if (config["reading"].is<JsonObjectConst>()) {
+            JsonObjectConst reading = config["reading"].as<JsonObjectConst>();
+            if (extract_level(reading["font_render_tradeoff_level"])) {
+                has_update = true;
+            }
+        }
+        if (!has_update && extract_level(config["font_render_tradeoff_level"])) {
+            has_update = true;
+        }
+    }
+
+    if (!has_update && extract_level(doc["font_render_tradeoff_level"])) {
+        has_update = true;
+    }
+
+    if (has_update) {
+        g_config.font_render_tradeoff_level = clamp_font_render_tradeoff_level(level);
+    }
+
+    bool saved = config_save();
+
+    JsonDocument resp;
+    resp["ok"] = saved;
+    if (!saved) {
+        resp["message"] = "save failed";
+    }
+    JsonObject config = resp["config"].to<JsonObject>();
+    JsonObject reading = config["reading"].to<JsonObject>();
+    JsonObject tradeoff = reading["font_render_tradeoff_level"].to<JsonObject>();
+    tradeoff["title"] = "缩放渲染档位";
+    uint8_t out_level = get_font_render_tradeoff_level();
+    tradeoff["value"] = (out_level == FONT_RENDER_TRADEOFF_QUALITY) ? 1 : 0;
+    JsonArray options = tradeoff["options"].to<JsonArray>();
+    options.add("速度");
+    options.add("高质");
+    tradeoff["hint"] = "速度更快但细节略降；高质更稳但稍慢";
+
+    String payload;
+    serializeJson(resp, payload);
+    webServer->send(saved ? 200 : 500, "application/json", payload);
+}
+
 void WiFiHotspotManager::handleNotFound() {
     String message = "File Not Found\n\n";
     message += "URI: " + webServer->uri() + "\n";

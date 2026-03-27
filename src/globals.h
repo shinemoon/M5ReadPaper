@@ -64,7 +64,18 @@ extern esp_sleep_wakeup_cause_t g_wake_cause;
 extern int refreshPeriod;
 
 uint8_t clamp_font_scale_pct(int scale_pct);
+uint8_t clamp_font_render_tradeoff_level(int level);
+uint8_t get_font_render_tradeoff_level();
 float get_configured_reading_font_size(uint8_t base_font_size);
+float get_font_scale_margin_compensation_strength();
+float get_font_shift_damp_start_ratio();
+float get_font_shift_damp_slope();
+float get_font_wrap_damp_start_ratio();
+float get_font_wrap_damp_slope();
+bool should_prefetch_far_pages();
+uint32_t get_middle_refresh_threshold();
+uint32_t get_quality_refresh_threshold();
+uint32_t get_full_refresh_threshold_normal();
 // 根据当前字体缩放比例计算有效左边距，和右边距保持一致。
 int16_t get_reading_effective_margin_left();
 // 根据当前字体缩放比例计算有效右边距：小字号时适当增加右边距以保持视觉平衡

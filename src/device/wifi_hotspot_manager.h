@@ -133,6 +133,8 @@ private:
     void handleWebdavConfigUpdate();
     void handleWifiConfigGet();
     void handleWifiConfigUpdate();
+    void handleAdvConfigGet();
+    void handleAdvConfigUpdate();
     void handleUpdateDisplay();
     void handleUpdateDisplayStart();
     void handleUpdateDisplayChunk();

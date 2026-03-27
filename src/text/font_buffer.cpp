@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <Arduino.h>
 #include <SPIFFS.h>
+#include "globals.h"
 
 // 全局字体缓存管理器实例
 FontBufferManager g_font_buffer_manager;
@@ -832,6 +833,7 @@ void FontBufferManager::prefetchAround(BookHandle *book)
 {
     if (!initialized_ || !book || !book->isOpen())
         return;
+
     size_t total_pages = book->getTotalPages();
     auto build_if_missing = [&](int offset)
     {
@@ -844,11 +846,14 @@ void FontBufferManager::prefetchAround(BookHandle *book)
         caches_[idx].build(book, static_cast<size_t>(target_page));
     };
 
-    // 只补缺，不重建；顺序：邻近，再远端
+    // 只补缺，不重建；非极速档优先补邻近页面，再补远端页面。
     build_if_missing(-1);
     build_if_missing(+1);
-    build_if_missing(-2);
-    build_if_missing(+2);
+    if (should_prefetch_far_pages())
+    {
+        build_if_missing(-2);
+        build_if_missing(+2);
+    }
 }
 
 bool FontBufferManager::isCacheValid(int page_offset) const

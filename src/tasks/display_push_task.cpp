@@ -7,6 +7,7 @@
 #include "freertos/queue.h"
 #include "task_priorities.h"
 #include "current_book.h"
+#include "globals.h"
 
 extern M5Canvas *g_canvas;
 extern GlobalConfig g_config;
@@ -20,8 +21,6 @@ static QueueHandle_t s_canvasQueue = NULL;
 
 // pushSprite 计数器
 static volatile uint32_t s_pushCount = 0;
-static const uint32_t PUSH_COUNT_THRESHOLD = FIRST_REFRESH_TH;          // WorkAround My own device's HW issue...
-static const uint32_t PUSH_COUNT_THRESHOLD_QUALIYT = SECOND_REFRESH_TH; // FullFresh for fast Mode
 
 // 任务函数
 static void displayTaskFunction(void *pvParameters)
@@ -64,9 +63,12 @@ static void displayTaskFunction(void *pvParameters)
                     // 累加计数器
 
                     // 根据计数器决定是否使用quality模式 & fast mode
-                    bool needMiddleStep = g_config.fastrefresh && (s_pushCount % PUSH_COUNT_THRESHOLD == 0) && (s_pushCount >= PUSH_COUNT_THRESHOLD);
-                    // bool needMiddleStep = (s_pushCount % PUSH_COUNT_THRESHOLD == 0) && (s_pushCount >= PUSH_COUNT_THRESHOLD);
-                    bool useQualityMode = (s_pushCount >= PUSH_COUNT_THRESHOLD_QUALIYT && g_config.fastrefresh) || msg.flags[2] || (s_pushCount >= FULL_REFRESH_TH && !g_config.fastrefresh);
+                    uint32_t middleThreshold = get_middle_refresh_threshold();
+                    uint32_t qualityThreshold = get_quality_refresh_threshold();
+                    uint32_t fullThresholdNormal = get_full_refresh_threshold_normal();
+
+                    bool needMiddleStep = g_config.fastrefresh && (middleThreshold > 0) && (s_pushCount % middleThreshold == 0) && (s_pushCount >= middleThreshold);
+                    bool useQualityMode = (s_pushCount >= qualityThreshold && g_config.fastrefresh) || msg.flags[2] || (s_pushCount >= fullThresholdNormal && !g_config.fastrefresh);
                     s_pushCount++;
 
                     if (useQualityMode)

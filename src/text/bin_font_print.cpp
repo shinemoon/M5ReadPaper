@@ -23,6 +23,7 @@
 #include "tasks/display_push_task.h"
 #include "device/file_manager.h"
 #include "../text/zh_conv.h"
+#include "globals.h"
 // current book access for cache prefetch
 #include "current_book.h"
 // access per-book bookmark config
@@ -3233,11 +3234,13 @@ void bin_font_print(const std::string &text, uint8_t font_size, uint8_t color, i
         // 避免大字号下边距占用过大导致可用排版宽度明显变小。
         float rendered_font_px = (float)g_bin_font.font_size * scale_factor;
         float zoom_ratio = (g_bin_font.font_size > 0) ? (rendered_font_px / (float)g_bin_font.font_size) : 1.0f;
+        float shift_damp_start = get_font_shift_damp_start_ratio();
+        float shift_damp_slope = get_font_shift_damp_slope();
         float shift_damping = 1.0f;
-        if (zoom_ratio > 1.30f)
+        if (zoom_ratio > shift_damp_start)
         {
-            float over = zoom_ratio - 1.30f;
-            shift_damping = 1.0f / (1.0f + 0.85f * over);
+            float over = zoom_ratio - shift_damp_start;
+            shift_damping = 1.0f / (1.0f + shift_damp_slope * over);
         }
         int16_t shift_offset = (int16_t)std::lround(rendered_font_px * 0.5f * shift_damping);
         int16_t x = g_margin_left + shift_offset;

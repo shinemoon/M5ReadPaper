@@ -147,6 +147,8 @@ bool config_save()
         config_file.printf("autospeed=%u\n", g_config.autospeed);
         g_config.font_scale_pct = clamp_font_scale_pct(g_config.font_scale_pct);
         config_file.printf("font_scale_pct=%u\n", g_config.font_scale_pct);
+        g_config.font_render_tradeoff_level = clamp_font_render_tradeoff_level(g_config.font_render_tradeoff_level);
+        config_file.printf("font_render_tradeoff_level=%u\n", g_config.font_render_tradeoff_level);
 
         // fastrefresh: whether to use fast partial refresh strategy
         config_file.printf("fastrefresh=%s\n", g_config.fastrefresh ? "true" : "false");
@@ -395,6 +397,10 @@ static int32_t config_load_from_file(const char* path, GlobalConfig& out_config,
         {
             temp_config.font_scale_pct = clamp_font_scale_pct(value.toInt());
         }
+        else if (key == "font_render_tradeoff_level")
+        {
+            temp_config.font_render_tradeoff_level = clamp_font_render_tradeoff_level(value.toInt());
+        }
         else if (key == "main_menu_file_count")
         {
             int v = value.toInt();
@@ -505,6 +511,7 @@ static void init_config_defaults(GlobalConfig& config)
     config.fastrefresh = false;
     config.autospeed = 2;
     config.font_scale_pct = FONT_SCALE_DEFAULT_PCT;
+    config.font_render_tradeoff_level = FONT_RENDER_TRADEOFF_DEFAULT;
     // 主菜单文件默认上限
     config.main_menu_file_count = MAX_MAIN_MENU_FILE_COUNT;
 
@@ -640,6 +647,9 @@ bool config_load()
     // 将配置中的 autospeed 同步到运行时全局变量
     ::autospeed = g_config.autospeed;
 
+    // 对可调档位做统一钳制，保证老配置和非法值可回退。
+    g_config.font_render_tradeoff_level = clamp_font_render_tradeoff_level(g_config.font_render_tradeoff_level);
+
     // 确保约束条件：dark 模式下强制启用快刷
     if (g_config.dark)
     {
@@ -690,6 +700,7 @@ void config_reset_to_defaults()
     g_config.fastrefresh = false;
     g_config.autospeed = 2;
     g_config.font_scale_pct = FONT_SCALE_DEFAULT_PCT;
+    g_config.font_render_tradeoff_level = FONT_RENDER_TRADEOFF_DEFAULT;
 
     // 同步运行时全局变量
     ::autospeed = g_config.autospeed;

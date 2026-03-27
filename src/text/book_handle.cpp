@@ -3401,28 +3401,32 @@ void BookHandle::renderCurrentPage(float font_size_param, M5Canvas *canvas, bool
 
         // bin_font_print 会在 margin_left 基础上再加内部 shift，
         // 这里按当前底层公式做反向补偿，保证最终位移满足 desired_shift。
+        float shift_damp_start = get_font_shift_damp_start_ratio();
+        float shift_damp_slope = get_font_shift_damp_slope();
         float shift_damping = 1.0f;
-        if (ratio > 1.30f)
+        if (ratio > shift_damp_start)
         {
-            float over = ratio - 1.30f;
-            shift_damping = 1.0f / (1.0f + 0.85f * over);
+            float over = ratio - shift_damp_start;
+            shift_damping = 1.0f / (1.0f + shift_damp_slope * over);
         }
         int16_t internal_shift = (int16_t)std::lround(rendered_font_px * 0.5f * shift_damping);
 
         // line_handle::find_break_position_scaled 会再扣一段 width_reserve_px。
         // 这里在正文路径先回补同等量，避免“补偿一个字宽”被二次抵消。
+        float wrap_damp_start = get_font_wrap_damp_start_ratio();
+        float wrap_damp_slope = get_font_wrap_damp_slope();
         float wrap_shift_damping = 1.0f;
-        if (ratio > 1.25f)
+        if (ratio > wrap_damp_start)
         {
-            float over = ratio - 1.25f;
-            wrap_shift_damping = 1.0f / (1.0f + 0.45f * over);
+            float over = ratio - wrap_damp_start;
+            wrap_shift_damping = 1.0f / (1.0f + wrap_damp_slope * over);
         }
         int16_t wrap_shift_px = (int16_t)std::lround(rendered_font_px * 0.5f * wrap_shift_damping);
 
         float reserve_ratio = 1.0f;
-        if (ratio > 1.30f)
+        if (ratio > shift_damp_start)
         {
-            float over = ratio - 1.30f;
+            float over = ratio - shift_damp_start;
             reserve_ratio = 1.0f / (1.0f + 2.00f * over);
             reserve_ratio = fmaxf(0.45f, reserve_ratio);
         }

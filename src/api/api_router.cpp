@@ -216,6 +216,20 @@ void ApiRouter::registerRoutes(WebServer& server, WiFiHotspotManager& mgr) {
         server.send(204);
     });
 
+    // Advanced config endpoints
+    server.on("/api/advconfig", HTTP_GET, [&](){
+        add_cors_headers(server);
+        mgr.handleAdvConfigGet();
+    });
+    server.on("/api/advconfig", HTTP_POST, [&](){
+        add_cors_headers(server);
+        mgr.handleAdvConfigUpdate();
+    });
+    server.on("/api/advconfig", HTTP_OPTIONS, [&](){
+        add_cors_headers(server);
+        server.send(204);
+    });
+
     // 更新设备显示配置（接收 JSON { rdt: string, png_base64: string }）
     server.on("/api/update_display", HTTP_POST, [&](){
         add_cors_headers(server);

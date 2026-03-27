@@ -97,6 +97,10 @@ enum display_type {
 #define FONT_SCALE_MAX_PCT 150
 #define FONT_SCALE_DEFAULT_PCT 100
 
+#define FONT_RENDER_TRADEOFF_FAST 0
+#define FONT_RENDER_TRADEOFF_BALANCED 1
+#define FONT_RENDER_TRADEOFF_QUALITY 2
+#define FONT_RENDER_TRADEOFF_DEFAULT FONT_RENDER_TRADEOFF_FAST
 
 /* 全局配置结构体 */
 struct GlobalConfig {
@@ -123,6 +127,9 @@ struct GlobalConfig {
 
     // 正文阅读字号缩放百分比，仅作用于正文排版与分页
     uint8_t font_scale_pct = FONT_SCALE_DEFAULT_PCT;
+
+    // 缩放渲染档位：0=速度，1=均衡，2=高质（默认=速度）
+    uint8_t font_render_tradeoff_level = FONT_RENDER_TRADEOFF_DEFAULT;
 
     // 主菜单文件列表限制（可通过配置文件调整，默认由宏 MAX_MAIN_MENU_FILE_COUNT 设定）
     uint16_t main_menu_file_count = MAX_MAIN_MENU_FILE_COUNT;
