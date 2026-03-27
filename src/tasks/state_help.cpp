@@ -70,7 +70,7 @@ void StateMachineTask::handleHelpState(const SystemMessage_t *msg)
         // 返回阅读时刷新当前页
         if (g_current_book)
         {
-            g_current_book->renderCurrentPage(font_size,nullptr,true,false,false,false,HSHUTTER_NORMAL_REV);
+            g_current_book->renderCurrentPage(font_size, nullptr, true, false, false, false, HSHUTTER_NORMAL_REV);
         }
         break;
 
@@ -99,12 +99,9 @@ void StateMachineTask::handleHelpState(const SystemMessage_t *msg)
         if (!helpShown)
         {
             helpShown = true;
-                // 首次进入显示帮助图片（来自 /data/guide.png）
-                // 使用 canvas 推图片并立即刷新显示
-                bin_font_clear_canvas();
-                ui_push_image_to_canvas("/spiffs/guide.png", 0, 0, nullptr, true);
-                bin_font_print(ver,28,0,PAPER_S3_WIDTH,0,PAPER_S3_HEIGHT/2+40,false,nullptr,TEXT_ALIGN_CENTER);
-                bin_font_flush_canvas(false, false, true, HSHUTTER_NORMAL);
+            // 首次进入显示帮助图片（来自 /data/guide.png）
+            // 使用 canvas 推图片并立即刷新显示
+            show_start_screen("");
         }
         break;
     }
