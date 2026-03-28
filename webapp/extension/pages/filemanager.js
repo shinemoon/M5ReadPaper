@@ -511,6 +511,22 @@
     return !!(cfg && cfg.allowUpload);
   }
 
+  function currentSettingsManagementConfig(){
+    return (deviceGuide && deviceGuide.settingsManagement)
+      ? deviceGuide.settingsManagement
+      : defaultGuide.settingsManagement;
+  }
+
+  function canUseWifiSettings(){
+    const sm = currentSettingsManagementConfig();
+    return sm.allowWifiConfig !== false;
+  }
+
+  function canUseWebdavSettings(){
+    const sm = currentSettingsManagementConfig();
+    return sm.allowWebdavConfig !== false;
+  }
+
   function supportsScback(){
     const cfg = currentTabConfig();
     return !!(cfg && cfg.supportsScback);
@@ -780,16 +796,20 @@
   async function initializeSettingsData(){
     const errors = [];
 
-    try {
-      await loadWifiSettings();
-    } catch(e){
-      errors.push('WiFi: ' + (e.message || e));
+    if(canUseWifiSettings()){
+      try {
+        await loadWifiSettings();
+      } catch(e){
+        errors.push('WiFi: ' + (e.message || e));
+      }
     }
 
-    try {
-      await loadWebdavSettings();
-    } catch(e){
-      errors.push('WebDAV: ' + (e.message || e));
+    if(canUseWebdavSettings()){
+      try {
+        await loadWebdavSettings();
+      } catch(e){
+        errors.push('WebDAV: ' + (e.message || e));
+      }
     }
 
     // Endpoint may be absent/empty; in that case keep advanced section hidden and continue silently.
@@ -817,9 +837,8 @@
     if(!canSettings && moduleMode === 'settings') moduleMode = canFile ? 'file' : (canTime ? 'time' : 'settings');
     setModuleMode(moduleMode);
 
-    const sm = (deviceGuide && deviceGuide.settingsManagement) ? deviceGuide.settingsManagement : defaultGuide.settingsManagement;
-    if(wifiSettingsCard) wifiSettingsCard.style.display = sm.allowWifiConfig ? '' : 'none';
-    if(webdavSettingsCard) webdavSettingsCard.style.display = sm.allowWebdavConfig ? '' : 'none';
+    if(wifiSettingsCard) wifiSettingsCard.style.display = canUseWifiSettings() ? '' : 'none';
+    if(webdavSettingsCard) webdavSettingsCard.style.display = canUseWebdavSettings() ? '' : 'none';
 
     const tm = (deviceGuide && deviceGuide.timeManagement) ? deviceGuide.timeManagement : defaultGuide.timeManagement;
     const allowSyncTime = tm.allowSyncTime !== false;
@@ -1923,6 +1942,7 @@
 
   if(btnLoadWifiSettings){
     btnLoadWifiSettings.onclick = async ()=>{
+      if(!canUseWifiSettings()) return;
       try {
         await loadWifiSettings();
         setSettingsStatus('WiFi 配置已刷新。');
@@ -1934,6 +1954,7 @@
 
   if(btnSaveWifiSettings){
     btnSaveWifiSettings.onclick = async ()=>{
+      if(!canUseWifiSettings()) return;
       btnSaveWifiSettings.disabled = true;
       try {
         await saveWifiSettings();
@@ -1950,6 +1971,7 @@
 
   if(btnLoadWebdavSettings){
     btnLoadWebdavSettings.onclick = async ()=>{
+      if(!canUseWebdavSettings()) return;
       try {
         await loadWebdavSettings();
         setSettingsStatus('WebDAV 配置已刷新。');
@@ -1961,6 +1983,7 @@
 
   if(btnSaveWebdavSettings){
     btnSaveWebdavSettings.onclick = async ()=>{
+      if(!canUseWebdavSettings()) return;
       btnSaveWebdavSettings.disabled = true;
       try {
         await saveWebdavSettings();

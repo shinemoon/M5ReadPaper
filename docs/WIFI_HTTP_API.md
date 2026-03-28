@@ -384,6 +384,11 @@ curl "http://192.168.4.1/heartbeat"
     - `allowSyncTime` 与 `allowReadingRecordsExport` 必须独立生效，禁止相互依赖。
     - 兼容默认值：当字段缺失时，前端按 `true` 处理（仅显式 `false` 才关闭）。
 
+    `settingsManagement` 字段说明：
+    - `allowWifiConfig`: 控制 WiFi 配置卡片显示与配置拉取/保存。
+    - `allowWebdavConfig`: 控制 WebDAV 配置卡片显示与配置拉取/保存。
+    - 兼容默认值：当字段缺失时，前端按 `true` 处理（仅显式 `false` 才关闭）。
+
 **前端建议**:
 - `heartbeat` 用于在线探测；`/api/device_guide` 用于页面能力驱动。
 - 若 guide 获取失败，可回退到本地默认配置（例如 ReadPaper 既有四个文件分类）。
