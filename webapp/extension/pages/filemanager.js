@@ -62,7 +62,7 @@
         { id:'screenshot', apiTab:'screenshot', title:'截图', hint:'[DEBUG] 截图测试向量，可验证批量选择与删除。', supportsHierarchy:false, allowUpload:false, allowDelete:true, allowRename:false, allowMkdir:false, allowReadingRecords:false, showIdxBadge:false, supportsScback:true },
       ]
     },
-    timeManagement: { enabled:true, allowSyncTime:true },
+    timeManagement: { enabled:true, allowSyncTime:true, allowReadingRecordsExport:true },
     settingsManagement: { enabled:true, allowWifiConfig:true, allowWebdavConfig:true },
   };
 
@@ -438,7 +438,8 @@
   const advConfigForm = el('advConfigForm');
   const btnLoadAdvConfig = el('btnLoadAdvConfig');
   const btnSaveAdvConfig = el('btnSaveAdvConfig');
-  const recBox = el('recBox');
+  const timeSyncBox = el('timeSyncBox');
+  const recordsExportBox = el('recordsExportBox');
 
   const defaultGuide = {
     sections: {
@@ -455,7 +456,7 @@
         { id:'screenshot', apiTab:'screenshot', title:'截图', hint:'设备截图存储目录。', supportsHierarchy:false, allowUpload:false, allowDelete:true, allowRename:false, allowMkdir:false, allowReadingRecords:false, showIdxBadge:false, supportsScback:true },
       ]
     },
-    timeManagement: { enabled:true, allowSyncTime:true },
+    timeManagement: { enabled:true, allowSyncTime:true, allowReadingRecordsExport:true },
     settingsManagement: { enabled:true, allowWifiConfig:true, allowWebdavConfig:true },
   };
 
@@ -821,7 +822,11 @@
     if(webdavSettingsCard) webdavSettingsCard.style.display = sm.allowWebdavConfig ? '' : 'none';
 
     const tm = (deviceGuide && deviceGuide.timeManagement) ? deviceGuide.timeManagement : defaultGuide.timeManagement;
-    if(btnSyncTime) btnSyncTime.style.display = tm.allowSyncTime ? '' : 'none';
+    const allowSyncTime = tm.allowSyncTime !== false;
+    const allowReadingRecordsExport = tm.allowReadingRecordsExport !== false;
+    if(timeSyncBox) timeSyncBox.style.display = allowSyncTime ? 'block' : 'none';
+    if(btnSyncTime) btnSyncTime.style.display = allowSyncTime ? '' : 'none';
+    if(recordsExportBox) recordsExportBox.style.display = allowReadingRecordsExport ? 'block' : 'none';
   }
 
   function renderFileTabs(){
@@ -1119,7 +1124,8 @@
     // 对于 screenshot tab，隐藏常规上传区域，显示截图背景设置盒子
     if(uploadBox){ uploadBox.style.display = canUpload() ? 'block' : 'none'; }
     if(scbackBox){ scbackBox.style.display = supportsScback() ? 'block' : 'none'; }
-    if(recBox){ recBox.style.display = canReadRecords() ? 'block' : 'none'; }
+    // Time management cards are controlled by deviceGuide.timeManagement,
+    // not by current file tab's reading-record capability.
     if(btnMkdir) btnMkdir.style.display = canMkdir() ? '' : 'none';
     updateBookPathBar();
     
