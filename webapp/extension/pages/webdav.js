@@ -1,8 +1,30 @@
 (function(){
   const API_BASE = 'http://192.168.4.1';
+  const DEBUG_FLAG_KEY = 'device_mgmt_debug';
   const urlEl = document.getElementById('webdavUrl');
   const userEl = document.getElementById('webdavUser');
   const passEl = document.getElementById('webdavPassword');
+
+  function isDebugModeEnabled(){
+    try {
+      const q = new URLSearchParams(window.location.search || '');
+      if (q.has('debug') || q.has('dm_debug') || q.has('device_debug')) {
+        const raw = q.get('debug') || q.get('dm_debug') || q.get('device_debug') || '';
+        const s = String(raw).trim().toLowerCase();
+        return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+      }
+      const v = localStorage.getItem(DEBUG_FLAG_KEY);
+      const s = String(v || '').trim().toLowerCase();
+      return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function expectedStateLog(){
+    if (!isDebugModeEnabled()) return;
+    try { console.debug.apply(console, arguments); } catch (_) { }
+  }
 
   // ========== Fetch 代理（通过 Background 绕过 CORS） ==========
   /**
@@ -830,7 +852,7 @@
             }
           }
         } catch (e) {
-          console.warn('Font Access API 获取字体失败:', e && e.message ? e.message : e);
+          expectedStateLog('Font Access API 获取字体失败(预期回退):', e && e.message ? e.message : e);
           // 继续执行回退检测
         }
       }

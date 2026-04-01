@@ -54,17 +54,35 @@
       try{
         chrome.runtime.sendMessage({ type: 'heartbeat_fetch', url, timeoutMs }, (resp) => {
           if(chrome.runtime.lastError){
-            reject(new Error(chrome.runtime.lastError.message || 'runtime_error'));
+            resolve({
+              ok: false,
+              status: 0,
+              statusText: 'offline',
+              body: null,
+              bodyType: 'text'
+            });
             return;
           }
           if(!resp || !resp.ok){
-            reject(new Error(resp && resp.error ? resp.error : 'heartbeat_fetch_failed'));
+            resolve({
+              ok: false,
+              status: 0,
+              statusText: 'offline',
+              body: null,
+              bodyType: 'text'
+            });
             return;
           }
           resolve(resp.response || null);
         });
       }catch(e){
-        reject(e);
+        resolve({
+          ok: false,
+          status: 0,
+          statusText: 'offline',
+          body: null,
+          bodyType: 'text'
+        });
       }
     });
   }

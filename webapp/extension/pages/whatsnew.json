@@ -52,6 +52,16 @@
         },
         {
             "icon": "🌐",
+            "title": "ReadPaper Utils V1.7.6.2 扩展更新",
+            "updates": [
+                {
+                    "category": "增强",
+                    "description": "优化心跳"
+                }
+            ]
+        },
+        {
+            "icon": "🌐",
             "title": "ReadPaper Utils V1.7.6.1 扩展更新",
             "updates": [
                 {

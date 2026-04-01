@@ -1,5 +1,28 @@
 // readingRecord.js - 阅读记录可视化
 
+const DEBUG_FLAG_KEY = 'device_mgmt_debug';
+
+function isDebugModeEnabled() {
+    try {
+        const q = new URLSearchParams(window.location.search || '');
+        if (q.has('debug') || q.has('dm_debug') || q.has('device_debug')) {
+            const raw = q.get('debug') || q.get('dm_debug') || q.get('device_debug') || '';
+            const s = String(raw).trim().toLowerCase();
+            return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+        }
+        const v = localStorage.getItem(DEBUG_FLAG_KEY);
+        const s = String(v || '').trim().toLowerCase();
+        return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+    } catch (_) {
+        return false;
+    }
+}
+
+function expectedStateLog() {
+    if (!isDebugModeEnabled()) return;
+    try { console.debug.apply(console, arguments); } catch (_) { }
+}
+
 // Fake test data for debugging UI without API
 const FAKE_TEST_DATA = {
     total: 3,
@@ -524,7 +547,7 @@ function renderHourlyDistribution(data) {
     
     // If container width is 0, retry after a delay
     if (container.clientWidth === 0) {
-        console.warn('[renderHourlyDistribution] Container width is 0, retrying in 200ms...');
+        expectedStateLog('[renderHourlyDistribution] Container width is 0, retrying in 200ms...');
         setTimeout(() => renderHourlyDistribution(data), 200);
         return;
     }

@@ -34,6 +34,10 @@
   }
 
   const DEBUG_MODE = computeDebugMode();
+  function expectedStateLog(){
+    if(!DEBUG_MODE) return;
+    try { console.debug.apply(console, arguments); } catch(_){ }
+  }
   let currentCat = '';
   let currentPage = 1;
   let currentBookSubdir = ''; // current subdirectory path within /book (e.g. '' or 'manga' or 'manga/sub')
@@ -889,7 +893,7 @@
       if(!j || j.ok === false) throw new Error('invalid guide payload');
       return j;
     } catch(e){
-      console.warn('[device_guide] fallback to default guide:', e.message || e);
+      expectedStateLog('[device_guide] fallback to default guide:', e.message || e);
       return defaultGuide;
     }
   }
