@@ -27,7 +27,7 @@
   // Use the heartbeat endpoint implemented on the device
   const DEVICE_URL = 'http://192.168.4.1/heartbeat';
   const GUIDE_URL = 'http://192.168.4.1/api/device_guide';
-  const INTERVAL_MS = 5000;
+  const INTERVAL_MS = 1000;
   const GUIDE_CACHE_TTL_MS = 15000;
   // start pessimistic: assume offline until heartbeat proves otherwise
   let online = false;
@@ -41,6 +41,66 @@
 
   function log(){ if(window.console) console.debug.apply(console, ['[heartbeat]'].concat(Array.from(arguments))); }
 
+  function canUseBackgroundHeartbeat(){
+    try{
+      return !!(window.chrome && chrome.runtime && chrome.runtime.id && typeof chrome.runtime.sendMessage === 'function');
+    }catch(_){
+      return false;
+    }
+  }
+
+  async function fetchViaBackground(url, timeoutMs){
+    return await new Promise((resolve, reject) => {
+      try{
+        chrome.runtime.sendMessage({ type: 'heartbeat_fetch', url, timeoutMs }, (resp) => {
+          if(chrome.runtime.lastError){
+            reject(new Error(chrome.runtime.lastError.message || 'runtime_error'));
+            return;
+          }
+          if(!resp || !resp.ok){
+            reject(new Error(resp && resp.error ? resp.error : 'heartbeat_fetch_failed'));
+            return;
+          }
+          resolve(resp.response || null);
+        });
+      }catch(e){
+        reject(e);
+      }
+    });
+  }
+
+  async function fetchJson(url, timeoutMs){
+    if(canUseBackgroundHeartbeat()){
+      const resp = await fetchViaBackground(url, timeoutMs);
+      if(!resp || !resp.ok) return { ok: false, status: resp && resp.status ? resp.status : 0, json: null };
+      if(resp.bodyType === 'json') return { ok: true, status: resp.status || 200, json: resp.body || null };
+      if(typeof resp.body === 'string'){
+        const txt = resp.body.trim();
+        if(!txt) return { ok: true, status: resp.status || 200, json: null };
+        try{
+          return { ok: true, status: resp.status || 200, json: JSON.parse(txt) };
+        }catch(_){
+          return { ok: true, status: resp.status || 200, json: null };
+        }
+      }
+      return { ok: true, status: resp.status || 200, json: null };
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(()=>controller.abort(), timeoutMs || 2500);
+    try{
+      const r = await fetch(url, {mode:'cors', cache:'no-store', signal: controller.signal});
+      if(!r || !r.ok) return { ok: false, status: r ? r.status : 0, json: null };
+      try{
+        return { ok: true, status: r.status, json: await r.json() };
+      }catch(_){
+        return { ok: true, status: r.status, json: null };
+      }
+    }finally{
+      clearTimeout(timer);
+    }
+  }
+
   async function refreshDeviceGuideCache(force){
     if(!online) return;
     const now = Date.now();
@@ -49,9 +109,9 @@
     if(guideFetchInFlight) return;
     guideFetchInFlight = true;
     try{
-      const r = await fetch(GUIDE_URL, {mode:'cors', cache:'no-store'});
-      if(!r || !r.ok) return;
-      const j = await r.json();
+      const r = await fetchJson(GUIDE_URL, 2500);
+      if(!r || !r.ok || !r.json) return;
+      const j = r.json;
       if(j && j.ok){
         cache.guide = j;
         cache.fetchedAt = Date.now();
@@ -73,11 +133,9 @@
       }
       return;
     }
-    const controller = new AbortController();
-    const timer = setTimeout(()=>controller.abort(), 2500);
     try{
-      // call the device heartbeat endpoint with CORS; device returns JSON and proper CORS headers
-      const r = await fetch(DEVICE_URL, {mode:'cors', cache:'no-store', signal: controller.signal});
+      // Use background proxy in extension pages so offline heartbeats are handled as normal state.
+      const r = await fetchJson(DEVICE_URL, 2500);
       if (r && r.ok) {
         // Only treat device as online when the heartbeat returns a JSON
         // payload containing an explicit status === 'OK' (case-insensitive).
@@ -85,7 +143,7 @@
         // - HTTP 204 (No Content)
         // - HTTP 200 with JSON missing `status` or with status != 'OK'
         try {
-          const j = await r.json();
+          const j = r.json;
           const statusVal = j && j.status ? String(j.status).toLowerCase() : null;
           if (statusVal === 'ok') {
             // Accept and update deviceInfo only when status === 'OK'
@@ -113,7 +171,7 @@
       }
     }catch(e){
       setOnline(false);
-    }finally{ clearTimeout(timer); }
+    }
   }
 
   function applyStateToFileTab(state){

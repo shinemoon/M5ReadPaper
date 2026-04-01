@@ -93,6 +93,17 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Heartbeat 请求代理（离线按正常状态返回，避免页面控制台噪音）
+  if (message && message.type === 'heartbeat_fetch') {
+    handleHeartbeatFetch(message.url, message.timeoutMs)
+      .then(response => sendResponse({ ok: true, response }))
+      .catch(error => sendResponse({
+        ok: false,
+        error: error && error.message ? error.message : String(error)
+      }));
+    return true;
+  }
+
   // WebDAV 请求代理（绕过 CORS）
   if (message && message.type === 'webdav_fetch') {
     handleWebDAVFetch(message.url, message.options)
@@ -115,6 +126,75 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   return false;
 });
+
+/**
+ * Heartbeat 专用 fetch 代理。
+ * 设备离线属于预期状态：返回 ok:false，而不是抛错或打印 error。
+ */
+async function handleHeartbeatFetch(url, timeoutMs) {
+  let normalizedUrl = '';
+  try {
+    const u = new URL(url);
+    normalizedUrl = u.toString();
+  } catch (_) {
+    throw new Error('invalid_heartbeat_url');
+  }
+
+  const controller = new AbortController();
+  const effectiveTimeout = (typeof timeoutMs === 'number' && timeoutMs > 0) ? timeoutMs : 2500;
+  const timer = setTimeout(() => controller.abort(), effectiveTimeout);
+
+  try {
+    const resp = await fetch(normalizedUrl, {
+      method: 'GET',
+      cache: 'no-store',
+      signal: controller.signal
+    });
+
+    let body = null;
+    let bodyType = 'text';
+    const contentType = (resp.headers.get('content-type') || '').toLowerCase();
+
+    if (contentType.includes('application/json')) {
+      try {
+        body = await resp.json();
+        bodyType = 'json';
+      } catch (_) {
+        body = null;
+      }
+    } else {
+      const text = await resp.text();
+      body = text;
+      if (text && (text.trim().startsWith('{') || text.trim().startsWith('['))) {
+        try {
+          body = JSON.parse(text);
+          bodyType = 'json';
+        } catch (_) {
+          bodyType = 'text';
+        }
+      }
+    }
+
+    return {
+      ok: resp.ok,
+      status: resp.status,
+      statusText: resp.statusText,
+      body,
+      bodyType
+    };
+  } catch (err) {
+    const reason = (err && err.name === 'AbortError') ? 'timeout' : 'offline';
+    return {
+      ok: false,
+      status: 0,
+      statusText: reason,
+      body: null,
+      bodyType: 'text'
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /**
  * 在 background 中执行 fetch（不受 CORS 限制）
