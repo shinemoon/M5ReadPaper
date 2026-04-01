@@ -62,7 +62,7 @@
         { id:'screenshot', apiTab:'screenshot', title:'截图', hint:'[DEBUG] 截图测试向量，可验证批量选择与删除。', supportsHierarchy:false, allowUpload:false, allowDelete:true, allowRename:false, allowMkdir:false, allowReadingRecords:false, showIdxBadge:false, supportsScback:true },
       ]
     },
-    timeManagement: { enabled:true, allowSyncTime:true },
+    timeManagement: { enabled:true, allowSyncTime:true, allowReadingRecordsExport:true },
     settingsManagement: { enabled:true, allowWifiConfig:true, allowWebdavConfig:true },
   };
 
@@ -438,7 +438,8 @@
   const advConfigForm = el('advConfigForm');
   const btnLoadAdvConfig = el('btnLoadAdvConfig');
   const btnSaveAdvConfig = el('btnSaveAdvConfig');
-  const recBox = el('recBox');
+  const timeSyncBox = el('timeSyncBox');
+  const recordsExportBox = el('recordsExportBox');
 
   const defaultGuide = {
     sections: {
@@ -455,7 +456,7 @@
         { id:'screenshot', apiTab:'screenshot', title:'截图', hint:'设备截图存储目录。', supportsHierarchy:false, allowUpload:false, allowDelete:true, allowRename:false, allowMkdir:false, allowReadingRecords:false, showIdxBadge:false, supportsScback:true },
       ]
     },
-    timeManagement: { enabled:true, allowSyncTime:true },
+    timeManagement: { enabled:true, allowSyncTime:true, allowReadingRecordsExport:true },
     settingsManagement: { enabled:true, allowWifiConfig:true, allowWebdavConfig:true },
   };
 
@@ -508,6 +509,22 @@
   function canUpload(){
     const cfg = currentTabConfig();
     return !!(cfg && cfg.allowUpload);
+  }
+
+  function currentSettingsManagementConfig(){
+    return (deviceGuide && deviceGuide.settingsManagement)
+      ? deviceGuide.settingsManagement
+      : defaultGuide.settingsManagement;
+  }
+
+  function canUseWifiSettings(){
+    const sm = currentSettingsManagementConfig();
+    return sm.allowWifiConfig !== false;
+  }
+
+  function canUseWebdavSettings(){
+    const sm = currentSettingsManagementConfig();
+    return sm.allowWebdavConfig !== false;
   }
 
   function supportsScback(){
@@ -779,16 +796,20 @@
   async function initializeSettingsData(){
     const errors = [];
 
-    try {
-      await loadWifiSettings();
-    } catch(e){
-      errors.push('WiFi: ' + (e.message || e));
+    if(canUseWifiSettings()){
+      try {
+        await loadWifiSettings();
+      } catch(e){
+        errors.push('WiFi: ' + (e.message || e));
+      }
     }
 
-    try {
-      await loadWebdavSettings();
-    } catch(e){
-      errors.push('WebDAV: ' + (e.message || e));
+    if(canUseWebdavSettings()){
+      try {
+        await loadWebdavSettings();
+      } catch(e){
+        errors.push('WebDAV: ' + (e.message || e));
+      }
     }
 
     // Endpoint may be absent/empty; in that case keep advanced section hidden and continue silently.
@@ -816,12 +837,15 @@
     if(!canSettings && moduleMode === 'settings') moduleMode = canFile ? 'file' : (canTime ? 'time' : 'settings');
     setModuleMode(moduleMode);
 
-    const sm = (deviceGuide && deviceGuide.settingsManagement) ? deviceGuide.settingsManagement : defaultGuide.settingsManagement;
-    if(wifiSettingsCard) wifiSettingsCard.style.display = sm.allowWifiConfig ? '' : 'none';
-    if(webdavSettingsCard) webdavSettingsCard.style.display = sm.allowWebdavConfig ? '' : 'none';
+    if(wifiSettingsCard) wifiSettingsCard.style.display = canUseWifiSettings() ? '' : 'none';
+    if(webdavSettingsCard) webdavSettingsCard.style.display = canUseWebdavSettings() ? '' : 'none';
 
     const tm = (deviceGuide && deviceGuide.timeManagement) ? deviceGuide.timeManagement : defaultGuide.timeManagement;
-    if(btnSyncTime) btnSyncTime.style.display = tm.allowSyncTime ? '' : 'none';
+    const allowSyncTime = tm.allowSyncTime !== false;
+    const allowReadingRecordsExport = tm.allowReadingRecordsExport !== false;
+    if(timeSyncBox) timeSyncBox.style.display = allowSyncTime ? 'block' : 'none';
+    if(btnSyncTime) btnSyncTime.style.display = allowSyncTime ? '' : 'none';
+    if(recordsExportBox) recordsExportBox.style.display = allowReadingRecordsExport ? 'block' : 'none';
   }
 
   function renderFileTabs(){
@@ -1119,7 +1143,8 @@
     // 对于 screenshot tab，隐藏常规上传区域，显示截图背景设置盒子
     if(uploadBox){ uploadBox.style.display = canUpload() ? 'block' : 'none'; }
     if(scbackBox){ scbackBox.style.display = supportsScback() ? 'block' : 'none'; }
-    if(recBox){ recBox.style.display = canReadRecords() ? 'block' : 'none'; }
+    // Time management cards are controlled by deviceGuide.timeManagement,
+    // not by current file tab's reading-record capability.
     if(btnMkdir) btnMkdir.style.display = canMkdir() ? '' : 'none';
     updateBookPathBar();
     
@@ -1917,6 +1942,7 @@
 
   if(btnLoadWifiSettings){
     btnLoadWifiSettings.onclick = async ()=>{
+      if(!canUseWifiSettings()) return;
       try {
         await loadWifiSettings();
         setSettingsStatus('WiFi 配置已刷新。');
@@ -1928,6 +1954,7 @@
 
   if(btnSaveWifiSettings){
     btnSaveWifiSettings.onclick = async ()=>{
+      if(!canUseWifiSettings()) return;
       btnSaveWifiSettings.disabled = true;
       try {
         await saveWifiSettings();
@@ -1944,6 +1971,7 @@
 
   if(btnLoadWebdavSettings){
     btnLoadWebdavSettings.onclick = async ()=>{
+      if(!canUseWebdavSettings()) return;
       try {
         await loadWebdavSettings();
         setSettingsStatus('WebDAV 配置已刷新。');
@@ -1955,6 +1983,7 @@
 
   if(btnSaveWebdavSettings){
     btnSaveWebdavSettings.onclick = async ()=>{
+      if(!canUseWebdavSettings()) return;
       btnSaveWebdavSettings.disabled = true;
       try {
         await saveWebdavSettings();

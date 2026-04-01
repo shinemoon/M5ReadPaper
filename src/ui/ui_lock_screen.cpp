@@ -540,7 +540,7 @@ void show_start_screen(const char *subtitle)
     bin_font_clear_canvas();
     // ui_push_image_to_canvas("/spiffs/start.png", 110, 390);
     ui_push_image_to_canvas("/spiffs/start.png", 0, 0);
-    bin_font_flush_canvas(false, false, true);
+    bin_font_flush_canvas(false, false, true,RECT);
     delay(500);
     M5.Display.waitDisplay();
     // If subtitle provided, draw centered below image using native drawString

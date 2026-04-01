@@ -344,7 +344,8 @@ curl "http://192.168.4.1/heartbeat"
   },
   "timeManagement": {
     "enabled": true,
-    "allowSyncTime": true
+    "allowSyncTime": true,
+    "allowReadingRecordsExport": true
   },
   "settingsManagement": {
     "enabled": true,
@@ -375,6 +376,18 @@ curl "http://192.168.4.1/heartbeat"
     兼容字段说明：
     - 现有前端继续使用 camelCase：`fileManagement`、`timeManagement`、`settingsManagement`。
     - 归一化客户端可使用 snake_case：`file_management`、`time_management`、`settings_management`。
+
+    `timeManagement` 字段说明：
+    - `enabled`: 是否启用时间管理模块页签。
+    - `allowSyncTime`: 控制“同步设备时间”功能显示与可用。
+    - `allowReadingRecordsExport`: 控制“下载阅读记录”入口显示与可用。
+    - `allowSyncTime` 与 `allowReadingRecordsExport` 必须独立生效，禁止相互依赖。
+    - 兼容默认值：当字段缺失时，前端按 `true` 处理（仅显式 `false` 才关闭）。
+
+    `settingsManagement` 字段说明：
+    - `allowWifiConfig`: 控制 WiFi 配置卡片显示与配置拉取/保存。
+    - `allowWebdavConfig`: 控制 WebDAV 配置卡片显示与配置拉取/保存。
+    - 兼容默认值：当字段缺失时，前端按 `true` 处理（仅显式 `false` 才关闭）。
 
 **前端建议**:
 - `heartbeat` 用于在线探测；`/api/device_guide` 用于页面能力驱动。
