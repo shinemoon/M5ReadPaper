@@ -87,6 +87,16 @@ void StateMachineTask::handleWireConnectState(const SystemMessage_t *msg)
     {
     case MSG_TIMER_MIN_TIMEOUT: // 超时进入idle
     {
+        // 在热点连接模式下，充电中时禁止进入 IDLE，保持网络可用
+        if (M5.Power.isCharging())
+        {
+#if DBG_STATE_MACHINE_TASK
+            sm_dbg_printf("充电中，跳过IDLE超时逻辑\n");
+#endif
+            shutCnt = 0;
+            break;
+        }
+
         // 如果正在上传文件，暂时跳过超时处理以避免与网络处理冲突
         if (g_wifi_hotspot && g_wifi_hotspot->isUploadInProgress())
         {
