@@ -652,9 +652,32 @@ bool BookHandle::loadIdxToPSRAM()
     if (tmp.empty())
         return false;
 
+    // Ensure positions are ordered for binary-search-based lookups.
+    // Some external idx generators may emit out-of-order or duplicate offsets.
+    std::vector<size_t> order(tmp.size());
+    for (size_t i = 0; i < order.size(); ++i)
+        order[i] = i;
+    std::sort(order.begin(), order.end(), [&](size_t a, size_t b)
+              { return tmp[a] < tmp[b]; });
+
+    std::vector<size_t> sorted_pos;
+    std::vector<std::string> sorted_titles;
+    sorted_pos.reserve(tmp.size());
+    sorted_titles.reserve(tmp_titles.size());
+    size_t last_pos = (size_t)-1;
+    for (size_t idx : order)
+    {
+        size_t p = tmp[idx];
+        if (!sorted_pos.empty() && p == last_pos)
+            continue;
+        sorted_pos.push_back(p);
+        sorted_titles.push_back(tmp_titles[idx]);
+        last_pos = p;
+    }
+
     // store into vector cache
-    idx_positions_psram_ = tmp;
-    idx_titles_psram_ = tmp_titles;
+    idx_positions_psram_ = std::move(sorted_pos);
+    idx_titles_psram_ = std::move(sorted_titles);
 
 #ifdef ESP_PLATFORM
     // Try to allocate PSRAM-backed raw buffer (best-effort). If fails, keep vector only.

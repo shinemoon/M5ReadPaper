@@ -903,12 +903,23 @@ static std::vector<size_t> load_idx_positions(const std::string &book_file_path)
                 line.push_back((char)c);
         }
         
-        if (line.empty() || line[0] != '#')
+        if (line.empty())
+            continue;
+
+        // Tolerate UTF-8 BOM and leading spaces/tabs before '#'.
+        size_t begin = 0;
+        if (line.size() >= 3 && (uint8_t)line[0] == 0xEF && (uint8_t)line[1] == 0xBB && (uint8_t)line[2] == 0xBF)
+        {
+            begin = 3;
+        }
+        while (begin < line.size() && (line[begin] == ' ' || line[begin] == '\t'))
+            ++begin;
+        if (begin >= line.size() || line[begin] != '#')
             continue;
         
         // Find all # delimiters
         std::vector<size_t> hash_pos;
-        for (size_t i = 0; i < line.size(); ++i)
+        for (size_t i = begin; i < line.size(); ++i)
         {
             if (line[i] == '#')
                 hash_pos.push_back(i);
@@ -1125,6 +1136,30 @@ BuildIndexResult build_book_page_index(File &file, const std::string &file_path,
                 }
                 break;
             }
+
+            // If an idx entry lands inside this raw line, split here so the idx
+            // position itself starts on the next page.
+            if (idx_positions && !idx_positions->empty())
+            {
+                size_t line_start = current_start + consumed_total;
+                size_t line_end = line_start + raw_bytes;
+                auto it_inside = std::lower_bound(idx_positions->begin(), idx_positions->end(), line_start);
+                if (it_inside != idx_positions->end())
+                {
+                    size_t idx_pos = *it_inside;
+                    if (idx_pos > line_start && idx_pos < line_end)
+                    {
+                        consumed_total += (idx_pos - line_start);
+                        file.seek(current_start + consumed_total);
+#if DBG_IDX_PAGINATION
+                        Serial.printf("[IDX_PAGE] Split inside line for idx entry at pos=%zu (line_start=%zu, raw_bytes=%zu)\n",
+                                      idx_pos, line_start, raw_bytes);
+#endif
+                        break;
+                    }
+                }
+            }
+
             int added = 0;
             size_t consumed_here = process_raw_line_count(raw_line, raw_bytes, enc, max_width, (max_lines - lines), added, font_size, vertical);
             lines += added;
@@ -1430,6 +1465,35 @@ static TextPageResult read_text_page_forward_file(File &file, const std::string 
         std::string raw_line;
         size_t raw_bytes_read = 0;
         read_raw_line(file, raw_line, raw_bytes_read);
+
+        // Respect hard page boundary before layout. If boundary lands inside
+        // current raw line, truncate this line so previous page never renders
+        // bytes that belong to next page/chapter.
+        bool boundary_inside_raw_line = false;
+        if (max_byte_pos != SIZE_MAX)
+        {
+            size_t line_start_pos = start_pos + consumed_bytes_total;
+            if (line_start_pos >= max_byte_pos)
+            {
+                break;
+            }
+
+            size_t bytes_allowed = max_byte_pos - line_start_pos;
+            if (raw_bytes_read > bytes_allowed)
+            {
+                raw_bytes_read = bytes_allowed;
+                if (raw_line.size() > raw_bytes_read)
+                {
+                    raw_line.resize(raw_bytes_read);
+                }
+                boundary_inside_raw_line = true;
+            }
+        }
+
+        if (raw_bytes_read == 0)
+        {
+            break;
+        }
         total_read_bytes += raw_bytes_read;
 
 #if DBG_TEXT_HANDLE
@@ -1464,6 +1528,11 @@ static TextPageResult read_text_page_forward_file(File &file, const std::string 
 #if DBG_TEXT_HANDLE
             Serial.printf("[TEXT] Consumed content reached boundary %zu (file_ptr=%zu), stopping\n", max_byte_pos, file_ptr);
 #endif
+            break;
+        }
+
+        if (boundary_inside_raw_line)
+        {
             break;
         }
 
