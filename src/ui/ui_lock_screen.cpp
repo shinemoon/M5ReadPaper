@@ -13,6 +13,7 @@
 #include "../SD/SDWrapper.h"
 #include "tasks/state_machine_task.h"
 #include "config/config_manager.h"
+#include "globals.h"
 #include <vector>
 #include "device/efficient_file_scanner.h"
 #include "ui/toc_display.h"
@@ -501,7 +502,7 @@ static void draw_name_banner(M5Canvas *canvas, const char *name_with_page, int32
 }
 
 // 绘制左侧垂直条及竖排文摘（vertical banner）
-static void draw_vertical_banner(M5Canvas *canvas, const std::string &digest, int basex = 0, int basew = 160, int offsetx = 402, int bg = TFT_BLACK, int fg = TFT_LIGHTGREY)
+static void draw_vertical_banner(M5Canvas *canvas, const std::string &digest, int basex = 0, int basew = 160, int offsetx = 402, int bg = TFT_BLACK, int fg = TFT_LIGHTGREY, uint8_t digest_font_size = 28)
 {
     // Draw a black vertical strip and white separator lines
 
@@ -519,7 +520,7 @@ static void draw_vertical_banner(M5Canvas *canvas, const std::string &digest, in
 
     // Render digest vertically: area_width=900 (large value), vertical=true (last param true)
     // bin_font_print(digest.c_str(), 28, fg, 900, 120, 960 - basew - offsetx, false, canvas, TEXT_ALIGN_LEFT, 900, false, g_current_book->getKeepOrg(), true);
-    bin_font_print(digest.c_str(), 28, fg, 900, 86, 960 - basew - offsetx, false, canvas, TEXT_ALIGN_LEFT, 900, true, true, true);
+    bin_font_print(digest.c_str(), digest_font_size, fg, 900, 86, 960 - basew - offsetx, false, canvas, TEXT_ALIGN_LEFT, 900, true, true, true);
 
     // canvas->fillRect(basex, 760, basew, 100, TFT_BLACK);
     canvas->fillRect(basex, 0, basew, 80, TFT_BLACK);
@@ -528,6 +529,25 @@ static void draw_vertical_banner(M5Canvas *canvas, const std::string &digest, in
     canvas->drawWideLine(basex, 40, basex + basew, 40, 2.0, TFT_WHITE);
     canvas->drawLine(basex, 5, basex + basew, 5, TFT_WHITE);
     canvas->drawCircle(basex + basew / 2, 40, 20, TFT_WHITE);
+}
+
+static uint8_t resolve_lockscreen_digest_font_size(float lockscreen_font_size)
+{
+    // Keep original visual proportion: digest was 28 when lockscreen base was 30.
+    const float digest_ratio = 28.0f / 30.0f;
+
+    float effective_font_size = get_configured_reading_font_size(get_font_size_from_file());
+    if (effective_font_size <= 0.0f)
+    {
+        effective_font_size = (lockscreen_font_size > 0.0f) ? lockscreen_font_size : 30.0f;
+    }
+
+    int digest_size = (int)(effective_font_size * digest_ratio + 0.5f);
+    if (digest_size < 12)
+        digest_size = 12;
+    if (digest_size > 72)
+        digest_size = 72;
+    return (uint8_t)digest_size;
 }
 
 void show_start_screen(const char *subtitle)
@@ -706,6 +726,8 @@ void show_lockscreen(int16_t area_width, int16_t area_height, float font_size, c
         //       bin_font_print(display_text.c_str(), 30, 2, 540, 60, 900, false); // 1.0f * 30 = 30
         // 腰封 - 只有在showlabel为true时才显示完整内容
         {
+            const uint8_t digest_font_size = resolve_lockscreen_digest_font_size(font_size);
+
             // 主题颜色变量（集中定义，便于主题替换）
             // 三角形/装饰色
             uint16_t theme_tri_color = 0x0005;
@@ -898,7 +920,7 @@ void show_lockscreen(int16_t area_width, int16_t area_height, float font_size, c
                         else if (strcmp(labelpos, "default") == 0)
                             vb_basex = 370;
                     }
-                    draw_vertical_banner(g_canvas, g_current_book->getCurrentDigest(), vb_basex, 160, 402 + vb_basex, theme_vertical_bg, theme_vertical_fg);
+                    draw_vertical_banner(g_canvas, g_current_book->getCurrentDigest(), vb_basex, 160, 402 + vb_basex, theme_vertical_bg, theme_vertical_fg, digest_font_size);
                 }
 
                 // Name banner
@@ -924,7 +946,7 @@ void show_lockscreen(int16_t area_width, int16_t area_height, float font_size, c
                     g_canvas->fillRect(0, basey, 540, baseh, theme_strip_bg);
                     g_canvas->drawRect(0, basey, 540, baseh, TFT_BLACK);
 
-                    bin_font_print(g_current_book->getCurrentDigest().c_str(), 28, theme_strip_fg, 540, 86, basey + 20, false, g_canvas, TEXT_ALIGN_LEFT, 0, false, true);
+                    bin_font_print(g_current_book->getCurrentDigest().c_str(), digest_font_size, theme_strip_fg, 540, 86, basey + 20, false, g_canvas, TEXT_ALIGN_LEFT, 0, false, true);
                     // head
                     g_canvas->fillRect(0, basey, 60, baseh, TFT_BLACK);
                     g_canvas->drawLine(60, basey + 5, 540, basey + 5, theme_strip_fg);
