@@ -116,6 +116,8 @@ private:
     String currentSSID;
     String currentPassword;
     volatile bool uploadInProgress; // 上传状态标志
+    uint32_t lastStopMs;
+    bool stopInProgress;
 
     // Web服务器处理函数
     void handleRoot();

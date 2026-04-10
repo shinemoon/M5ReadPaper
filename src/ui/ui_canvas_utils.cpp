@@ -1518,17 +1518,24 @@ bool show_wire_connect(M5Canvas *canvas, bool refresh)
         //        canvas->drawRect(270, info_y, 180, 50, TFT_BLACK);
         //       canvas->drawRect(268, info_y - 2, 184, 54, TFT_DARKCYAN);
         // 绘制返回按钮边框
+        /*
         canvas->drawRect(180, info_y + 168, 180, 50, TFT_BLACK);
         canvas->drawRect(178, info_y + 166, 184, 54, TFT_DARKCYAN);
         bin_font_print("重试启动", 24, 0, 540, 0, info_y + 181, true, canvas, TEXT_ALIGN_CENTER, 180);
+        */
+        draw_button(canvas, 190, 779, "重试启动", true);
     }
 
+    /*
     // 绘制返回按钮边框
     canvas->drawRect(180, 768, 180, 50, TFT_BLACK);
     canvas->drawRect(178, 766, 184, 54, TFT_DARKCYAN);
 
     // 绘制返回按钮文字 "返回"
-    bin_font_print("返回菜单", 28, 0, 180, 180, 779, true, canvas, TEXT_ALIGN_CENTER, 180);
+    bin_font_print("返回菜单", 28, 0, PAPER_S3_WIDTH, 0, 779, true, canvas, TEXT_ALIGN_CENTER, PAPER_S3_WIDTH);
+*/
+
+    draw_button(canvas, 190, 779, "返回菜单", true);
 
 #if DBG_UI_CANVAS_UTILS
     unsigned long wire_end_time = millis();

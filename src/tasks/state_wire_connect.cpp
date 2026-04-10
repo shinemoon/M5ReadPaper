@@ -39,48 +39,9 @@ void StateMachineTask::handleWireConnectState(const SystemMessage_t *msg)
     sm_dbg_printf("无线连接状态处理消息: %d\n", msg->type);
 #endif
 
-    // 在处理消息前让出CPU控制权，防止watchdog超时
+    // WebServer 客户端处理统一在 MainTask 中执行，避免与状态机任务并发访问。
+    // 这里仅在消息处理路径上适度让出 CPU。
     yield();
-
-    // 处理Web服务器客户端请求 - 增加更多保护措施
-    if (g_wifi_hotspot && g_wifi_hotspot->isRunning())
-    {
-        // 检查内存状态
-        size_t freeHeap = ESP.getFreeHeap();
-        if (freeHeap < 32768)
-        { // 提高内存阈值到32KB
-#if DBG_STATE_MACHINE_TASK
-            sm_dbg_printf("内存不足 (%u bytes)，跳过Web服务器处理\n", freeHeap);
-#endif
-            // 内存不足时进行垃圾收集
-            yield();
-            delay(10);
-        }
-        else
-        {
-            // 检查是否正在上传文件，如果是则完全跳过处理
-            bool isUploading = g_wifi_hotspot->isUploadInProgress();
-
-            if (isUploading)
-            {
-#if DBG_STATE_MACHINE_TASK
-                sm_dbg_printf("文件上传进行中，完全跳过Web服务器处理以避免LWIP冲突\n");
-#endif
-                // 上传过程中不处理任何Web请求
-            }
-            else
-            {
-                // 非上传状态下正常处理，但添加更多保护
-                static unsigned long lastClientHandle = 0;
-                if (millis() - lastClientHandle > 200)
-                { // 降低处理频率到每200ms一次
-                    lastClientHandle = millis();
-                    g_wifi_hotspot->handleClient();
-                    yield();
-                }
-            }
-        }
-    }
 
     // 无线连接状态处理逻辑
     switch (msg->type)
@@ -162,7 +123,40 @@ void StateMachineTask::handleWireConnectState(const SystemMessage_t *msg)
 #endif
         lastActivityTime_ = millis();
 
+        const int16_t tx = msg->data.touch.x;
+        const int16_t ty = msg->data.touch.y;
         TouchZone zone = getTouchZoneGrid(msg->data.touch.x, msg->data.touch.y);
+
+        // 仅在“进入热点页时 AP 启动失败（即当前未运行）”时允许点击重试。
+        // 与 show_wire_connect() 中失败态按钮坐标保持一致：x=180..360, y=655..705。
+        const bool canRetryApInit = (g_wifi_hotspot && !g_wifi_hotspot->isRunning());
+        const bool retryBtnHit = (tx >= 180 && tx <= 360 && ty >= 655 && ty <= 705);
+
+        if (canRetryApInit && retryBtnHit)
+        {
+#if DBG_STATE_MACHINE_TASK
+            sm_dbg_printf("无线连接状态收到重试按钮点击（仅失败态可用）\n");
+#endif
+            if (g_wifi_hotspot)
+            {
+                if (g_wifi_hotspot->start())
+                {
+#if DBG_STATE_MACHINE_TASK
+                    sm_dbg_printf("WiFi热点重试启动成功\n");
+#endif
+                }
+                else
+                {
+#if DBG_STATE_MACHINE_TASK
+                    sm_dbg_printf("WiFi热点重试启动失败\n");
+#endif
+                }
+
+                // 统一刷新界面，成功/失败都重绘状态。
+                show_wire_connect(g_canvas, true);
+            }
+            break;
+        }
 
         // 检查是否点击了返回按钮区域 (NINE_THREE 和 NINE_FOUR)
         if (zone == TouchZone::NINE_THREE || zone == TouchZone::NINE_FOUR)
@@ -182,37 +176,6 @@ void StateMachineTask::handleWireConnectState(const SystemMessage_t *msg)
             // 返回到主菜单（强制重扫文件列表，确保新上传或删除的文件能立即生效）
             show_main_menu(g_canvas, true, 0, 0, true);
             currentState_ = STATE_MAIN_MENU;
-        }
-        // 检查是否点击了重试按钮区域（中间位置，大约在FIVE_THREE和FIVE_FOUR区域）
-        else if (zone == TouchZone::FIVE_THREE || zone == TouchZone::FIVE_FOUR)
-        {
-            /*
-#if DBG_STATE_MACHINE_TASK
-            sm_dbg_printf("无线连接状态收到重试按钮点击\n");
-#endif
-            // 尝试重新启动WiFi热点
-            if (g_wifi_hotspot)
-            {
-                g_wifi_hotspot->stop();
-                delay(1000);
-
-                if (g_wifi_hotspot->start())
-                {
-#if DBG_STATE_MACHINE_TASK
-                    sm_dbg_printf("WiFi热点重试启动成功\n");
-#endif
-                }
-                else
-                {
-#if DBG_STATE_MACHINE_TASK
-                    sm_dbg_printf("WiFi热点重试启动失败\n");
-#endif
-                }
-
-                // 刷新界面显示
-                show_wire_connect(g_canvas, true);
-            }
-                */
         }
         else
         {

@@ -51,7 +51,7 @@ static std::string normalize_real_path(const std::string &p) {
 WiFiHotspotManager* g_wifi_hotspot = nullptr;
 
 WiFiHotspotManager::WiFiHotspotManager() 
-    : webServer(nullptr), running(false), uploadInProgress(false) {
+    : webServer(nullptr), running(false), uploadInProgress(false), lastStopMs(0), stopInProgress(false) {
     // 初始化SPIFFS用于读取模板
     if (!InternalFS::begin(true)) {
 #if DBG_WIFI_HOTSPOT
@@ -73,8 +73,15 @@ WiFiHotspotManager::~WiFiHotspotManager() {
 }
 
 bool WiFiHotspotManager::start(const char* ssid, const char* password) {
-    if (running) {
+    if (running || stopInProgress) {
         return true; // 已经在运行
+    }
+
+    // 防止 stop 后立即 start，给 WiFi/LwIP 网络栈一点恢复时间。
+    const uint32_t now = millis();
+    const uint32_t sinceStop = now - lastStopMs;
+    if (lastStopMs != 0 && sinceStop < 1200) {
+        delay(1200 - sinceStop);
     }
 
     // 使用默认值或用户提供的值
@@ -119,13 +126,11 @@ bool WiFiHotspotManager::start(const char* ssid, const char* password) {
         // 继续尝试，可能不需要NVS
     }
 
-    // 完全重置WiFi状态
-    WiFi.mode(WIFI_OFF);
-    delay(500);
-    
-    // 重新启用WiFi
+    // 避免用 softAPdisconnect(true) 触发 WiFi 全栈重置，改为仅关闭 AP 再切 AP 模式。
+    WiFi.softAPdisconnect(false);
+    delay(220);
     WiFi.mode(WIFI_AP);
-    delay(500);
+    delay(420);
     
     // 配置IP地址
     IPAddress local_IP(192, 168, 4, 1);
@@ -140,7 +145,7 @@ bool WiFiHotspotManager::start(const char* ssid, const char* password) {
     }
     
     // 尝试启动热点，增加重试机制
-    int retries = 3;
+    int retries = 2;
     bool success = false;
     
     for (int i = 0; i < retries; i++) {
@@ -153,11 +158,11 @@ bool WiFiHotspotManager::start(const char* ssid, const char* password) {
             break;
         }
         
-        delay(1000); // 等待1秒后重试
-        WiFi.mode(WIFI_OFF);
-        delay(500);
+        delay(800); // 等待后重试
+        WiFi.softAPdisconnect(false);
+        delay(220);
         WiFi.mode(WIFI_AP);
-        delay(500);
+        delay(420);
     }
     
     if (!success) {
@@ -204,6 +209,11 @@ void WiFiHotspotManager::stop() {
         return;
     }
 
+    stopInProgress = true;
+
+    // 先切换状态，避免其他任务继续进入 handleClient。
+    running = false;
+
 #if DBG_WIFI_HOTSPOT
     Serial.printf("[WIFI_HOTSPOT] 正在停止WiFi热点和Web服务器...\n");
 #endif
@@ -213,11 +223,13 @@ void WiFiHotspotManager::stop() {
         webServer->stop();
     }
 
-    // 停止热点
-    WiFi.softAPdisconnect(true);
+    // 仅关闭 AP，再切到 OFF，减少 AP_STOP/AP_START 抖动。
+    WiFi.softAPdisconnect(false);
+    delay(320);
     WiFi.mode(WIFI_OFF);
-
-    running = false;
+    delay(220);
+    lastStopMs = millis();
+    stopInProgress = false;
 
 #if DBG_WIFI_HOTSPOT
     Serial.printf("[WIFI_HOTSPOT] WiFi热点已停止\n");
