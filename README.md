@@ -74,7 +74,7 @@ Y.A.P.T.R. — Yet Another PaperS3 Text Reader
 - include：比较重要，特别是`readpaper.h`和`papers3.h`定义了一些全局性质的宏决定了很多系统级的表现（PS. 有点特例，`/src/globa.cpp` `/src/global.h`还有小部分全局定义）
 - src：主要代码部分,内部子目录就不详述，大多看名字就有数；
 - tools：主要是Python相关的工具目录
-- webapp：浏览器扩展代码
+- webapp：浏览器扩展代码 *出于一些考虑，浏览器扩展从V2.0起，单独剥离不再开源，既存老版本依然保持当前Apache 2.0*
 
 ## 关键文档
 
