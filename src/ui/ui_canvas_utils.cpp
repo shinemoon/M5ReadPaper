@@ -456,13 +456,13 @@ void drawTopUI(M5Canvas *canvas, int16_t x, int16_t y)
 
     // 2. 锁屏书签复选框
     bool showLabel = (g_current_book && g_current_book->getShowLabel());
-    drawCheckbox(canvas, x + 42, y + 60, showLabel, "锁屏书签", 30);
+    drawCheckbox(canvas, x + 42, y + 60, showLabel, "锁屏书签", 28, 30);
 
     // 2.5. 下划线复选框（移到右上位置）
     if (g_current_book)
     {
         bool drawBottom = g_current_book->getDrawBottom();
-        drawCheckbox(canvas, x + 42 + 270, y + 60, drawBottom, "下划线", 30, 48);
+        drawCheckbox(canvas, x + 42 + 270, y + 60, drawBottom, "下划线", 28, 30);
     }
     // 2.6 划线与竖排
 
@@ -470,7 +470,7 @@ void drawTopUI(M5Canvas *canvas, int16_t x, int16_t y)
     if (g_current_book)
     {
         bool keepOrg = g_current_book->getKeepOrg();
-        drawCheckbox(canvas, x + 42, y + 240, keepOrg, "跳过繁简转换", 30);
+        drawCheckbox(canvas, x + 42, y + 240, keepOrg, "跳过繁简转换", 28,30);
     }
 
     // 在下划线右边添加竖排显示开关
@@ -481,7 +481,7 @@ void drawTopUI(M5Canvas *canvas, int16_t x, int16_t y)
         const int16_t switch_y = 244;
 
         // 绘制竖排显示开关
-        drawSwitch(canvas, switch_x, switch_y - 6, g_current_book->getVerticalText(), "竖排", 30);
+        drawSwitch(canvas, switch_x, switch_y - 6, g_current_book->getVerticalText(), "竖排", 28);
     }
 
     // 右上方框
@@ -597,10 +597,9 @@ void drawBottomUI(M5Canvas *canvas, int16_t x, int16_t y)
     // 1. 顶部分隔线
     canvas->fillRect(x, y, 540, 2, TFT_BLACK);
     // Move the space
-    drawSwitch(canvas, x + 40, y + 38, g_config.dark, "深色模式", 30);
+    drawSwitch(canvas, x + 30, y + 38, g_config.dark, "深色模式", 28);
     // dark 模式下快刷开关显示为灰色（不可修改）
-    // drawSwitch(canvas, x + 260, y + 38, g_config.fastrefresh, "快刷模式", 30, g_config.dark ? 8 : 0);
-    drawSwitch(canvas, x + 260, y + 38, g_config.fastrefresh, "快刷模式", 30, 0);
+    drawSwitch(canvas, x + 250, y + 38, g_config.fastrefresh, "快刷模式", 28, 0);
     // Delete Line in darkmode
     if (g_config.dark)
     {
