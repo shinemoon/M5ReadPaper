@@ -254,13 +254,8 @@ void WiFiHotspotManager::handleClient() {
         return;
     }
     
-    // 如果正在上传文件，跳过处理以避免LWIP pbuf冲突
-    if (isUploadInProgress()) {
-#if DBG_WIFI_HOTSPOT
-        Serial.printf("[WIFI_HOTSPOT] 上传进行中，跳过客户端处理以避免网络冲突\n");
-#endif
-        return;
-    }
+    // 上传阶段仍需持续驱动 WebServer，否则 UPLOAD_FILE_WRITE/END 无法继续，
+    // 会导致 uploadInProgress 卡住并使 heartbeat 等请求无响应。
     
     // 在处理客户端请求前让出CPU，防止与定时器冲突
     yield();
@@ -2184,6 +2179,16 @@ void WiFiHotspotManager::handleFileUploadPost() {
     static size_t totalBytesWritten = 0; // 实际写入的字节数
     static unsigned long uploadStartTime = 0; // 上传开始时间
     const unsigned long UPLOAD_TIMEOUT = 300000; // 上传超时时间300秒（5分钟）支持大文件
+
+    auto reset_upload_state = [&]() {
+        uploadInProgress = false;
+        uploadTab = "";
+        uploadDir = "/";
+        fullPath = "";
+        tmpPath = "";
+        totalBytesWritten = 0;
+        uploadStartTime = 0;
+    };
     
     if (upload.status == UPLOAD_FILE_START) {
         // 设置上传状态标志
@@ -2201,6 +2206,7 @@ void WiFiHotspotManager::handleFileUploadPost() {
             webServer->sendHeader("Connection", "close");
             webServer->sendHeader("Access-Control-Allow-Origin", "*");
             webServer->send(507, "application/json", String("{\"ok\":false,\"message\":\"Insufficient memory for streaming upload - need at least 32KB free\"}"));
+            reset_upload_state();
             return;
         }
         
@@ -2217,6 +2223,7 @@ void WiFiHotspotManager::handleFileUploadPost() {
             webServer->sendHeader("Connection", "close");
             webServer->sendHeader("Access-Control-Allow-Origin", "*");
             webServer->send(413, "application/json", String("{\"ok\":false,\"message\":\"File too large - maximum 20MB supported\"}"));
+            reset_upload_state();
             return;
         }
         
@@ -2271,6 +2278,7 @@ void WiFiHotspotManager::handleFileUploadPost() {
             webServer->sendHeader("Connection", "close");
             webServer->sendHeader("Access-Control-Allow-Origin", "*");
             webServer->send(507, "application/json", String("{\"ok\":false,\"message\":\"Insufficient storage space\"}"));
+            reset_upload_state();
             return;
         }
         
@@ -2295,6 +2303,7 @@ void WiFiHotspotManager::handleFileUploadPost() {
             webServer->sendHeader("Connection", "close");
             webServer->sendHeader("Access-Control-Allow-Origin", "*");
             webServer->send(500, "application/json", String("{\"ok\":false,\"message\":\"Failed to create file\"}"));
+            reset_upload_state();
             return;
         }
         
@@ -2321,6 +2330,7 @@ void WiFiHotspotManager::handleFileUploadPost() {
             webServer->sendHeader("Connection", "close");
             webServer->sendHeader("Access-Control-Allow-Origin", "*");
             webServer->send(408, "application/json", String("{\"ok\":false,\"message\":\"Upload timeout\"}"));
+            reset_upload_state();
             return;
         }
         
@@ -2353,6 +2363,7 @@ void WiFiHotspotManager::handleFileUploadPost() {
                     webServer->sendHeader("Connection", "close");
                     webServer->sendHeader("Access-Control-Allow-Origin", "*");
                     webServer->send(500, "application/json", String("{\"ok\":false,\"message\":\"Write failed\"}"));
+                    reset_upload_state();
                     return;
                 }
                 
@@ -2393,6 +2404,7 @@ void WiFiHotspotManager::handleFileUploadPost() {
                 webServer->sendHeader("Connection", "close");
                 webServer->sendHeader("Access-Control-Allow-Origin", "*");
                 webServer->send(200, "application/json", String("{\"ok\":true,\"message\":\"File uploaded (verification skipped due to low memory)\"}"));
+                reset_upload_state();
                 return;
             }
             
@@ -2420,6 +2432,7 @@ void WiFiHotspotManager::handleFileUploadPost() {
                     webServer->sendHeader("Connection", "close");
                     webServer->sendHeader("Access-Control-Allow-Origin", "*");
                     webServer->send(500, "application/json", String("{\"ok\":false,\"message\":\"File size mismatch, upload corrupted\"}"));
+                    reset_upload_state();
                     return;
                 }
 
@@ -2458,6 +2471,7 @@ void WiFiHotspotManager::handleFileUploadPost() {
                     webServer->sendHeader("Connection", "close");
                     webServer->sendHeader("Access-Control-Allow-Origin", "*");
                     webServer->send(500, "application/json", String("{\"ok\":false,\"message\":\"Cannot overwrite existing file\"}"));
+                    reset_upload_state();
                     return;
                 }
 
@@ -2475,6 +2489,7 @@ void WiFiHotspotManager::handleFileUploadPost() {
                     webServer->sendHeader("Connection", "close");
                     webServer->sendHeader("Access-Control-Allow-Origin", "*");
                     webServer->send(500, "application/json", String("{\"ok\":false,\"message\":\"Failed to finalize uploaded file\"}"));
+                    reset_upload_state();
                     return;
                 }
 
@@ -2534,6 +2549,8 @@ void WiFiHotspotManager::handleFileUploadPost() {
                 webServer->sendHeader("Connection", "close");
                 webServer->sendHeader("Access-Control-Allow-Origin", "*");
                 webServer->send(500, "application/json", String("{\"ok\":false,\"message\":\"Cannot verify uploaded file\"}"));
+                reset_upload_state();
+                return;
             }
         } else {
 #if DBG_WIFI_HOTSPOT
@@ -2542,16 +2559,11 @@ void WiFiHotspotManager::handleFileUploadPost() {
             webServer->sendHeader("Connection", "close");
             webServer->sendHeader("Access-Control-Allow-Origin", "*");
             webServer->send(500, "application/json", String("{\"ok\":false,\"message\":\"Invalid file handle\"}"));
+            reset_upload_state();
+            return;
         }
         
-    // 清除上传状态标志
-        uploadInProgress = false;
-        
-        // 重置状态变量
-        uploadTab = "";
-        fullPath = "";
-        totalBytesWritten = 0;
-        uploadStartTime = 0;
+        reset_upload_state();
     (void)lastWriteTime; // suppress unused-but-set warning
         
     } else if (upload.status == UPLOAD_FILE_ABORTED) {
@@ -2562,18 +2574,11 @@ void WiFiHotspotManager::handleFileUploadPost() {
         if (uploadFile) {
             uploadFile.close();
         }
-        if (SDW::SD.exists(fullPath)) {
-            SDW::SD.remove(fullPath); // 删除不完整的文件
+        if (SDW::SD.exists(tmpPath.c_str())) {
+            SDW::SD.remove(tmpPath.c_str()); // 删除临时文件
         }
-        
-    // 清除上传状态标志
-    uploadInProgress = false;
-        
-        // 重置状态变量
-        uploadTab = "";
-        fullPath = "";
-        totalBytesWritten = 0;
-        uploadStartTime = 0;
+
+        reset_upload_state();
         
     webServer->sendHeader("Connection", "close");
     webServer->sendHeader("Access-Control-Allow-Origin", "*");
