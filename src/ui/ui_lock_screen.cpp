@@ -15,6 +15,7 @@
 #include "config/config_manager.h"
 #include "globals.h"
 #include <vector>
+#include <unordered_set>
 #include "device/efficient_file_scanner.h"
 #include "ui/toc_display.h"
 
@@ -33,7 +34,9 @@ namespace
         bool sd_ready = false;
         std::vector<String> candidates;
         std::vector<String> dedicated_images; // Images that are dedicated to specific books
+        std::unordered_set<std::string> dedicated_image_set; // Fast lookup for random exclusion
         std::vector<String> book_basenames;   // Basenames of all books in /book directory
+        std::unordered_set<std::string> book_basenames_exact; // Exact stripped basename match
         bool books_scanned = false;
     };
 
@@ -49,7 +52,9 @@ namespace
     {
         g_lock_image_cache.candidates.clear();
         g_lock_image_cache.dedicated_images.clear();
+        g_lock_image_cache.dedicated_image_set.clear();
         g_lock_image_cache.book_basenames.clear();
+        g_lock_image_cache.book_basenames_exact.clear();
         g_lock_image_cache.valid = false;
         g_lock_image_cache.books_scanned = false;
     }
@@ -174,45 +179,99 @@ namespace
             return;
         }
 
-        // Recursive lambda: scan dirPath and all its subdirectories
-        std::function<void(const std::string &)> scan_dir = [&](const std::string &dirPath)
+        // Iterative DFS avoids recursion overhead and handles deep subdirectories robustly.
+        auto is_book_file = [](const std::string &lower_name) -> bool
         {
-            std::vector<FileInfo> files = EfficientFileScanner::scanDirectory(dirPath);
-            for (const auto &fi : files)
+            auto ends_with = [&](const char *ext) -> bool
             {
-                if (fi.isDirectory)
-                {
-                    scan_dir(fi.path); // recurse into subdirectory
-                    continue;
-                }
-
-                // Check if it's a book file (txt, epub, pdf, etc.)
-                std::string lname = fi.name;
-                for (auto &c : lname)
-                    if (c >= 'A' && c <= 'Z')
-                        c = static_cast<char>(c - 'A' + 'a');
-
-                bool is_book = (lname.size() >= 4 &&
-                                (lname.find(".txt") != std::string::npos ||
-                                 lname.find(".epub") != std::string::npos ||
-                                 lname.find(".pdf") != std::string::npos));
-
-                if (!is_book)
-                    continue;
-
-                String fullPath = String(fi.path.c_str());
-                String basename = extract_basename_no_ext(fullPath);
-                basename.toLowerCase();
-                String stripped = strip_trailing_digits_and_separators(basename);
-
-                if (stripped.length() > 0)
-                {
-                    g_lock_image_cache.book_basenames.push_back(stripped);
-                }
-            }
+                const size_t n = strlen(ext);
+                if (lower_name.size() < n)
+                    return false;
+                return lower_name.compare(lower_name.size() - n, n, ext) == 0;
+            };
+            return ends_with(".txt") || ends_with(".epub") || ends_with(".pdf");
         };
 
-        scan_dir(std::string(bookDir));
+        std::vector<std::string> dir_stack;
+        dir_stack.push_back(std::string(bookDir));
+
+        int walked_entries = 0;
+        while (!dir_stack.empty())
+        {
+            std::string dir_path = dir_stack.back();
+            dir_stack.pop_back();
+
+            File dir = SDW::SD.open(dir_path.c_str());
+            if (!dir || !dir.isDirectory())
+            {
+                if (dir)
+                    dir.close();
+                continue;
+            }
+
+            dir.rewindDirectory();
+            while (true)
+            {
+                File entry = dir.openNextFile();
+                if (!entry)
+                    break;
+
+                const char *name_ptr = entry.name();
+                if (!name_ptr || name_ptr[0] == '\0')
+                {
+                    entry.close();
+                    continue;
+                }
+
+                std::string entry_path(name_ptr);
+                if (entry_path.size() > 0 && entry_path[0] != '/')
+                {
+                    if (dir_path == "/")
+                        entry_path = std::string("/") + entry_path;
+                    else
+                        entry_path = dir_path + std::string("/") + entry_path;
+                }
+
+                const bool is_dir = entry.isDirectory();
+                entry.close();
+
+                if (is_dir)
+                {
+                    dir_stack.push_back(entry_path);
+                }
+                else
+                {
+                    std::string lower_name = entry_path;
+                    for (char &c : lower_name)
+                    {
+                        if (c >= 'A' && c <= 'Z')
+                            c = static_cast<char>(c - 'A' + 'a');
+                    }
+
+                    if (!is_book_file(lower_name))
+                        continue;
+
+                    String basename = extract_basename_no_ext(String(entry_path.c_str()));
+                    basename.toLowerCase();
+                    String stripped = strip_trailing_digits_and_separators(basename);
+                    if (stripped.length() > 0)
+                    {
+                        std::string key = std::string(stripped.c_str());
+                        if (g_lock_image_cache.book_basenames_exact.insert(key).second)
+                        {
+                            g_lock_image_cache.book_basenames.push_back(stripped);
+                        }
+                    }
+                }
+
+                walked_entries++;
+                if ((walked_entries % 16) == 0)
+                    yield();
+            }
+
+            dir.close();
+        }
+
         g_lock_image_cache.books_scanned = true;
     }
 
@@ -227,15 +286,15 @@ namespace
         if (img_base_stripped.length() == 0)
             return false;
 
+        if (g_lock_image_cache.book_basenames_exact.find(std::string(img_base_stripped.c_str())) !=
+            g_lock_image_cache.book_basenames_exact.end())
+        {
+            return true;
+        }
+
         // Check against all book basenames
         for (const String &book_base_stripped : g_lock_image_cache.book_basenames)
         {
-            // Exact stripped-name match
-            if (img_base_stripped == book_base_stripped)
-            {
-                return true;
-            }
-
             // Fuzzy: stripped image base contained in book base or vice versa
             if (book_base_stripped.indexOf(img_base_stripped) >= 0 ||
                 img_base_stripped.indexOf(book_base_stripped) >= 0)
@@ -260,6 +319,7 @@ namespace
             if (is_image_dedicated_to_any_book(imgPath))
             {
                 g_lock_image_cache.dedicated_images.push_back(imgPath);
+                g_lock_image_cache.dedicated_image_set.insert(std::string(imgPath.c_str()));
             }
         }
 
@@ -392,18 +452,8 @@ static bool push_random_sd_image_if_available(const char *dirPath, int x, int y)
     std::vector<String> available_for_random;
     for (const String &imgPath : candidates)
     {
-        // Check if this image is in the dedicated list
-        bool is_dedicated = false;
-        for (const String &dedicated : g_lock_image_cache.dedicated_images)
-        {
-            if (imgPath == dedicated)
-            {
-                is_dedicated = true;
-                break;
-            }
-        }
-
-        if (!is_dedicated)
+        if (g_lock_image_cache.dedicated_image_set.find(std::string(imgPath.c_str())) ==
+            g_lock_image_cache.dedicated_image_set.end())
         {
             available_for_random.push_back(imgPath);
         }
