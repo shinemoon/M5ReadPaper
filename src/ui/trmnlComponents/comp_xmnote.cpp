@@ -651,9 +651,11 @@ void render_xmnote_component(JsonObject component)
     if (has_idea && idea_h > 0)
     {
         Serial.printf("[XMNOTE] render idea at y=%d h=%d font=%d len=%d\n", cur_y, idea_h, f_idea, (int)idea_s.length());
-        g_canvas->drawCircle(PAPER_S3_WIDTH-40, cur_y + 5, 5, GREY_LEVEL_LIGHT);
-        g_canvas->drawCircle(PAPER_S3_WIDTH-30, cur_y - 2, 8, GREY_LEVEL_DARK);
-        g_canvas->drawCircle(PAPER_S3_WIDTH-20, cur_y + 3, 8, GREY_LEVEL_MID);
+        g_canvas->fillCircle(PAPER_S3_WIDTH - 20, cur_y , 10, GREY_LEVEL_LIGHT);
+        g_canvas->fillCircle(PAPER_S3_WIDTH - 20, cur_y , 6, GREY_LEVEL_DARK);
+        g_canvas->drawCircle(PAPER_S3_WIDTH - 20, cur_y , 10);
+        g_canvas->fillCircle(PAPER_S3_WIDTH - 35, cur_y - 10, 4, GREY_LEVEL_DARK);
+        g_canvas->fillCircle(PAPER_S3_WIDTH - 25, cur_y +20 , 2, GREY_LEVEL_MID);
         display_print_wrapped(idea_s.c_str(), x, cur_y, a_w, idea_h, f_idea, 0, 15, 0, false, false);
         cur_y += idea_h;
         //        g_canvas->drawLine(20,cur_y,PAPER_S3_WIDTH-20, cur_y, GREY_LEVEL_LIGHT);
@@ -662,9 +664,11 @@ void render_xmnote_component(JsonObject component)
     {
         // if idea exists but no height assigned, still render one minimal line
         int min_h = idea_line_h;
-        g_canvas->drawCircle(PAPER_S3_WIDTH-40, cur_y + 5, 5, GREY_LEVEL_LIGHT);
-        g_canvas->drawCircle(PAPER_S3_WIDTH-30, cur_y - 2, 8, GREY_LEVEL_DARK);
-        g_canvas->drawCircle(PAPER_S3_WIDTH-20, cur_y + 3, 8, GREY_LEVEL_MID);
+        g_canvas->fillCircle(PAPER_S3_WIDTH - 20, cur_y , 10, GREY_LEVEL_LIGHT);
+        g_canvas->fillCircle(PAPER_S3_WIDTH - 20, cur_y , 6, GREY_LEVEL_DARK);
+        g_canvas->drawCircle(PAPER_S3_WIDTH - 20, cur_y , 10);
+        g_canvas->fillCircle(PAPER_S3_WIDTH - 35, cur_y - 10, 4, GREY_LEVEL_DARK);
+        g_canvas->fillCircle(PAPER_S3_WIDTH - 25, cur_y +20 , 2, GREY_LEVEL_MID);
  
         Serial.printf("[XMNOTE] render idea minimal at y=%d h=%d\n", cur_y, min_h);
         display_print_wrapped(idea_s.c_str(), x, cur_y, a_w, min_h, f_idea, 0, 15, 0, false, false);
@@ -679,7 +683,7 @@ void render_xmnote_component(JsonObject component)
         g_canvas->fillTriangle(15, cur_y - 4, 25, cur_y - 12, 20, cur_y - 4, GREY_LEVEL_MID);
 
         Serial.printf("[XMNOTE] render content at y=%d h=%d font=%d len=%d\n", cur_y, content_h, f_excerpt, (int)excerpt_s.length());
-        display_print_wrapped(excerpt_s.c_str(), x, cur_y, a_w, content_h, f_excerpt, 0, 15, 0, false, false);
+        display_print_wrapped(excerpt_s.c_str(), x, cur_y + 2, a_w, content_h, f_excerpt, 0, 15, 0, false, false);
         cur_y += content_h;
     }
     else if (has_content && content_h == 0)
@@ -691,7 +695,7 @@ void render_xmnote_component(JsonObject component)
 
         int min_h = content_line_h;
         Serial.printf("[XMNOTE] render content minimal at y=%d h=%d\n", cur_y, min_h);
-        display_print_wrapped(excerpt_s.c_str(), x, cur_y, a_w, min_h, f_excerpt, 0, 15, 0, false, false);
+        display_print_wrapped(excerpt_s.c_str(), x, cur_y + 2, a_w, min_h, f_excerpt, 0, 15, 0, false, false);
         cur_y += min_h;
     }
 
