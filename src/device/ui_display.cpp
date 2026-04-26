@@ -78,7 +78,7 @@ void display_print(const char *text, float text_size, uint16_t text_color, uint8
 
 int display_print_wrapped(const char *text, int16_t x, int16_t y, int16_t area_width,
                           int16_t area_height, uint8_t font_size, uint8_t color,
-                          int16_t bg_color, uint8_t align, bool vertical, bool skip)
+                          int16_t bg_color, uint8_t align, bool vertical, bool skip, bool backcolor)
 {
     if (!text || text[0] == '\0')
     {
@@ -199,6 +199,8 @@ int display_print_wrapped(const char *text, int16_t x, int16_t y, int16_t area_w
         text_align = TEXT_ALIGN_RIGHT;
     }
 
+    if (backcolor)
+        g_canvas->fillRect(0, y - LINE_MARGIN, PAPER_S3_WIDTH, line_height * lines_added + LINE_MARGIN , GREY_LEVEL_LIGHT);
     // 调用 bin_font_print 打印换行后的文本
     bin_font_print(
         wrapped_text,

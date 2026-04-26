@@ -996,7 +996,7 @@ void show_lockscreen(int16_t area_width, int16_t area_height, float font_size, c
                     g_canvas->fillRect(0, basey, 540, baseh, theme_strip_bg);
                     g_canvas->drawRect(0, basey, 540, baseh, TFT_BLACK);
 
-                    bin_font_print(g_current_book->getCurrentDigest().c_str(), digest_font_size, theme_strip_fg, 540, 86, basey + 20, false, g_canvas, TEXT_ALIGN_LEFT, 0, false, true);
+                    bin_font_print(g_current_book->getCurrentDigest().c_str(), digest_font_size, theme_strip_fg, 540, 70, basey + 20, false, g_canvas, TEXT_ALIGN_LEFT, 0, false, true);
                     // head
                     g_canvas->fillRect(0, basey, 60, baseh, TFT_BLACK);
                     g_canvas->drawLine(60, basey + 5, 540, basey + 5, theme_strip_fg);
