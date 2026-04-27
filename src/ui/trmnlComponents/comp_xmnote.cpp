@@ -546,6 +546,7 @@ void render_xmnote_component(JsonObject component)
     int f_title = (int)(baseFont * 0.8f);
     // int f_author = (int)(baseFont * 0.8f + 0.5f);
     int f_author = (int)(baseFont);
+    int f_time = (int)(baseFont * 0.9f);
 
     // Compute per-line heights using same formula as display_print_wrapped
     uint8_t base_font_file = get_font_size_from_file();
@@ -724,4 +725,69 @@ void render_xmnote_component(JsonObject component)
     ui_push_image_to_canvas("/spiffs/xmnote.png", 0, author_y - (28 - f_author / 2));
     if (author_s.length() > 0)
         bin_font_print(author_s.c_str(), f_author, 0, a_w - 56, 56, author_y, false, nullptr, TEXT_ALIGN_LEFT, a_w - 56);
+
+    // Render createdTime (if present) under author line with font size = base * 0.9f
+    String created_time_fmt = "";
+    if (chosen.containsKey("createdTime") || chosen.containsKey("created_time"))
+    {
+        JsonVariant tv;
+        if (chosen.containsKey("createdTime"))
+            tv = chosen["createdTime"];
+        else
+            tv = chosen["created_time"];
+
+        // handle numeric epoch (ms or s) or numeric string
+        if (tv.is<long long>() || tv.is<unsigned long long>() || tv.is<unsigned int>() || tv.is<int>())
+        {
+            long long tse_ms = (long long)tv.as<long long>();
+            time_t t = (time_t)(tse_ms / 1000);
+            struct tm *tmv = localtime(&t);
+            char tbuf[64] = {0};
+            if (tmv)
+                strftime(tbuf, sizeof(tbuf), "%Y-%m-%d", tmv);
+            created_time_fmt = String(tbuf);
+        }
+        else if (tv.is<const char *>())
+        {
+            String s = String(tv.as<const char *>());
+            s.trim();
+            bool all_digits = true;
+            for (size_t i = 0; i < s.length(); ++i)
+            {
+                char ch = s.charAt(i);
+                if (ch < '0' || ch > '9')
+                {
+                    all_digits = false;
+                    break;
+                }
+            }
+            if (all_digits && s.length() > 0)
+            {
+                unsigned long tse = 0;
+                if (s.length() > 10)
+                    tse = (unsigned long)(s.toInt() / 1000);
+                else
+                    tse = (unsigned long)s.toInt();
+                time_t t = (time_t)tse;
+                struct tm *tmv = localtime(&t);
+                char tbuf[64] = {0};
+                if (tmv)
+                    strftime(tbuf, sizeof(tbuf), "%Y-%m-%d", tmv);
+                created_time_fmt = String(tbuf);
+            }
+            else
+            {
+                created_time_fmt = s; // fallback: use raw string
+            }
+        }
+    }
+
+    if (created_time_fmt.length() > 0)
+    {
+        int time_line_h = line_height_for(f_time);
+        int time_y = author_y + author_line_h;
+//        if (time_y + time_line_h > y + a_h)
+//            time_y = y + a_h - time_line_h;
+        bin_font_print(created_time_fmt.c_str(), f_time, 0, a_w - 56, 56, time_y, false, nullptr, TEXT_ALIGN_LEFT, a_w - 56);
+    }
 }

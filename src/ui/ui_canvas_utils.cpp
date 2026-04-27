@@ -616,12 +616,14 @@ void drawBottomUI(M5Canvas *canvas, int16_t x, int16_t y)
     bin_font_print("记显示", 25, !g_config.dark ? 0 : 15, 540, x+280+30, y +50 - 8 , true, canvas, TEXT_ALIGN_LEFT, 540);
     */
     //    draw_button(canvas, x + 330, y + 40, "使用帮助", false);
-    /*
-    canvas->fillCircle(x + 450 + 45, y + 50, 22, TFT_BLACK);
-    canvas->fillCircle(x + 450 + 45, y + 50, 20, TFT_WHITE);
-    canvas->fillCircle(x + 450 + 45, y + 50, 18, TFT_BLACK);
-    bin_font_print("?", 32, 0, 50, x + 450 + 6, y + 50 - 16, false, canvas, TEXT_ALIGN_CENTER, 80, true, false, false, true);
-    */
+    canvas->fillCircle(x + 450 + 45, y + 54, 22, TFT_BLACK);
+    canvas->fillCircle(x + 450 + 45, y + 54, 20, TFT_WHITE);
+    canvas->fillCircle(x + 450 + 45, y + 54, 18, TFT_BLACK);
+
+    canvas->fillRect(x + 450 + 43, y + 44, 4, 4,  TFT_WHITE);
+    canvas->fillRect(x + 450 + 43, y + 50, 4, 16,  TFT_WHITE);
+
+//    bin_font_print("?", 32, 0, 50, x + 450 + 6, y + 50 - 16, false, canvas, TEXT_ALIGN_CENTER, 80, true, false, false, true);
 
     // ROW II
     y = y + 100;

@@ -231,7 +231,6 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
             return;
         }
 
-        /*
         const int16_t tag_left = 450;
         const int16_t tag_top = 640 + 40;
         const int16_t tag_w = 90;
@@ -244,7 +243,6 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
             currentState_ = STATE_HELP;
             return;
         }
-            */
 
         TouchZone zone = getTouchZoneGrid(msg->data.touch.x, msg->data.touch.y);
 #if DBG_STATE_MACHINE_TASK

@@ -101,7 +101,9 @@ void StateMachineTask::handleHelpState(const SystemMessage_t *msg)
             helpShown = true;
             // 首次进入显示帮助图片（来自 /data/guide.png）
             // 使用 canvas 推图片并立即刷新显示
-            show_start_screen("");
+            ui_push_image_to_canvas("/spiffs/guide.png", 0, 0);
+            bin_font_flush_canvas(false, false, true, RECT);
+            delay(500);
         }
         break;
     }
