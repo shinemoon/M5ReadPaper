@@ -141,6 +141,10 @@ private:
     void handleUpdateDisplayStart();
     void handleUpdateDisplayChunk();
     void handleUpdateDisplayCommit();
+    void handleSyncBegin();
+    void handleSync();
+    void handleSyncBatch();
+    void handleSyncEnd();
 
     // 辅助函数
     String formatFileSize(size_t bytes);
@@ -153,6 +157,12 @@ private:
     String generateUploadForm();
     String generateFileListHTML(String dirPath);
     String generateFallbackTemplate(); // 备用轻量级模板
+
+    // Sync state for XMNOTE batch sync
+    bool syncInProgress;
+    File syncExcerptsFile;
+    bool syncExcerptsFirstItem;
+    int syncTotalExcerpts;
 };
 
 // 全局WiFi热点管理器实例

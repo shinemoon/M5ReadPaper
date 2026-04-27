@@ -62,6 +62,9 @@ WiFiHotspotManager::WiFiHotspotManager()
         Serial.printf("[WIFI_HOTSPOT] %s 初始化成功。\n", InternalFS::label());
 #endif
     }
+    syncInProgress = false;
+    syncExcerptsFirstItem = true;
+    syncTotalExcerpts = 0;
 }
 
 WiFiHotspotManager::~WiFiHotspotManager() {
@@ -3374,6 +3377,232 @@ void WiFiHotspotManager::handleUpdateDisplay() {
     SDW::SD.rename(rdt_tmp, rdt_path);
 
     webServer->send(200, "application/json", "{\"ok\":true,\"message\":\"Saved\"}");
+}
+
+// 简单的 sync begin 处理器：前端发起同步会话时使用
+void WiFiHotspotManager::handleSyncBegin() {
+    webServer->sendHeader("Access-Control-Allow-Origin", "*");
+    webServer->sendHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    webServer->sendHeader("Access-Control-Allow-Headers", "Content-Type");
+
+    String body = webServer->arg("plain");
+#if DBG_WIFI_HOTSPOT
+    Serial.printf("[WIFI_HOTSPOT] /api/sync/begin body length=%d\n", body.length());
+#endif
+
+    // For now simply acknowledge. Future: parse body to start sync workflow.
+    // Parse books and reviewSettings (body is expected to be modest in size)
+    if (body.length() == 0) {
+        webServer->send(400, "application/json", "{\"error\":\"empty body\"}");
+        return;
+    }
+
+    // Ensure /xmnote directory exists on SD
+    if (!SDW::SD.exists("/xmnote")) {
+        SDW::SD.mkdir("/xmnote");
+    }
+
+    // Try to parse JSON with ArduinoJson (safe for moderate payloads)
+    DynamicJsonDocument doc(32 * 1024);
+    DeserializationError err = deserializeJson(doc, body);
+    if (err) {
+        String msg = String("{\"error\":\"invalid JSON: ") + err.c_str() + "\"}";
+        webServer->send(400, "application/json", msg);
+        return;
+    }
+
+    // Write books array to /xmnote/books.json
+    if (doc.containsKey("books")) {
+        File bf = SDW::SD.open("/xmnote/books.json", FILE_WRITE);
+        if (!bf) {
+            webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}");
+            return;
+        }
+        serializeJson(doc["books"], bf);
+        bf.close();
+    }
+
+    // Write reviewSettings if present
+    if (doc.containsKey("reviewSettings") || doc.containsKey("reviewSettings")) {
+        File rf = SDW::SD.open("/xmnote/review_settings.json", FILE_WRITE);
+        if (!rf) {
+            webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}");
+            return;
+        }
+        if (doc.containsKey("reviewSettings")) serializeJson(doc["reviewSettings"], rf);
+        else if (doc.containsKey("reviewSettings")) serializeJson(doc["reviewSettings"], rf);
+        rf.close();
+    }
+
+    // Prepare excerpts file for batch mode: create/overwrite and write opening '['
+    File ef = SDW::SD.open("/xmnote/excerpts.json", FILE_WRITE);
+    if (!ef) {
+        webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}");
+        return;
+    }
+    ef.print("[");
+    ef.flush();
+    ef.close();
+
+    // initialize sync session state
+    syncInProgress = true;
+    syncExcerptsFirstItem = true;
+    syncTotalExcerpts = 0;
+
+    webServer->send(200, "application/json", "{\"status\":\"ok\"}");
+}
+
+// Helper: stream-read request body and process excerpts array by extracting objects
+void WiFiHotspotManager::handleSyncBatch() {
+    // Require an active sync session
+    if (!syncInProgress) {
+        webServer->send(400, "application/json", "{\"error\":\"no sync in progress\"}");
+        return;
+    }
+
+    // Ensure /xmnote exists
+    if (!SDW::SD.exists("/xmnote")) SDW::SD.mkdir("/xmnote");
+
+    // Open excerpts file for append
+    File ef = SDW::SD.open("/xmnote/excerpts.json", FILE_APPEND);
+    if (!ef) {
+        webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}");
+        return;
+    }
+
+    // Read content-length header
+    String clen = webServer->header("Content-Length");
+    long remaining = clen.length() ? clen.toInt() : -1;
+
+    WiFiClient client = webServer->client();
+    const size_t BUF_SZ = 2048;
+    static char buf[BUF_SZ];
+    String partial; // holds partial data for current object
+    int braceDepth = 0;
+    bool inString = false;
+    bool escape = false;
+
+    // Wait until client has data
+    unsigned long startMs = millis();
+    while ((remaining > 0 && client.connected() && remaining > 0) || (remaining < 0 && client.connected() && client.available() == 0 && (millis() - startMs) < 5000)) {
+        if (client.available() == 0) { yield(); continue; }
+        int toRead = client.available();
+        if (toRead > (int)BUF_SZ) toRead = BUF_SZ;
+        int r = client.readBytes(buf, toRead);
+        if (r <= 0) break;
+        if (remaining > 0) remaining -= r;
+
+        for (int i = 0; i < r; ++i) {
+            char c = buf[i];
+            // simple JSON object extractor: look for '{' '}' at depth 0
+            partial += c;
+            if (c == '"' && !escape) inString = !inString;
+            if (!inString) {
+                if (c == '{') braceDepth++;
+                else if (c == '}') braceDepth--;
+            }
+            if (c == '\\' && !escape) escape = true; else escape = false;
+
+            // when we just closed an object at depth 0 and partial contains a JSON object
+            if (braceDepth == 0 && partial.indexOf('{') >= 0) {
+                // extract the object text: find first '{' and last '}'
+                int first = partial.indexOf('{');
+                int last = partial.lastIndexOf('}');
+                if (first >= 0 && last >= first) {
+                    String obj = partial.substring(first, last + 1);
+                    // write comma if needed
+                    if (!syncExcerptsFirstItem) ef.print(',');
+                    else syncExcerptsFirstItem = false;
+                    ef.print(obj);
+                    ef.flush();
+                    syncTotalExcerpts++;
+                    // keep remainder after last}
+                    String rem = partial.substring(last + 1);
+                    partial = rem;
+                }
+            }
+            // guard memory
+            if (partial.length() > 64 * 1024) {
+                // partial too big -> abort
+                ef.close();
+                webServer->send(500, "application/json", "{\"error\":\"object too large\"}");
+                return;
+            }
+        }
+        yield();
+    }
+
+    ef.close();
+
+    // Respond with cumulative count
+    String resp = String("{\"status\":\"ok\",\"totalExcerpts\":") + String(syncTotalExcerpts) + String("}");
+    webServer->send(200, "application/json", resp);
+}
+
+void WiFiHotspotManager::handleSyncEnd() {
+    if (!syncInProgress) {
+        webServer->send(400, "application/json", "{\"error\":\"no sync in progress\"}");
+        return;
+    }
+
+    // Close the excerpts JSON array by appending ']'
+    File ef = SDW::SD.open("/xmnote/excerpts.json", FILE_APPEND);
+    if (!ef) {
+        webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}");
+        return;
+    }
+    ef.print("]");
+    ef.flush();
+    ef.close();
+
+    syncInProgress = false;
+
+    String resp = String("{\"status\":\"ok\",\"totalExcerpts\":") + String(syncTotalExcerpts) + String("}");
+    webServer->send(200, "application/json", resp);
+}
+
+// One-shot sync endpoint: accepts a JSON with books/excerpts/reviewSettings and writes files.
+void WiFiHotspotManager::handleSync() {
+    String body = webServer->arg("plain");
+    if (body.length() == 0) {
+        webServer->send(400, "application/json", "{\"error\":\"empty body\"}");
+        return;
+    }
+
+    // parse
+    DynamicJsonDocument doc(64 * 1024);
+    DeserializationError err = deserializeJson(doc, body);
+    if (err) {
+        String msg = String("{\"error\":\"invalid JSON: ") + err.c_str() + "\"}";
+        webServer->send(400, "application/json", msg);
+        return;
+    }
+
+    if (!SDW::SD.exists("/xmnote")) SDW::SD.mkdir("/xmnote");
+
+    if (doc.containsKey("books")) {
+        File bf = SDW::SD.open("/xmnote/books.json", FILE_WRITE);
+        if (!bf) { webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}"); return; }
+        serializeJson(doc["books"], bf);
+        bf.close();
+    }
+
+    if (doc.containsKey("reviewSettings")) {
+        File rf = SDW::SD.open("/xmnote/review_settings.json", FILE_WRITE);
+        if (!rf) { webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}"); return; }
+        serializeJson(doc["reviewSettings"], rf);
+        rf.close();
+    }
+
+    // Write excerpts array entirely
+    if (doc.containsKey("excerpts")) {
+        File ef = SDW::SD.open("/xmnote/excerpts.json", FILE_WRITE);
+        if (!ef) { webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}"); return; }
+        serializeJson(doc["excerpts"], ef);
+        ef.close();
+    }
+
+    webServer->send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 // 分块上传：开始会话，清空临时文件

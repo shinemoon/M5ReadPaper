@@ -202,6 +202,27 @@ void ApiRouter::registerRoutes(WebServer& server, WiFiHotspotManager& mgr) {
         server.send(204);
     });
 
+    // Simple sync API used by newer webapp clients. Provide a "begin" entrypoint
+    // so frontend can initiate sync sessions without triggering a not-found error.
+    server.on("/api/sync/begin", HTTP_POST, [&](){
+        add_cors_headers(server);
+        mgr.handleSyncBegin();
+    });
+    server.on("/api/sync/begin", HTTP_OPTIONS, [&](){
+        add_cors_headers(server);
+        server.send(204);
+    });
+
+    // XMNOTE bulk sync endpoints
+    server.on("/api/sync", HTTP_POST, [&](){ add_cors_headers(server); mgr.handleSync(); });
+    server.on("/api/sync", HTTP_OPTIONS, [&](){ add_cors_headers(server); server.send(204); });
+
+    server.on("/api/sync/batch", HTTP_POST, [&](){ add_cors_headers(server); mgr.handleSyncBatch(); });
+    server.on("/api/sync/batch", HTTP_OPTIONS, [&](){ add_cors_headers(server); server.send(204); });
+
+    server.on("/api/sync/end", HTTP_POST, [&](){ add_cors_headers(server); mgr.handleSyncEnd(); });
+    server.on("/api/sync/end", HTTP_OPTIONS, [&](){ add_cors_headers(server); server.send(204); });
+
     // WiFi config endpoints
     server.on("/api/wifi_config", HTTP_GET, [&](){
         add_cors_headers(server);
