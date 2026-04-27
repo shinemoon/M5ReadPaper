@@ -231,6 +231,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
             return;
         }
 
+        /*
         const int16_t tag_left = 450;
         const int16_t tag_top = 640 + 40;
         const int16_t tag_w = 90;
@@ -238,15 +239,12 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
         if (tx >= tag_left && tx < (tag_left + tag_w) && ty >= tag_top && ty < (tag_top + tag_h))
         {
             // Show tag UI and switch to index display state
-            /*
-            show_tag_ui(g_canvas);
-            currentState_ = STATE_INDEX_DISPLAY;
-            */
-            ui_push_image_to_display_direct("/spiffs/wait.png", 240, 450);
+           ui_push_image_to_display_direct("/spiffs/wait.png", 240, 450);
             M5.Display.waitDisplay();
             currentState_ = STATE_HELP;
             return;
         }
+            */
 
         TouchZone zone = getTouchZoneGrid(msg->data.touch.x, msg->data.touch.y);
 #if DBG_STATE_MACHINE_TASK
@@ -328,7 +326,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     bin_font_print(name_with_page, 28, 0, 540, -14, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
-                    bin_font_flush_canvas(false,false,false,NOEFFECT,160,775,230,80); // PapeFWD
+                    bin_font_flush_canvas(false, false, false, NOEFFECT, 160, 775, 230, 80); // PapeFWD
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "BWD 1%") == 0)
@@ -361,7 +359,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     bin_font_print(name_with_page, 28, 0, 540, -14, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
-                    bin_font_flush_canvas(false,false,false,NOEFFECT,160,775,230,80); // PapeBWD
+                    bin_font_flush_canvas(false, false, false, NOEFFECT, 160, 775, 230, 80); // PapeBWD
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "MBWD 0.1%") == 0)
@@ -395,7 +393,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     bin_font_print(name_with_page, 28, 0, 540, -14, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
-                    bin_font_flush_canvas(false,false,false,NOEFFECT,160,775,230,80); //MBWD 
+                    bin_font_flush_canvas(false, false, false, NOEFFECT, 160, 775, 230, 80); // MBWD
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "FFWD 10%") == 0)
@@ -427,7 +425,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     bin_font_print(name_with_page, 28, 0, 540, -14, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
-                    bin_font_flush_canvas(false,false,false,NOEFFECT,160,775,230,80); //FFWD
+                    bin_font_flush_canvas(false, false, false, NOEFFECT, 160, 775, 230, 80); // FFWD
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "FWD 1%") == 0)
@@ -461,7 +459,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     bin_font_print(name_with_page, 28, 0, 540, -14, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
-                    bin_font_flush_canvas(false,false,false,NOEFFECT,160,775,230,80); //FWD
+                    bin_font_flush_canvas(false, false, false, NOEFFECT, 160, 775, 230, 80); // FWD
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "MFWD 0.1%") == 0)
@@ -493,7 +491,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     bin_font_print(name_with_page, 28, 0, 540, -14, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
                     g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
 
-                    bin_font_flush_canvas(false,false,false,NOEFFECT,160,775,230,80); //MFWD
+                    bin_font_flush_canvas(false, false, false, NOEFFECT, 160, 775, 230, 80); // MFWD
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "TWO 区域：ReIndex") == 0)
@@ -539,7 +537,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                 {
                     g_current_book->setShowLabel(!g_current_book->getShowLabel());
                     // Refresh Menu
-                    (void)show_reading_menu(g_canvas, false,LOCKBM);
+                    (void)show_reading_menu(g_canvas, false, LOCKBM);
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "Switch FAST") == 0)
@@ -554,7 +552,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     g_config.fastrefresh = !g_config.fastrefresh;
                     config_save();
                     // 刷新阅读菜单以应用新主题 (参数以现有调用为准)
-                    (void)show_reading_menu(g_canvas, false,DARKMODE);
+                    (void)show_reading_menu(g_canvas, false, DARKMODE);
                 }
                 // dark 模式下忽略此操作
             }
@@ -572,7 +570,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                 }
                 config_save();
                 // 刷新阅读菜单以应用新主题 (参数以现有调用为准)
-                (void)show_reading_menu(g_canvas, false,DARKMODE);
+                (void)show_reading_menu(g_canvas, false, DARKMODE);
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "Switch KeepOrg") == 0)
             {
@@ -583,7 +581,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                 {
                     g_current_book->setKeepOrg(!g_current_book->getKeepOrg());
                     // Refresh Menu to update checkbox display
-                    (void)show_reading_menu(g_canvas, false,SKIPCONV);
+                    (void)show_reading_menu(g_canvas, false, SKIPCONV);
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "Switch DrawBottom") == 0)
@@ -595,7 +593,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                 {
                     g_current_book->setDrawBottom(!g_current_book->getDrawBottom());
                     // Refresh Menu to update checkbox display
-                    (void)show_reading_menu(g_canvas, false,UNDERLINE);
+                    (void)show_reading_menu(g_canvas, false, UNDERLINE);
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "Switch Vertical") == 0)
@@ -658,7 +656,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
 #endif
                 // 返回阅读
                 g_current_book->jumpToPage(target_page - 1);
-                g_current_book->renderCurrentPage(font_size,nullptr,true,false,false,2);
+                g_current_book->renderCurrentPage(font_size, nullptr, true, false, false, 2);
                 g_current_book->saveBookmark(); // render后保存书签
                 currentState_ = STATE_READING;
             }

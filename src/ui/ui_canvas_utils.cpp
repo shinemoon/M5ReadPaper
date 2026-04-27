@@ -330,7 +330,7 @@ bool show_reading_menu(M5Canvas *canvas, bool refresh, readingMenuArea area)
         switch (area)
         {
         case DARKMODE:
-            bin_font_flush_canvas(false, false, false, NOEFFECT, 40, BOTTOMUI_y + 60 + 38, 460, 40);
+            bin_font_flush_canvas(false, false, false, NOEFFECT, 0, BOTTOMUI_y + 60 + 38, 540, 40);
             break;
         case FASTMODE:
             bin_font_flush_canvas(false, false, false, NOEFFECT, 40 + 260, BOTTOMUI_y + 60 + 38, 40, 40);
@@ -470,7 +470,7 @@ void drawTopUI(M5Canvas *canvas, int16_t x, int16_t y)
     if (g_current_book)
     {
         bool keepOrg = g_current_book->getKeepOrg();
-        drawCheckbox(canvas, x + 42, y + 240, keepOrg, "跳过繁简转换", 28,30);
+        drawCheckbox(canvas, x + 42, y + 240, keepOrg, "跳过繁简转换", 28, 30);
     }
 
     // 在下划线右边添加竖排显示开关
@@ -616,10 +616,12 @@ void drawBottomUI(M5Canvas *canvas, int16_t x, int16_t y)
     bin_font_print("记显示", 25, !g_config.dark ? 0 : 15, 540, x+280+30, y +50 - 8 , true, canvas, TEXT_ALIGN_LEFT, 540);
     */
     //    draw_button(canvas, x + 330, y + 40, "使用帮助", false);
+    /*
     canvas->fillCircle(x + 450 + 45, y + 50, 22, TFT_BLACK);
     canvas->fillCircle(x + 450 + 45, y + 50, 20, TFT_WHITE);
     canvas->fillCircle(x + 450 + 45, y + 50, 18, TFT_BLACK);
     bin_font_print("?", 32, 0, 50, x + 450 + 6, y + 50 - 16, false, canvas, TEXT_ALIGN_CENTER, 80, true, false, false, true);
+    */
 
     // ROW II
     y = y + 100;
