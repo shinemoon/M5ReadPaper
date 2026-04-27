@@ -25,6 +25,8 @@
 #include <mbedtls/base64.h>
 #include "ui/trmnlComponents/comp_history_cache.h"
 
+//#define DBG_WIFI_HOTSPOT 1
+
 extern GlobalConfig g_config;
 
 // Helper: collapse duplicate slashes and remove trailing slash (except root)
@@ -3463,10 +3465,80 @@ void WiFiHotspotManager::handleSyncBatch() {
     // Ensure /xmnote exists
     if (!SDW::SD.exists("/xmnote")) SDW::SD.mkdir("/xmnote");
 
-    // Open excerpts file for append
-    File ef = SDW::SD.open("/xmnote/excerpts.json", FILE_APPEND);
+    // Open excerpts file for append (use FILE_WRITE then seek to end)
+    File ef = SDW::SD.open("/xmnote/excerpts.json", FILE_WRITE);
     if (!ef) {
-        webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}");
+        String diag = String("{\"error\":\"SD open failed\",\"path\":\"/xmnote/excerpts.json\"}");
+        Serial.println("[WIFI_HOTSPOT] failed to open /xmnote/excerpts.json for append");
+        webServer->send(500, "application/json", diag);
+        return;
+    }
+    size_t curSz = ef.size();
+    ef.seek(curSz);
+
+    // If WebServer already parsed the request body into arg("plain"), process that string as fallback.
+    if (webServer->hasArg("plain") && webServer->arg("plain").length() > 0) {
+        String body = webServer->arg("plain");
+        bool writingObject = false;
+        int braceDepth = 0;
+        bool inString = false;
+        bool escape = false;
+        size_t objBytes = 0;
+        const size_t MAX_OBJ_BYTES = 1024 * 1024; // 1MB per object
+
+        for (int idx = 0; idx < body.length(); ++idx) {
+            char c = body[idx];
+
+            if (!writingObject) {
+                // look for object start
+                if (c == '"' && !escape) inString = !inString;
+                if (!inString && c == '{') {
+                    writingObject = true;
+                    braceDepth = 1;
+                    objBytes = 0;
+                    if (!syncExcerptsFirstItem) ef.print(','); else syncExcerptsFirstItem = false;
+                    ef.print(c);
+                    objBytes++;
+                    // reset string/escape state for object body
+                    inString = false;
+                    escape = false;
+                } else {
+                    if (c == '\\' && !escape) escape = true; else escape = false;
+                }
+            } else {
+                // already writing an object: stream char to SD
+                ef.print(c);
+                objBytes++;
+
+                if (c == '"' && !escape) inString = !inString;
+                if (!inString) {
+                    if (c == '{') braceDepth++;
+                    else if (c == '}') braceDepth--;
+                }
+                if (c == '\\' && !escape) escape = true; else escape = false;
+
+                if (braceDepth == 0) {
+                    // object finished
+                    writingObject = false;
+                    ef.flush();
+                    syncTotalExcerpts++;
+                }
+
+                if (objBytes > MAX_OBJ_BYTES) {
+                    ef.close();
+                    String diag = String("{\"error\":\"object too large\",\"bytes\":") + String(objBytes) + String("}");
+                    Serial.println(String("[WIFI_HOTSPOT] object too large bytes=") + String(objBytes));
+                    webServer->send(500, "application/json", diag);
+                    return;
+                }
+            }
+            // keep event loop alive
+            if ((idx & 0x3FF) == 0) yield();
+        }
+
+        ef.close();
+        String resp = String("{\"status\":\"ok\",\"totalExcerpts\":") + String(syncTotalExcerpts) + String("}");
+        webServer->send(200, "application/json", resp);
         return;
     }
 
@@ -3477,15 +3549,23 @@ void WiFiHotspotManager::handleSyncBatch() {
     WiFiClient client = webServer->client();
     const size_t BUF_SZ = 2048;
     static char buf[BUF_SZ];
-    String partial; // holds partial data for current object
+
+    bool writingObject = false;
     int braceDepth = 0;
     bool inString = false;
     bool escape = false;
+    size_t objBytes = 0;
+    const size_t MAX_OBJ_BYTES = 1024 * 1024; // 1MB per object
 
-    // Wait until client has data
+    // Read any available data from the underlying client (if present)
     unsigned long startMs = millis();
-    while ((remaining > 0 && client.connected() && remaining > 0) || (remaining < 0 && client.connected() && client.available() == 0 && (millis() - startMs) < 5000)) {
-        if (client.available() == 0) { yield(); continue; }
+    while (client.connected()) {
+        if (client.available() == 0) {
+            // if we've read nothing for a while, break
+            if ((millis() - startMs) > 3000) break;
+            yield();
+            continue;
+        }
         int toRead = client.available();
         if (toRead > (int)BUF_SZ) toRead = BUF_SZ;
         int r = client.readBytes(buf, toRead);
@@ -3494,47 +3574,54 @@ void WiFiHotspotManager::handleSyncBatch() {
 
         for (int i = 0; i < r; ++i) {
             char c = buf[i];
-            // simple JSON object extractor: look for '{' '}' at depth 0
-            partial += c;
-            if (c == '"' && !escape) inString = !inString;
-            if (!inString) {
-                if (c == '{') braceDepth++;
-                else if (c == '}') braceDepth--;
-            }
-            if (c == '\\' && !escape) escape = true; else escape = false;
 
-            // when we just closed an object at depth 0 and partial contains a JSON object
-            if (braceDepth == 0 && partial.indexOf('{') >= 0) {
-                // extract the object text: find first '{' and last '}'
-                int first = partial.indexOf('{');
-                int last = partial.lastIndexOf('}');
-                if (first >= 0 && last >= first) {
-                    String obj = partial.substring(first, last + 1);
-                    // write comma if needed
-                    if (!syncExcerptsFirstItem) ef.print(',');
-                    else syncExcerptsFirstItem = false;
-                    ef.print(obj);
+            if (!writingObject) {
+                if (c == '"' && !escape) inString = !inString;
+                if (!inString && c == '{') {
+                    writingObject = true;
+                    braceDepth = 1;
+                    objBytes = 0;
+                    if (!syncExcerptsFirstItem) ef.print(','); else syncExcerptsFirstItem = false;
+                    ef.print(c);
+                    objBytes++;
+                    inString = false;
+                    escape = false;
+                } else {
+                    if (c == '\\' && !escape) escape = true; else escape = false;
+                }
+            } else {
+                ef.print(c);
+                objBytes++;
+
+                if (c == '"' && !escape) inString = !inString;
+                if (!inString) {
+                    if (c == '{') braceDepth++;
+                    else if (c == '}') braceDepth--;
+                }
+                if (c == '\\' && !escape) escape = true; else escape = false;
+
+                if (braceDepth == 0) {
+                    writingObject = false;
                     ef.flush();
                     syncTotalExcerpts++;
-                    // keep remainder after last}
-                    String rem = partial.substring(last + 1);
-                    partial = rem;
+                }
+
+                if (objBytes > MAX_OBJ_BYTES) {
+                    ef.close();
+                    String diag = String("{\"error\":\"object too large\",\"bytes\":") + String(objBytes) + String("}");
+                    Serial.println(String("[WIFI_HOTSPOT] object too large bytes=") + String(objBytes));
+                    webServer->send(500, "application/json", diag);
+                    return;
                 }
             }
-            // guard memory
-            if (partial.length() > 64 * 1024) {
-                // partial too big -> abort
-                ef.close();
-                webServer->send(500, "application/json", "{\"error\":\"object too large\"}");
-                return;
-            }
+            if ((i & 0x3FF) == 0) yield();
         }
         yield();
     }
 
     ef.close();
 
-    // Respond with cumulative count
+    Serial.println(String("[WIFI_HOTSPOT] /api/sync/batch appended count=") + String(syncTotalExcerpts) + String(" curSize=") + String(curSz));
     String resp = String("{\"status\":\"ok\",\"totalExcerpts\":") + String(syncTotalExcerpts) + String("}");
     webServer->send(200, "application/json", resp);
 }
@@ -3546,11 +3633,15 @@ void WiFiHotspotManager::handleSyncEnd() {
     }
 
     // Close the excerpts JSON array by appending ']'
-    File ef = SDW::SD.open("/xmnote/excerpts.json", FILE_APPEND);
+    File ef = SDW::SD.open("/xmnote/excerpts.json", FILE_WRITE);
     if (!ef) {
-        webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}");
+        String diag = String("{\"error\":\"SD open failed\",\"path\":\"/xmnote/excerpts.json\"}");
+        Serial.println("[WIFI_HOTSPOT] failed to open /xmnote/excerpts.json for streaming read");
+        webServer->send(500, "application/json", diag);
         return;
     }
+    size_t curSz = ef.size();
+    ef.seek(curSz);
     ef.print("]");
     ef.flush();
     ef.close();
