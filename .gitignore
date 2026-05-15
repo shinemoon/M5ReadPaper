@@ -16,3 +16,4 @@ webapp/extension/*.zip
 *.*.swp
 token
 data/token.json
+arch/*
