@@ -119,6 +119,72 @@ static void displayTaskFunction(void *pvParameters)
                     // 使用封装的 push 操作，传入 trans/invert/effect 和矩形区域参数
                     auto perform_push = [](M5Canvas *canvas, bool trans, bool invert, int8_t effect, int rect_x, int rect_y, int rect_w, int rect_h)
                     {
+                        if (effect == display_type::TEXT_PRE || effect == display_type::TEXT_NEXT)
+                        {
+                            const auto wipe_dir = (effect == display_type::TEXT_PRE)
+                                ? lgfx::v1::LGFXBase::epd_wipe_direction_t::epd_wipe_left_to_right
+                                : lgfx::v1::LGFXBase::epd_wipe_direction_t::epd_wipe_right_to_left;
+
+                            // NOEFFECT branch behavior: rect push via temp canvas, full-screen push direct.
+                            if (rect_w > 0 && rect_h > 0 && (rect_x != 0 || rect_y != 0 || rect_w != PAPER_S3_WIDTH || rect_h != PAPER_S3_HEIGHT))
+                            {
+                                void *src_buf = canvas->getBuffer();
+                                size_t buf_len = canvas->bufferLength();
+                                if (!src_buf || buf_len == 0)
+                                {
+                                    return;
+                                }
+
+                                size_t row_bytes = buf_len / (size_t)PAPER_S3_HEIGHT;
+                                size_t bytes_per_pixel = row_bytes / (size_t)PAPER_S3_WIDTH;
+
+                                M5Canvas *temp = new M5Canvas(&M5.Display);
+                                if (temp)
+                                {
+                                    temp->setPsram(true);
+                                    temp->setColorDepth(canvas->getColorDepth());
+                                    temp->createSprite(rect_w, rect_h);
+
+                                    void *dst_buf = temp->getBuffer();
+                                    if (dst_buf)
+                                    {
+                                        uint8_t *src_base = (uint8_t *)src_buf;
+                                        uint8_t *dst_base = (uint8_t *)dst_buf;
+                                        size_t rect_row_bytes = (size_t)rect_w * bytes_per_pixel;
+                                        size_t src_col_offset = (size_t)rect_x * bytes_per_pixel;
+
+                                        for (int row = 0; row < rect_h; row++)
+                                        {
+                                            uint8_t *src_row = src_base + (rect_y + row) * row_bytes + src_col_offset;
+                                            uint8_t *dst_row = dst_base + row * rect_row_bytes;
+                                            memcpy(dst_row, src_row, rect_row_bytes);
+                                        }
+
+                                        if (trans)
+                                        {
+                                            temp->pushSprite(rect_x, rect_y, invert ? TFT_BLACK : TFT_WHITE, wipe_dir);
+                                        }
+                                        else
+                                        {
+                                            temp->pushSprite(rect_x, rect_y, wipe_dir);
+                                        }
+                                    }
+                                    delete temp;
+                                }
+                            }
+                            else
+                            {
+                                if (trans)
+                                {
+                                    canvas->pushSprite(0, 0, invert ? TFT_BLACK : TFT_WHITE, wipe_dir);
+                                }
+                                else
+                                {
+                                    canvas->pushSprite(0, 0, wipe_dir);
+                                }
+                            }
+                        }
+                        else
                         if (effect == display_type::VSHUTTER)
                         {
                             // 分成从上下两端向中间交错推送
@@ -152,7 +218,7 @@ static void displayTaskFunction(void *pvParameters)
                                     // 从底部: 31, 30, 29...
                                     s = slices - 1 - (i / 2);
                                 }
-                                
+
                                 if (s < 0 || s >= slices)
                                     continue;
 
@@ -176,7 +242,7 @@ static void displayTaskFunction(void *pvParameters)
                                     uint8_t *dst_base = (uint8_t *)dst_buf;
                                     size_t slice_row_bytes = (size_t)w * bytes_per_pixel;
                                     size_t src_col_offset = (size_t)rect_x * bytes_per_pixel;
-                                    
+
                                     for (int row = 0; row < h; row++)
                                     {
                                         uint8_t *src_row = src_base + (rect_y + start_row + row) * row_bytes + src_col_offset;
@@ -193,7 +259,7 @@ static void displayTaskFunction(void *pvParameters)
                                 {
                                     slice->pushSprite(rect_x, rect_y + start_row);
                                 }
-//                                M5.Display.waitDisplay();
+                                //                                M5.Display.waitDisplay();
                                 delete slice;
                             }
                         }
@@ -239,7 +305,7 @@ static void displayTaskFunction(void *pvParameters)
                                     uint8_t *dst_base = (uint8_t *)dst_buf;
                                     size_t slice_row_bytes = (size_t)w * bytes_per_pixel;
                                     size_t src_col_offset = (size_t)rect_x * bytes_per_pixel;
-                                    
+
                                     for (int row = 0; row < h; row++)
                                     {
                                         uint8_t *src_row = src_base + (rect_y + start_row + row) * row_bytes + src_col_offset;
@@ -292,7 +358,7 @@ static void displayTaskFunction(void *pvParameters)
                                     // 从中间向下: 16, 17, 18...
                                     s = (slices / 2) + (i / 2);
                                 }
-                                
+
                                 if (s < 0 || s >= slices)
                                     continue;
 
@@ -316,7 +382,7 @@ static void displayTaskFunction(void *pvParameters)
                                     uint8_t *dst_base = (uint8_t *)dst_buf;
                                     size_t slice_row_bytes = (size_t)w * bytes_per_pixel;
                                     size_t src_col_offset = (size_t)rect_x * bytes_per_pixel;
-                                    
+
                                     for (int row = 0; row < h; row++)
                                     {
                                         uint8_t *src_row = src_base + (rect_y + start_row + row) * row_bytes + src_col_offset;
@@ -333,7 +399,7 @@ static void displayTaskFunction(void *pvParameters)
                                 {
                                     slice->pushSprite(rect_x, rect_y + start_row);
                                 }
-//                                M5.Display.waitDisplay();
+                                //                                M5.Display.waitDisplay();
                                 delete slice;
                             }
                         }
@@ -371,7 +437,7 @@ static void displayTaskFunction(void *pvParameters)
                                     // 从右侧: 16, 15, 14...
                                     s = slices - 1 - (i / 2);
                                 }
-                                
+
                                 if (s < 0 || s >= slices)
                                     continue;
 
@@ -412,7 +478,7 @@ static void displayTaskFunction(void *pvParameters)
                                 {
                                     slice->pushSprite(rect_x + start_col, rect_y);
                                 }
-//                                M5.Display.waitDisplay();
+                                //                                M5.Display.waitDisplay();
                                 delete slice;
                             }
                         }
@@ -520,7 +586,7 @@ static void displayTaskFunction(void *pvParameters)
                                     uint8_t *dst_base = (uint8_t *)dst_buf;
                                     size_t slice_row_bytes = (size_t)w * bytes_per_pixel;
                                     size_t src_col_offset = (size_t)rect_x * bytes_per_pixel;
-                                    
+
                                     for (int row = 0; row < h; row++)
                                     {
                                         uint8_t *src_row = src_base + (rect_y + start_row + row) * row_bytes + src_col_offset;
@@ -616,10 +682,11 @@ static void displayTaskFunction(void *pvParameters)
                                 {
                                     block->pushSprite(rect_x + start_x, rect_y + start_y);
                                 }
-//                                M5.Display.waitDisplay();
+                                //                                M5.Display.waitDisplay();
                                 delete block;
                             }
-                        }                        else if (effect == display_type::HSHUTTER_REV)
+                        }
+                        else if (effect == display_type::HSHUTTER_REV)
                         {
                             // 从中间向左右两端交错推送
                             const int slices = 17;
@@ -652,7 +719,7 @@ static void displayTaskFunction(void *pvParameters)
                                     // 从中间向右: 9, 10, 11...
                                     s = (slices / 2) + 1 + (i / 2);
                                 }
-                                
+
                                 if (s < 0 || s >= slices)
                                     continue;
 
@@ -693,7 +760,7 @@ static void displayTaskFunction(void *pvParameters)
                                 {
                                     slice->pushSprite(rect_x + start_col, rect_y);
                                 }
-//                                M5.Display.waitDisplay();
+                                //                                M5.Display.waitDisplay();
                                 delete slice;
                             }
                         }
@@ -758,7 +825,8 @@ static void displayTaskFunction(void *pvParameters)
                                 }
                                 delete slice;
                             }
-                        }                        else
+                        }
+                        else
                         {
                             // NOEFFECT: 直接推送整个canvas或指定矩形区域
                             if (rect_w > 0 && rect_h > 0 && (rect_x != 0 || rect_y != 0 || rect_w != PAPER_S3_WIDTH || rect_h != PAPER_S3_HEIGHT))
@@ -828,7 +896,7 @@ static void displayTaskFunction(void *pvParameters)
                     // 确定实际宽高：如果width和height都为0，使用默认值
                     int actual_width = (msg.width == 0 && msg.height == 0) ? PAPER_S3_WIDTH : msg.width;
                     int actual_height = (msg.width == 0 && msg.height == 0) ? PAPER_S3_HEIGHT : msg.height;
-                    
+
                     perform_push(use_canvas, msg.flags[0], msg.flags[1], msg.effect, msg.x, msg.y, actual_width, actual_height);
 
                     // 如果使用了quality模式，推送后恢复fastest模式
@@ -864,7 +932,7 @@ static void displayTaskFunction(void *pvParameters)
                 }
             }
             // 如果未来有更多消息类型，在这里扩展
-            
+
             // 恢复标记：显示推送完成
             inDisplayPush = false;
         }
