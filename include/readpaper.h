@@ -157,6 +157,10 @@ struct GlobalConfig {
 // 是否在初始化后进入调试界面（true -> 进入 STATE_DEBUG 而不是默认 IDLE）
 extern bool enterDebug;
 
+// 屏幕中段残影 workaround 总开关（默认 false）。
+// false: 跳过快刷模式下的 MIDDLE 阶段 workaround。
+extern bool SCREENWORKAROUND;
+
 // 调试宏：用于性能诊断
 
 // 字形预读窗口控制

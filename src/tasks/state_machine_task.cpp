@@ -15,6 +15,7 @@
 
 // 定义全局变量
 bool enterDebug = false;
+bool SCREENWORKAROUND = false;
 
 extern GlobalConfig g_config;
 

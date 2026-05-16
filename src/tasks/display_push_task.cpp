@@ -67,7 +67,7 @@ static void displayTaskFunction(void *pvParameters)
                     uint32_t qualityThreshold = get_quality_refresh_threshold();
                     uint32_t fullThresholdNormal = get_full_refresh_threshold_normal();
 
-                    bool needMiddleStep = g_config.fastrefresh && (middleThreshold > 0) && (s_pushCount % middleThreshold == 0) && (s_pushCount >= middleThreshold);
+                    bool needMiddleStep = SCREENWORKAROUND && g_config.fastrefresh && (middleThreshold > 0) && (s_pushCount % middleThreshold == 0) && (s_pushCount >= middleThreshold);
                     bool useQualityMode = (s_pushCount >= qualityThreshold && g_config.fastrefresh) || msg.flags[2] || (s_pushCount >= fullThresholdNormal && !g_config.fastrefresh);
                     s_pushCount++;
 
