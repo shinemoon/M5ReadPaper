@@ -8,6 +8,7 @@
 #include "ui/ui_canvas_image.h"
 #include "test/per_file_debug.h"
 #include <cstring>
+#include <SPIFFS.h>
 // for screenshot
 #include "ui/screenshot.h"
 

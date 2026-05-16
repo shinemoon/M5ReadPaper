@@ -614,8 +614,10 @@ static constexpr const uint32_t lut_fastest[] = {
     }
 
     bool force_white_band = false;
-    // Keep a thin vertical band around screen center as dirty.
-    if (_cfg.panel_width && _cfg.panel_height && !is_specialeffect)
+    const bool allow_force_band_mode = (_epd_mode == epd_mode_t::epd_text)
+                                    || (_epd_mode == epd_mode_t::epd_fastest);
+    // Keep a thin vertical band around screen center as dirty only for text/fastest.
+    if (_cfg.panel_width && _cfg.panel_height && !is_specialeffect && allow_force_band_mode)
     {
       static constexpr int16_t kPermanentDirtyBandHeight = 20;
       const int16_t panel_w = _cfg.panel_width;

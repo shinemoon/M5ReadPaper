@@ -233,15 +233,15 @@ void initDisplay()
     {
         // 优化：在任何显示操作之前，立即设置EPD为最快速模式
         // 这可以减少复位后的初始闪烁
-        M5.Display.setEpdMode(epd_mode_t::epd_fastest); // 使用最快速模式
-        M5.Display.setColorDepth(TEXT_COLORDEPTH);
+//        M5.Display.setEpdMode(epd_mode_t::epd_fastest); // 使用最快速模式
+//        M5.Display.setColorDepth(TEXT_COLORDEPTH);
     }
 #if DBG_UI_DISPLAY
     Serial.printf("[DISPLAY] EPD最快速模式设置: %lu ms\n", millis() - displayStartTime);
 #endif
 
     // 使用封装的 set_rotation，确保在设置前后正确管理 power-save 状态
-    display_set_rotation(g_config.rotation);
+    //display_set_rotation(g_config.rotation);
 #if DBG_UI_DISPLAY
     Serial.printf("[DISPLAY] 屏幕旋转设置: %lu ms\n", millis() - displayStartTime);
 #endif
