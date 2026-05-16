@@ -35,8 +35,6 @@ static void displayTaskFunction(void *pvParameters)
             // 标记正在进行显示推送
             inDisplayPush = true;
 
-            bool isIndexing = (g_current_book && g_current_book->isIndexingInProgress());
-
             // Wait the slot
             M5.Display.waitDisplay();
             // 所有入队消息都视为刷新请求，使用 flags 决定具体行为
@@ -116,15 +114,32 @@ static void displayTaskFunction(void *pvParameters)
 #if DBG_BIN_FONT_PRINT
                     Serial.printf("[DISPLAY_PUSH_TASK] pushSprite start ts=%lu\n", t0);
 #endif
-                    // 使用封装的 push 操作，传入 trans/invert/effect 和矩形区域参数
-                    auto perform_push = [](M5Canvas *canvas, bool trans, bool invert, int8_t effect, int rect_x, int rect_y, int rect_w, int rect_h)
+                    // 使用封装的 push 操作，传入 trans/invert/push_effect 和矩形区域参数
+                    auto perform_push = [&](M5Canvas *canvas, bool trans, bool invert, int8_t push_effect, int rect_x, int rect_y, int rect_w, int rect_h)
                     {
-                        if (effect == display_type::TEXT_PRE || effect == display_type::TEXT_NEXT)
+                        const auto special_wipe = lgfx::v1::LGFXBase::epd_wipe_direction_t::epd_wipe_specialeffect;
+                        const auto text_pre_wipe = lgfx::v1::LGFXBase::epd_wipe_direction_t::epd_wipe_left_to_right;
+                        const auto text_next_wipe = lgfx::v1::LGFXBase::epd_wipe_direction_t::epd_wipe_right_to_left;
+                        const bool use_special_wipe = (push_effect != NOEFFECT)
+                                                   && (push_effect != display_type::TEXT_PRE)
+                                                   && (push_effect != display_type::TEXT_NEXT);
+                        auto push_plain = [&](M5Canvas *dst, int px, int py)
                         {
-                            const auto wipe_dir = (effect == display_type::TEXT_PRE)
-                                ? lgfx::v1::LGFXBase::epd_wipe_direction_t::epd_wipe_left_to_right
-                                : lgfx::v1::LGFXBase::epd_wipe_direction_t::epd_wipe_right_to_left;
+                            if (use_special_wipe) dst->pushSprite(px, py, special_wipe);
+                            else if (push_effect == display_type::TEXT_PRE) dst->pushSprite(px, py, text_pre_wipe);
+                            else if (push_effect == display_type::TEXT_NEXT) dst->pushSprite(px, py, text_next_wipe);
+                            else dst->pushSprite(px, py);
+                        };
+                        auto push_trans = [&](M5Canvas *dst, int px, int py, bool invert_color)
+                        {
+                            if (use_special_wipe) dst->pushSprite(px, py, invert_color ? TFT_BLACK : TFT_WHITE, special_wipe);
+                            else if (push_effect == display_type::TEXT_PRE) dst->pushSprite(px, py, invert_color ? TFT_BLACK : TFT_WHITE, text_pre_wipe);
+                            else if (push_effect == display_type::TEXT_NEXT) dst->pushSprite(px, py, invert_color ? TFT_BLACK : TFT_WHITE, text_next_wipe);
+                            else dst->pushSprite(px, py, invert_color ? TFT_BLACK : TFT_WHITE);
+                        };
 
+                        if (push_effect == display_type::TEXT_PRE || push_effect == display_type::TEXT_NEXT)
+                        {
                             // NOEFFECT branch behavior: rect push via temp canvas, full-screen push direct.
                             if (rect_w > 0 && rect_h > 0 && (rect_x != 0 || rect_y != 0 || rect_w != PAPER_S3_WIDTH || rect_h != PAPER_S3_HEIGHT))
                             {
@@ -160,14 +175,14 @@ static void displayTaskFunction(void *pvParameters)
                                             memcpy(dst_row, src_row, rect_row_bytes);
                                         }
 
-                                        if (trans)
-                                        {
-                                            temp->pushSprite(rect_x, rect_y, invert ? TFT_BLACK : TFT_WHITE, wipe_dir);
-                                        }
-                                        else
-                                        {
-                                            temp->pushSprite(rect_x, rect_y, wipe_dir);
-                                        }
+                                            if (trans)
+                                            {
+                                                push_trans(temp, rect_x, rect_y, invert);
+                                            }
+                                            else
+                                            {
+                                                push_plain(temp, rect_x, rect_y);
+                                            }
                                     }
                                     delete temp;
                                 }
@@ -176,16 +191,16 @@ static void displayTaskFunction(void *pvParameters)
                             {
                                 if (trans)
                                 {
-                                    canvas->pushSprite(0, 0, invert ? TFT_BLACK : TFT_WHITE, wipe_dir);
+                                    push_trans(canvas, 0, 0, invert);
                                 }
                                 else
                                 {
-                                    canvas->pushSprite(0, 0, wipe_dir);
+                                    push_plain(canvas, 0, 0);
                                 }
                             }
                         }
                         else
-                        if (effect == display_type::VSHUTTER)
+                        if (push_effect == display_type::VSHUTTER)
                         {
                             // 分成从上下两端向中间交错推送
                             const int slices = 32;
@@ -253,17 +268,17 @@ static void displayTaskFunction(void *pvParameters)
 
                                 if (trans)
                                 {
-                                    slice->pushSprite(rect_x, rect_y + start_row, invert ? TFT_BLACK : TFT_WHITE);
+                                    push_trans(slice, rect_x, rect_y + start_row, invert);
                                 }
                                 else
                                 {
-                                    slice->pushSprite(rect_x, rect_y + start_row);
+                                    push_plain(slice, rect_x, rect_y + start_row);
                                 }
                                 //                                M5.Display.waitDisplay();
                                 delete slice;
                             }
                         }
-                        else if (effect == display_type::VSHUTTER_NORMAL)
+                        else if (push_effect == display_type::VSHUTTER_NORMAL)
                         {
                             // 从顶部向底部顺序推送
                             const int slices = 32;
@@ -316,16 +331,16 @@ static void displayTaskFunction(void *pvParameters)
 
                                 if (trans)
                                 {
-                                    slice->pushSprite(rect_x, rect_y + start_row, invert ? TFT_BLACK : TFT_WHITE);
+                                    push_trans(slice, rect_x, rect_y + start_row, invert);
                                 }
                                 else
                                 {
-                                    slice->pushSprite(rect_x, rect_y + start_row);
+                                    push_plain(slice, rect_x, rect_y + start_row);
                                 }
                                 delete slice;
                             }
                         }
-                        else if (effect == display_type::VSHUTTER_REV)
+                        else if (push_effect == display_type::VSHUTTER_REV)
                         {
                             // 从中间向上下两端交错推送
                             const int slices = 32;
@@ -393,17 +408,17 @@ static void displayTaskFunction(void *pvParameters)
 
                                 if (trans)
                                 {
-                                    slice->pushSprite(rect_x, rect_y + start_row, invert ? TFT_BLACK : TFT_WHITE);
+                                    push_trans(slice, rect_x, rect_y + start_row, invert);
                                 }
                                 else
                                 {
-                                    slice->pushSprite(rect_x, rect_y + start_row);
+                                    push_plain(slice, rect_x, rect_y + start_row);
                                 }
                                 //                                M5.Display.waitDisplay();
                                 delete slice;
                             }
                         }
-                        else if (effect == display_type::HSHUTTER)
+                        else if (push_effect == display_type::HSHUTTER)
                         {
                             // 分成若干片从左右两端向中间交错推送
                             const int slices = 17;
@@ -472,17 +487,17 @@ static void displayTaskFunction(void *pvParameters)
 
                                 if (trans)
                                 {
-                                    slice->pushSprite(rect_x + start_col, rect_y, invert ? TFT_BLACK : TFT_WHITE);
+                                    push_trans(slice, rect_x + start_col, rect_y, invert);
                                 }
                                 else
                                 {
-                                    slice->pushSprite(rect_x + start_col, rect_y);
+                                    push_plain(slice, rect_x + start_col, rect_y);
                                 }
                                 //                                M5.Display.waitDisplay();
                                 delete slice;
                             }
                         }
-                        else if (effect == display_type::HSHUTTER_NORMAL)
+                        else if (push_effect == display_type::HSHUTTER_NORMAL)
                         {
                             // 从左到右顺序推送
                             const int slices = 17;
@@ -535,16 +550,16 @@ static void displayTaskFunction(void *pvParameters)
 
                                 if (trans)
                                 {
-                                    slice->pushSprite(rect_x + start_col, rect_y, invert ? TFT_BLACK : TFT_WHITE);
+                                    push_trans(slice, rect_x + start_col, rect_y, invert);
                                 }
                                 else
                                 {
-                                    slice->pushSprite(rect_x + start_col, rect_y);
+                                    push_plain(slice, rect_x + start_col, rect_y);
                                 }
                                 delete slice;
                             }
                         }
-                        else if (effect == display_type::VSHUTTER_NORMAL_REV)
+                        else if (push_effect == display_type::VSHUTTER_NORMAL_REV)
                         {
                             // 从底部向顶部顺序推送
                             const int slices = 32;
@@ -597,16 +612,16 @@ static void displayTaskFunction(void *pvParameters)
 
                                 if (trans)
                                 {
-                                    slice->pushSprite(rect_x, rect_y + start_row, invert ? TFT_BLACK : TFT_WHITE);
+                                    push_trans(slice, rect_x, rect_y + start_row, invert);
                                 }
                                 else
                                 {
-                                    slice->pushSprite(rect_x, rect_y + start_row);
+                                    push_plain(slice, rect_x, rect_y + start_row);
                                 }
                                 delete slice;
                             }
                         }
-                        else if (effect == display_type::RECT)
+                        else if (push_effect == display_type::RECT)
                         {
                             // 将指定区域划分成4x6的24个方块区域，乱序推送
                             const int cols = 4;
@@ -676,17 +691,17 @@ static void displayTaskFunction(void *pvParameters)
 
                                 if (trans)
                                 {
-                                    block->pushSprite(rect_x + start_x, rect_y + start_y, invert ? TFT_BLACK : TFT_WHITE);
+                                    push_trans(block, rect_x + start_x, rect_y + start_y, invert);
                                 }
                                 else
                                 {
-                                    block->pushSprite(rect_x + start_x, rect_y + start_y);
+                                    push_plain(block, rect_x + start_x, rect_y + start_y);
                                 }
                                 //                                M5.Display.waitDisplay();
                                 delete block;
                             }
                         }
-                        else if (effect == display_type::HSHUTTER_REV)
+                        else if (push_effect == display_type::HSHUTTER_REV)
                         {
                             // 从中间向左右两端交错推送
                             const int slices = 17;
@@ -754,17 +769,17 @@ static void displayTaskFunction(void *pvParameters)
 
                                 if (trans)
                                 {
-                                    slice->pushSprite(rect_x + start_col, rect_y, invert ? TFT_BLACK : TFT_WHITE);
+                                    push_trans(slice, rect_x + start_col, rect_y, invert);
                                 }
                                 else
                                 {
-                                    slice->pushSprite(rect_x + start_col, rect_y);
+                                    push_plain(slice, rect_x + start_col, rect_y);
                                 }
                                 //                                M5.Display.waitDisplay();
                                 delete slice;
                             }
                         }
-                        else if (effect == display_type::HSHUTTER_NORMAL_REV)
+                        else if (push_effect == display_type::HSHUTTER_NORMAL_REV)
                         {
                             // 从右到左顺序推送
                             const int slices = 17;
@@ -817,11 +832,11 @@ static void displayTaskFunction(void *pvParameters)
 
                                 if (trans)
                                 {
-                                    slice->pushSprite(rect_x + start_col, rect_y, invert ? TFT_BLACK : TFT_WHITE);
+                                    push_trans(slice, rect_x + start_col, rect_y, invert);
                                 }
                                 else
                                 {
-                                    slice->pushSprite(rect_x + start_col, rect_y);
+                                    push_plain(slice, rect_x + start_col, rect_y);
                                 }
                                 delete slice;
                             }
@@ -868,11 +883,11 @@ static void displayTaskFunction(void *pvParameters)
                                         // 推送临时canvas
                                         if (trans)
                                         {
-                                            temp->pushSprite(rect_x, rect_y, invert ? TFT_BLACK : TFT_WHITE);
+                                            push_trans(temp, rect_x, rect_y, invert);
                                         }
                                         else
                                         {
-                                            temp->pushSprite(rect_x, rect_y);
+                                            push_plain(temp, rect_x, rect_y);
                                         }
                                     }
                                     delete temp;
@@ -883,11 +898,11 @@ static void displayTaskFunction(void *pvParameters)
                                 // 推送整个canvas
                                 if (trans)
                                 {
-                                    canvas->pushSprite(0, 0, invert ? TFT_BLACK : TFT_WHITE);
+                                    push_trans(canvas, 0, 0, invert);
                                 }
                                 else
                                 {
-                                    canvas->pushSprite(0, 0);
+                                    push_plain(canvas, 0, 0);
                                 }
                             }
                         }

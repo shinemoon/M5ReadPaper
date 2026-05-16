@@ -1,122 +1,82 @@
-{
-	"version": "2.0.0",
-	"tasks": [
-		{
-			"label": "PlatformIO: Build",
-			"type": "shell",
-			"command": "python",
-			"args": [
-				"-m",
-				"platformio",
-				"run"
-			],
-			"problemMatcher": [
-				"$platformio"
-			],
-			"group": "build"
-		},
-		{
-			"label": "PlatformIO: Build",
-			"type": "shell",
-			"command": "python",
-			"args": [
-				"-m",
-				"platformio",
-				"run"
-			],
-			"problemMatcher": [
-				"$platformio"
-			],
-			"group": "build"
-		},
-		{
-			"label": "PlatformIO: Build",
-			"type": "shell",
-			"command": "python",
-			"args": [
-				"-m",
-				"platformio",
-				"run"
-			],
-			"problemMatcher": [
-				"$platformio"
-			],
-			"group": "build"
-		},
-		{
-			"label": "PlatformIO: Build",
-			"type": "shell",
-			"command": "python",
-			"args": [
-				"-m",
-				"platformio",
-				"run"
-			],
-			"problemMatcher": [
-				"$platformio"
-			],
-			"group": "build"
-		},
-		{
-			"label": "Build 1bit Cache",
-			"type": "shell",
-			"command": "python",
-			"args": [
-				"-m",
-				"platformio",
-				"run"
-			],
-			"group": "build"
-		},
-		{
-			"label": "Build Debug Font",
-			"type": "shell",
-			"command": "python",
-			"args": [
-				"-m",
-				"platformio",
-				"run"
-			],
-			"group": "build"
-		},
-		{
-			"label": "Build Unicode Fix",
-			"type": "shell",
-			"command": "python",
-			"args": [
-				"-m",
-				"platformio",
-				"run"
-			],
-			"group": "build"
-		},
-		{
-			"label": "Build and Upload Debug",
-			"type": "shell",
-			"command": "python",
-			"args": [
-				"-m",
-				"platformio",
-				"run",
-				"--target",
-				"upload",
-				"--upload-port",
-				"COM4"
-			],
-			"isBackground": false,
-			"problemMatcher": [
-				"$platformio"
-			],
-			"group": "build"
-		},
-		{
-			"label": "Build",
-			"type": "shell",
-			"command": "C:\\Users\\Claud\\.platformio\\penv\\Scripts\\platformio.exe run",
-			"problemMatcher": [
-				"$gcc"
-			],
-			"group": "build"
-		}
-	]
+﻿{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "PlatformIO: Build",
+            "type": "shell",
+            "command": "C:\\Users\\Claud\\.platformio\\penv\\Scripts\\platformio.exe",
+            "args": [
+                "run"
+            ],
+            "problemMatcher": [
+                "$platformio"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "Build 1bit Cache",
+            "type": "shell",
+            "command": "C:\\Users\\Claud\\.platformio\\penv\\Scripts\\platformio.exe",
+            "args": [
+                "run"
+            ],
+            "problemMatcher": [
+                "$platformio"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "Build Debug Font",
+            "type": "shell",
+            "command": "C:\\Users\\Claud\\.platformio\\penv\\Scripts\\platformio.exe",
+            "args": [
+                "run"
+            ],
+            "problemMatcher": [
+                "$platformio"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "Build Unicode Fix",
+            "type": "shell",
+            "command": "C:\\Users\\Claud\\.platformio\\penv\\Scripts\\platformio.exe",
+            "args": [
+                "run"
+            ],
+            "problemMatcher": [
+                "$platformio"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "Build and Upload Debug",
+            "type": "shell",
+            "command": "C:\\Users\\Claud\\.platformio\\penv\\Scripts\\platformio.exe",
+            "args": [
+                "run",
+                "--target",
+                "upload",
+                "--upload-port",
+                "COM4"
+            ],
+            "isBackground": false,
+            "problemMatcher": [
+                "$platformio"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "Build",
+            "type": "shell",
+            "command": "C:\\Users\\Claud\\.platformio\\penv\\Scripts\\platformio.exe",
+            "args": [
+                "run"
+            ],
+            "problemMatcher": [
+                "$platformio"
+            ],
+            "group": "build"
+        }
+    ]
 }

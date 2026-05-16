@@ -61,6 +61,81 @@ extern GlobalConfig g_config;
 #include "text/tags_handle.h"
 #include "device/safe_fs.h"
 #include "ui/index_display.h"
+#include "ui/toc_display.h"
+
+static bool update_target_page_by_idx_chapter(BookHandle *book, bool forward)
+{
+    if (!book || !book->hasToc())
+    {
+        return false;
+    }
+
+    const size_t total_pages = book->getTotalPages();
+    if (total_pages == 0)
+    {
+        return false;
+    }
+
+    size_t base_page = (target_page > 0) ? (size_t)(target_page - 1) : 0;
+    if (base_page >= total_pages)
+    {
+        base_page = total_pages - 1;
+    }
+
+    size_t base_pos = book->getPageStart(base_page);
+    if (base_pos == (size_t)-1)
+    {
+        base_pos = book->position();
+    }
+
+    size_t current_toc_index = 0;
+    int dummy_page = 0;
+    int dummy_row = 0;
+    bool dummy_on_current = false;
+    if (!find_toc_entry_for_position(book->filePath(), base_pos, current_toc_index, dummy_page, dummy_row, dummy_on_current))
+    {
+        return false;
+    }
+
+    size_t target_toc_index = current_toc_index;
+    if (forward)
+    {
+        target_toc_index = current_toc_index + 1;
+    }
+    else
+    {
+        if (current_toc_index == 0)
+        {
+            target_page = 1;
+            return true;
+        }
+        target_toc_index = current_toc_index - 1;
+    }
+
+    TocEntry target_entry;
+    if (!fetch_toc_entry(book->filePath(), target_toc_index, target_entry))
+    {
+        if (forward)
+        {
+            target_page = (int16_t)total_pages;
+            return true;
+        }
+        return false;
+    }
+
+    size_t page_index = 0;
+    if (!book->findPageIndexForPosition(target_entry.position, page_index))
+    {
+        return false;
+    }
+
+    if (page_index >= total_pages)
+    {
+        page_index = total_pages - 1;
+    }
+    target_page = (int16_t)(page_index + 1);
+    return true;
+}
 
 void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
 {
@@ -335,16 +410,19 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
 
                 if (g_current_book != nullptr)
                 {
-                    // int current_page = g_current_book->getCurrentPageIndex() + 1;
                     int total_pages = g_current_book->getTotalPages();
-                    // 做个微调，如果页数太多了的话，再缩小,最多10页
-                    int jump_pages = (total_pages < 100) ? 1 : (total_pages * 0.01); // 1% of total pages
-                    if (jump_pages < 1)
-                        jump_pages = 1; // At least jump 1 page
+                    const bool jumped_by_chapter = update_target_page_by_idx_chapter(g_current_book, false);
+                    if (!jumped_by_chapter)
+                    {
+                        // 无 idx 时保留原有百分比跳转
+                        int jump_pages = (total_pages < 100) ? 1 : (total_pages * 0.01); // 1% of total pages
+                        if (jump_pages < 1)
+                            jump_pages = 1; // At least jump 1 page
 
-                    target_page = target_page - jump_pages;
-                    if (target_page < 1)
-                        target_page = 1; // Don't go below page 1
+                        target_page = target_page - jump_pages;
+                        if (target_page < 1)
+                            target_page = 1; // Don't go below page 1
+                    }
                     char name_with_page[128];
                     // Clean orginal
                     g_canvas->fillRect(160, 770, 220, 80, TFT_WHITE); // Clean
@@ -434,15 +512,19 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
 
                 if (g_current_book != nullptr)
                 {
-                    // int current_page = g_current_book->getCurrentPageIndex() + 1;
                     int total_pages = g_current_book->getTotalPages();
-                    int jump_pages = (total_pages < 100) ? 1 : (total_pages * 0.01); // 1% of total pages
-                    if (jump_pages < 1)
-                        jump_pages = 1; // At least jump 1 page
+                    const bool jumped_by_chapter = update_target_page_by_idx_chapter(g_current_book, true);
+                    if (!jumped_by_chapter)
+                    {
+                        // 无 idx 时保留原有百分比跳转
+                        int jump_pages = (total_pages < 100) ? 1 : (total_pages * 0.01); // 1% of total pages
+                        if (jump_pages < 1)
+                            jump_pages = 1; // At least jump 1 page
 
-                    target_page = target_page + jump_pages;
-                    if (target_page >= total_pages)
-                        target_page = total_pages; // Don't go above total page
+                        target_page = target_page + jump_pages;
+                        if (target_page >= total_pages)
+                            target_page = total_pages; // Don't go above total page
+                    }
                     char name_with_page[128];
                     snprintf(name_with_page, sizeof(name_with_page), "%zu/%zu", target_page, total_pages);
                     // 页码

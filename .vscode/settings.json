@@ -73,8 +73,8 @@
         }
     },
 
-    // Set ReaderPaper PowerShell as the default integrated terminal for this workspace
-    "terminal.integrated.defaultProfile.windows": "ReaderPaper PowerShell",
+    // Keep the custom profile available, but use stock PowerShell as default so tasks run directly.
+    "terminal.integrated.defaultProfile.windows": "PowerShell",
 
     "editor.tokenColorCustomizations": {
         "textMateRules": [

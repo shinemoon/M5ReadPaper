@@ -99,6 +99,19 @@ enum display_type {
 #define FONT_SCALE_MAX_PCT 150
 #define FONT_SCALE_DEFAULT_PCT 100
 
+// 正文渲染策略档位（会影响阅读体验与刷新节奏，具体映射见 src/globals.cpp）：
+// 0 FAST:
+//   - 更偏速度，页面边距/换行阻尼更保守，避免复杂补偿计算。
+//   - 刷新阈值更稀疏：middle=16, quality=40, normal_full=40。
+//   - should_prefetch_far_pages=false（更省资源）。
+// 1 BALANCED:
+//   - 速度与观感折中。
+//   - 刷新阈值：middle=10, quality=22, normal_full=28。
+//   - should_prefetch_far_pages=true。
+// 2 QUALITY:
+//   - 优先观感，使用 readpaper.h 中 FIRST/SECOND/FULL 阈值（默认 8/18/24）。
+//   - 使用更强的边距与换行补偿参数。
+// 该档位通过 g_config.font_render_tradeoff_level 持久化，可在配置文件中设置。
 #define FONT_RENDER_TRADEOFF_FAST 0
 #define FONT_RENDER_TRADEOFF_BALANCED 1
 #define FONT_RENDER_TRADEOFF_QUALITY 2
