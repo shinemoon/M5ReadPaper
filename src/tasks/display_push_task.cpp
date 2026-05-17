@@ -33,11 +33,11 @@ static void displayTaskFunction(void *pvParameters)
             // 标记正在进行显示推送
             inDisplayPush = true;
 
+            // Wait the slot
+            M5.Display.waitDisplay();
             // 每次显示操作前唤醒屏幕，推送完成后立即回到省电。
             M5.Display.powerSaveOff();
 
-            // Wait the slot
-            M5.Display.waitDisplay();
             // 所有入队消息都视为刷新请求，使用 flags 决定具体行为
             if (true)
             {
@@ -123,22 +123,28 @@ static void displayTaskFunction(void *pvParameters)
                         const auto special_wipe = lgfx::v1::LGFXBase::epd_wipe_direction_t::epd_wipe_specialeffect;
                         const auto text_pre_wipe = lgfx::v1::LGFXBase::epd_wipe_direction_t::epd_wipe_left_to_right;
                         const auto text_next_wipe = lgfx::v1::LGFXBase::epd_wipe_direction_t::epd_wipe_right_to_left;
-                        const bool use_special_wipe = (push_effect != NOEFFECT)
-                                                   && (push_effect != display_type::TEXT_PRE)
-                                                   && (push_effect != display_type::TEXT_NEXT);
+                        const bool use_special_wipe = (push_effect != NOEFFECT) && (push_effect != display_type::TEXT_PRE) && (push_effect != display_type::TEXT_NEXT);
                         auto push_plain = [&](M5Canvas *dst, int px, int py)
                         {
-                            if (use_special_wipe) dst->pushSprite(px, py, special_wipe);
-                            else if (push_effect == display_type::TEXT_PRE) dst->pushSprite(px, py, text_pre_wipe);
-                            else if (push_effect == display_type::TEXT_NEXT) dst->pushSprite(px, py, text_next_wipe);
-                            else dst->pushSprite(px, py);
+                            if (use_special_wipe)
+                                dst->pushSprite(px, py, special_wipe);
+                            else if (push_effect == display_type::TEXT_PRE)
+                                dst->pushSprite(px, py, text_pre_wipe);
+                            else if (push_effect == display_type::TEXT_NEXT)
+                                dst->pushSprite(px, py, text_next_wipe);
+                            else
+                                dst->pushSprite(px, py);
                         };
                         auto push_trans = [&](M5Canvas *dst, int px, int py, bool invert_color)
                         {
-                            if (use_special_wipe) dst->pushSprite(px, py, invert_color ? TFT_BLACK : TFT_WHITE, special_wipe);
-                            else if (push_effect == display_type::TEXT_PRE) dst->pushSprite(px, py, invert_color ? TFT_BLACK : TFT_WHITE, text_pre_wipe);
-                            else if (push_effect == display_type::TEXT_NEXT) dst->pushSprite(px, py, invert_color ? TFT_BLACK : TFT_WHITE, text_next_wipe);
-                            else dst->pushSprite(px, py, invert_color ? TFT_BLACK : TFT_WHITE);
+                            if (use_special_wipe)
+                                dst->pushSprite(px, py, invert_color ? TFT_BLACK : TFT_WHITE, special_wipe);
+                            else if (push_effect == display_type::TEXT_PRE)
+                                dst->pushSprite(px, py, invert_color ? TFT_BLACK : TFT_WHITE, text_pre_wipe);
+                            else if (push_effect == display_type::TEXT_NEXT)
+                                dst->pushSprite(px, py, invert_color ? TFT_BLACK : TFT_WHITE, text_next_wipe);
+                            else
+                                dst->pushSprite(px, py, invert_color ? TFT_BLACK : TFT_WHITE);
                         };
 
                         if (push_effect == display_type::TEXT_PRE || push_effect == display_type::TEXT_NEXT)
@@ -178,14 +184,14 @@ static void displayTaskFunction(void *pvParameters)
                                             memcpy(dst_row, src_row, rect_row_bytes);
                                         }
 
-                                            if (trans)
-                                            {
-                                                push_trans(temp, rect_x, rect_y, invert);
-                                            }
-                                            else
-                                            {
-                                                push_plain(temp, rect_x, rect_y);
-                                            }
+                                        if (trans)
+                                        {
+                                            push_trans(temp, rect_x, rect_y, invert);
+                                        }
+                                        else
+                                        {
+                                            push_plain(temp, rect_x, rect_y);
+                                        }
                                     }
                                     delete temp;
                                 }
@@ -202,8 +208,7 @@ static void displayTaskFunction(void *pvParameters)
                                 }
                             }
                         }
-                        else
-                        if (push_effect == display_type::VSHUTTER)
+                        else if (push_effect == display_type::VSHUTTER)
                         {
                             // 分成从上下两端向中间交错推送
                             const int slices = 32;
