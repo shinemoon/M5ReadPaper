@@ -75,6 +75,7 @@ Y.A.P.T.R. — Yet Another PaperS3 Text Reader
 - src：主要代码部分,内部子目录就不详述，大多看名字就有数；
 - tools：主要是Python相关的工具目录
 - webapp：浏览器扩展代码 *出于一些考虑，浏览器扩展从V2.0起，单独剥离不再开源，既存老版本依然保持当前Apache 2.0*
+- M5GFX: 为了一些Hack的接口，rewrite了部分M5GFX的文件，目前需要手动覆盖对应的libdeps中M5GFX相应文件(当前对应版本请参考platformio.ini中的库版本号)
 
 ## 关键文档
 
