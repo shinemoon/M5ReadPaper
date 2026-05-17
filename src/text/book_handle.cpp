@@ -194,7 +194,6 @@ void removeIndexFilesForBookForPath(const std::string &book_file_path)
     std::string page_file = std::string("/bookmarks/") + safe + ".page";
     std::string progress_file = std::string("/bookmarks/") + safe + ".progress";
     std::string complete_file = std::string("/bookmarks/") + safe + ".complete";
-    std::string rec_file = std::string("/bookmarks/") + safe + ".rec";
 
     // Only remove the explicit index-related artifacts. Avoid sweeping /bookmarks
     // to prevent accidental deletion of unrelated user files (e.g. .bm or .tags).
@@ -210,13 +209,11 @@ void removeIndexFilesForBookForPath(const std::string &book_file_path)
     try_remove_if_exists(page_file);
     try_remove_if_exists(progress_file);
     try_remove_if_exists(complete_file);
-    try_remove_if_exists(rec_file);
 
     // also remove tmp variants created by SafeFS (if any)
     try_remove_if_exists(SafeFS::tmpPathFor(page_file));
     try_remove_if_exists(SafeFS::tmpPathFor(progress_file));
     try_remove_if_exists(SafeFS::tmpPathFor(complete_file));
-    try_remove_if_exists(SafeFS::tmpPathFor(rec_file));
 
 #if DBG_BOOK_HANDLE
     Serial.printf("[BH] removeIndexFilesForBookForPath: 完成索引文件清理 (sanitized:%s)\n", safe.c_str());
