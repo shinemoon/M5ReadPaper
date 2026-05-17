@@ -654,7 +654,9 @@ static constexpr const uint32_t lut_fastest[] = {
 //    vTaskDelay(1);
     bool res = true;
 
-    const bool wipe = _config_detail.page_wipe_enable
+    // Quality refresh should always run as a single update region.
+    const bool wipe = (_epd_mode != epd_mode_t::epd_quality)
+         && _config_detail.page_wipe_enable
              && !is_specialeffect
              && (wipe_dir != (int_fast8_t)config_detail_t::page_wipe_direction_t::no_wipe)
                    && (upd.w > 2 || upd.h > 1);
