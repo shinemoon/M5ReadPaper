@@ -137,6 +137,88 @@ static bool update_target_page_by_idx_chapter(BookHandle *book, bool forward)
     return true;
 }
 
+static bool get_toc_title_for_target_page(BookHandle *book, int16_t preview_page, std::string &out_title)
+{
+    if (!book || !book->hasToc())
+    {
+        return false;
+    }
+
+    const size_t total_pages = book->getTotalPages();
+    if (total_pages == 0)
+    {
+        return false;
+    }
+
+    size_t page_index = (preview_page > 0) ? (size_t)(preview_page - 1) : 0;
+    if (page_index >= total_pages)
+    {
+        page_index = total_pages - 1;
+    }
+
+    size_t page_start = book->getPageStart(page_index);
+    if (page_start == (size_t)-1)
+    {
+        page_start = book->position();
+    }
+
+    size_t toc_idx = 0;
+    int toc_page = -1;
+    int toc_row = -1;
+    bool on_current = false;
+    if (!find_toc_entry_for_position(book->filePath(), page_start, toc_idx, toc_page, toc_row, on_current))
+    {
+        return false;
+    }
+
+    return get_toc_title_for_index(book->filePath(), toc_idx, out_title);
+}
+
+static void update_menu_page_and_chapter_preview(BookHandle *book, bool update_chapter)
+{
+    if (!book || !g_canvas)
+    {
+        return;
+    }
+
+    const int total_pages = book->getTotalPages();
+    char name_with_page[128];
+
+    g_canvas->fillRect(160, 770, 220, 80, TFT_WHITE);
+    snprintf(name_with_page, sizeof(name_with_page), "%zu", target_page);
+    bin_font_print(name_with_page, 28, 0, 540, -14, 775, true, nullptr, TEXT_ALIGN_CENTER, 300);
+    snprintf(name_with_page, sizeof(name_with_page), "%zu", total_pages);
+    bin_font_print(name_with_page, 28, 0, 540, -14, 815, true, nullptr, TEXT_ALIGN_CENTER, 300);
+    g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
+
+    bin_font_flush_canvas(false, false, false, VSHUTTER, 160, 775, 230, 80);
+
+    if (!update_chapter)
+    {
+        return;
+    }
+
+    // Keep chapter preview in sync with target_page when idx chapter jump is available.
+    // Use a tight region to avoid refreshing outside the chapter title strip.
+    static constexpr int16_t kChapterX = 45;
+    static constexpr int16_t kChapterY = 628;
+    static constexpr int16_t kChapterW = 435;
+    static constexpr int16_t kChapterH = 32;
+
+    g_canvas->fillRect(kChapterX, kChapterY, kChapterW, kChapterH, TFT_WHITE);
+    std::string chapter_title;
+    if (get_toc_title_for_target_page(book, target_page, chapter_title))
+    {
+        bin_font_print(chapter_title.c_str(), 24, 0, kChapterW, kChapterX, kChapterY, false, nullptr, TEXT_ALIGN_CENTER, kChapterW);
+    }
+    else
+    {
+        bin_font_print(" ", 24, 0, kChapterW, kChapterX, kChapterY, false, nullptr, TEXT_ALIGN_CENTER, kChapterW);
+    }
+
+    bin_font_flush_canvas(false, false, false, VSHUTTER, kChapterX, kChapterY, kChapterW, kChapterH);
+}
+
 void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
 {
 #if DBG_STATE_MACHINE_TASK
@@ -313,7 +395,7 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
         if (tx >= tag_left && tx < (tag_left + tag_w) && ty >= tag_top && ty < (tag_top + tag_h))
         {
             // Show tag UI and switch to index display state
-           ui_push_image_to_display_direct("/spiffs/wait.png", 240, 450);
+            ui_push_image_to_display_direct("/spiffs/wait.png", 240, 450);
             M5.Display.waitDisplay();
             currentState_ = STATE_HELP;
             return;
@@ -423,19 +505,8 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                         if (target_page < 1)
                             target_page = 1; // Don't go below page 1
                     }
-                    char name_with_page[128];
-                    // Clean orginal
-                    g_canvas->fillRect(160, 770, 220, 80, TFT_WHITE); // Clean
-
-                    snprintf(name_with_page, sizeof(name_with_page), "%zu", target_page);
-                    // 页码
-                    // bin_font_print(name_with_page, 24, 0, 540, 0, 800, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
-                    bin_font_print(name_with_page, 28, 0, 540, -14, 775, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
-                    snprintf(name_with_page, sizeof(name_with_page), "%zu", total_pages);
-                    bin_font_print(name_with_page, 28, 0, 540, -14, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
-                    g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
-
-                    bin_font_flush_canvas(false, false, false, NOEFFECT, 160, 775, 230, 80); // PapeBWD
+                    (void)total_pages;
+                    update_menu_page_and_chapter_preview(g_current_book, jumped_by_chapter);
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "MBWD 0.1%") == 0)
@@ -525,21 +596,8 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                         if (target_page >= total_pages)
                             target_page = total_pages; // Don't go above total page
                     }
-                    char name_with_page[128];
-                    snprintf(name_with_page, sizeof(name_with_page), "%zu/%zu", target_page, total_pages);
-                    // 页码
-                    // Clean orginal
-                    g_canvas->fillRect(160, 770, 220, 80, TFT_WHITE); // Clean
-
-                    snprintf(name_with_page, sizeof(name_with_page), "%zu", target_page);
-                    // 页码
-                    // bin_font_print(name_with_page, 24, 0, 540, 0, 800, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
-                    bin_font_print(name_with_page, 28, 0, 540, -14, 775, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
-                    snprintf(name_with_page, sizeof(name_with_page), "%zu", total_pages);
-                    bin_font_print(name_with_page, 28, 0, 540, -14, 815, true, nullptr, TEXT_ALIGN_CENTER, 300); // 0.8f * 30 = 24
-                    g_canvas->drawWideLine(PAPER_S3_WIDTH / 2 - 20, 809, PAPER_S3_WIDTH / 2 + 20, 809, 1.8f, TFT_BLACK);
-
-                    bin_font_flush_canvas(false, false, false, NOEFFECT, 160, 775, 230, 80); // FWD
+                    (void)total_pages;
+                    update_menu_page_and_chapter_preview(g_current_book, jumped_by_chapter);
                 }
             }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "MFWD 0.1%") == 0)
