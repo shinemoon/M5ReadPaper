@@ -165,6 +165,7 @@ void ui_push_image_to_display_direct(const char *img_path, int16_t x, int16_t y,
 #if DBG_UI_IMAGE
         Serial.printf("[UI_IMAGE_DIRECT] 路径前缀不支持: %s\n", img_path);
 #endif
+        M5.Display.powerSaveOn();
         return;
     }
 
@@ -173,6 +174,7 @@ void ui_push_image_to_display_direct(const char *img_path, int16_t x, int16_t y,
 #if DBG_UI_IMAGE
         Serial.printf("[UI_IMAGE_DIRECT] 打开图片失败: %s\n", img_path);
 #endif
+        M5.Display.powerSaveOn();
         return;
     }
 
@@ -180,6 +182,7 @@ void ui_push_image_to_display_direct(const char *img_path, int16_t x, int16_t y,
     if (len == 0)
     {
         imgFile.close();
+        M5.Display.powerSaveOn();
         return;
     }
 
@@ -194,6 +197,7 @@ void ui_push_image_to_display_direct(const char *img_path, int16_t x, int16_t y,
         Serial.printf("[UI_IMAGE_DIRECT] 图片位置超出屏幕: (%d,%d)\n", x, y);
 #endif
         imgFile.close();
+        M5.Display.powerSaveOn();
         return;
     }
 
@@ -224,6 +228,7 @@ void ui_push_image_to_display_direct(const char *img_path, int16_t x, int16_t y,
 #endif
         imgFile.close();
         ui_try_display_fallback(img_path, x, y);
+        M5.Display.powerSaveOn();
         return;
     }
 
@@ -232,5 +237,5 @@ void ui_push_image_to_display_direct(const char *img_path, int16_t x, int16_t y,
 #if DBG_UI_IMAGE
     Serial.printf("[UI_IMAGE_DIRECT] 完成直接显示图片: %s\n", img_path);
 #endif
-    M5.Display.powerSaveOff();
+    M5.Display.powerSaveOn();
 }

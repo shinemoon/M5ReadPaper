@@ -25,8 +25,6 @@ static volatile uint32_t s_pushCount = 0;
 // 任务函数
 static void displayTaskFunction(void *pvParameters)
 {
-    M5.Display.powerSaveOff();
-
     DisplayPushMessage msg;
     for (;;)
     {
@@ -34,6 +32,9 @@ static void displayTaskFunction(void *pvParameters)
         {
             // 标记正在进行显示推送
             inDisplayPush = true;
+
+            // 每次显示操作前唤醒屏幕，推送完成后立即回到省电。
+            M5.Display.powerSaveOff();
 
             // Wait the slot
             M5.Display.waitDisplay();
@@ -51,6 +52,8 @@ static void displayTaskFunction(void *pvParameters)
                 if (canvas_to_push == nullptr && g_canvas == nullptr)
                 {
                     // 没有任何 canvas 可用，跳过本次
+                    M5.Display.powerSaveOn();
+                    inDisplayPush = false;
                     continue;
                 }
 
@@ -948,11 +951,11 @@ static void displayTaskFunction(void *pvParameters)
             }
             // 如果未来有更多消息类型，在这里扩展
 
+            M5.Display.powerSaveOn();
             // 恢复标记：显示推送完成
             inDisplayPush = false;
         }
     }
-    M5.Display.powerSaveOn();
 }
 
 bool initializeDisplayPushTask(size_t queue_len)

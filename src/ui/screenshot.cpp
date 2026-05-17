@@ -139,7 +139,10 @@ bool screenShot()
         {
             tempCanvas.fillRect(0, 0, 180, 40, TFT_WHITE);
             bin_font_print("截图中", 32, 0, 180, 0, 4, false, &tempCanvas, TEXT_ALIGN_CENTER, 180, false, false, false, true);
+            M5.Display.powerSaveOff();
             tempCanvas.pushSprite(180, 460);
+            M5.Display.waitDisplay();
+            M5.Display.powerSaveOn();
             tempCanvas.deleteSprite();
         }
     }
