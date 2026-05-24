@@ -734,6 +734,16 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                     (void)show_reading_menu(g_canvas, false, UNDERLINE);
                 }
             }
+            else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "Switch Swipe") == 0)
+            {
+#if DBG_STATE_MACHINE_TASK
+                sm_dbg_printf("ONE 区域：Switch Swipe");
+#endif
+                g_config.enable_swipe = !g_config.enable_swipe;
+                config_save();
+                // Refresh Menu to update checkbox display
+                (void)show_reading_menu(g_canvas, false, SWIPE);
+            }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "Switch Vertical") == 0)
             {
 #if DBG_STATE_MACHINE_TASK

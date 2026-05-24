@@ -488,20 +488,26 @@ MenuTouchResult handleMenuTouch(TouchZone zone)
         break;
     // ONE_* and TWO_* 区域：暂不处理
     case TouchZone::ONE_TWO:
+#if DBG_UI_CONTROL
+        Serial.println("[MENU TOUCH] ONE 区域：drawBottom control");
+#endif
+        result.success = true;
+        result.message = "Switch DrawBottom";
+        break;
     case TouchZone::ONE_THREE:
+#if DBG_UI_CONTROL
+        Serial.println("[MENU TOUCH] ONE 区域：swipe control");
+#endif
+        result.success = true;
+        result.message = "Switch Swipe";
+        break;
+    case TouchZone::ONE_FOUR:
     case TouchZone::ONE_FIVE:
 #if DBG_UI_CONTROL
         Serial.println("[MENU TOUCH] ONE/TWO 区域：无动作");
 #endif
         result.success = true;
         result.message = "ONE/TWO 区域：无动作";
-        break;
-    case TouchZone::ONE_FOUR:
-#if DBG_UI_CONTROL
-        Serial.println("[MENU TOUCH] ONE 区域：drawBottom control");
-#endif
-        result.success = true;
-        result.message = "Switch DrawBottom";
         break;
     case TouchZone::TWO_ONE:
     case TouchZone::TWO_SIX:

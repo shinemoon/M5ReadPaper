@@ -339,10 +339,13 @@ bool show_reading_menu(M5Canvas *canvas, bool refresh, readingMenuArea area)
             bin_font_flush_canvas(false, false, false, NOEFFECT, 42 + 3, TOPUI_y + 240 + 3, 24, 24);
             break;
         case UNDERLINE:
-            bin_font_flush_canvas(false, false, false, NOEFFECT, 42 + 270 + 3, TOPUI_y + 60 + 3, 24, 24);
+            bin_font_flush_canvas(false, false, false, NOEFFECT, 196 + 3, TOPUI_y + 60 + 3, 24, 24);
             break;
         case LOCKBM:
             bin_font_flush_canvas(false, false, false, NOEFFECT, 42 + 3, TOPUI_y + 60 + 3, 24, 24);
+            break;
+        case SWIPE:
+            bin_font_flush_canvas(false, false, false, NOEFFECT, 362 + 3, TOPUI_y + 60 + 3, 150, 30);
             break;
         default:
             /*
@@ -456,14 +459,17 @@ void drawTopUI(M5Canvas *canvas, int16_t x, int16_t y)
 
     // 2. 锁屏书签复选框
     bool showLabel = (g_current_book && g_current_book->getShowLabel());
-    drawCheckbox(canvas, x + 42, y + 60, showLabel, "锁屏书签", 28, 30);
+    drawCheckbox(canvas, x + 30, y + 60, showLabel, "锁屏书签", 24, 20);
 
-    // 2.5. 下划线复选框（移到右上位置）
+    // 2.5. 下划线复选框
     if (g_current_book)
     {
         bool drawBottom = g_current_book->getDrawBottom();
-        drawCheckbox(canvas, x + 42 + 270, y + 60, drawBottom, "下划线", 28, 30);
+        drawCheckbox(canvas, x + 196, y + 60, drawBottom, "下划线", 24, 20);
     }
+
+    // 2.6. 翻页特效复选框
+    drawCheckbox(canvas, x + 362, y + 60, g_config.enable_swipe, "翻页特效", 24, 20);
     // 2.6 划线与竖排
 
     // 2.6 跳过繁简转换复选框（移到左下位置）

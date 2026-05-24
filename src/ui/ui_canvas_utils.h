@@ -12,7 +12,8 @@ enum readingMenuArea {
     UNDERLINE,     // 下划线区域
     SKIPCONV,      // 跳过转换区域
     DARKMODE,      // 暗黑模式区域
-    FASTMODE       // 快速模式区域
+    FASTMODE,      // 快速模式区域
+    SWIPE          // 翻页特效区域
 };
 
 bool show_reading_menu(M5Canvas *canvas, bool refresh = true, readingMenuArea area = FULL);
