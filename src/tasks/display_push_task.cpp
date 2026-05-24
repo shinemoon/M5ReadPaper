@@ -123,7 +123,7 @@ static void displayTaskFunction(void *pvParameters)
                         const auto special_wipe = lgfx::v1::LGFXBase::epd_wipe_direction_t::epd_wipe_specialeffect;
                         const auto text_pre_wipe = lgfx::v1::LGFXBase::epd_wipe_direction_t::epd_wipe_left_to_right;
                         const auto text_next_wipe = lgfx::v1::LGFXBase::epd_wipe_direction_t::epd_wipe_right_to_left;
-                        const bool use_special_wipe = (push_effect != NOEFFECT) && (push_effect != display_type::TEXT_PRE) && (push_effect != display_type::TEXT_NEXT);
+                        const bool use_special_wipe = (push_effect != NOEFFECT) && (push_effect != display_type::TEXT_PRE) && (push_effect != display_type::TEXT_NEXT) && (push_effect != display_type::NO_SWIPE_TEXT);
                         auto push_plain = [&](M5Canvas *dst, int px, int py)
                         {
                             if (use_special_wipe)

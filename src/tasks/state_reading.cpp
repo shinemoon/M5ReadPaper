@@ -430,7 +430,7 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                 // PREV
                 if (result.success && result.message != nullptr && std::strcmp(result.message, "PREVPAGE") == 0)
                 {
-                        g_current_book->renderCurrentPage(font_size, nullptr, true, false, false, 0, display_type::TEXT_PRE);
+                        g_current_book->renderCurrentPage(font_size, nullptr, true, false, false, 0, g_config.enable_swipe ? display_type::TEXT_PRE : display_type::NO_SWIPE_TEXT);
                         g_current_book->saveBookmark(); // render后保存书签
                         // 用户触摸导致的翻页，重置自动翻页计时器
                         s_one_sec_ticks = 0;
@@ -438,7 +438,7 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                 // NEXT
                 if (result.success && result.message != nullptr && std::strcmp(result.message, "NEXTPAGE") == 0)
                 {
-                        g_current_book->renderCurrentPage(font_size, nullptr, true, false, false, 0, display_type::TEXT_NEXT);
+                        g_current_book->renderCurrentPage(font_size, nullptr, true, false, false, 0, g_config.enable_swipe ? display_type::TEXT_NEXT : display_type::NO_SWIPE_TEXT);
                         g_current_book->saveBookmark(); // render后保存书签
                         // 用户触摸导致的翻页，重置自动翻页计时器
                         s_one_sec_ticks = 0;

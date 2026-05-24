@@ -33,7 +33,8 @@ enum display_type {
     HSHUTTER_NORMAL_REV = 9,
     RANDOM= 10,
     TEXT_PRE = 11,
-    TEXT_NEXT = 12
+    TEXT_NEXT = 12,
+    NO_SWIPE_TEXT = 13
 };
 
 #define FIRST_REFRESH_TH 8  //'MIddle Step' need to refresh to eliminate the HW - Only for Fastmode
@@ -136,6 +137,9 @@ struct GlobalConfig {
     // 优化刷新模式开关: 当为 true 时使用快速（可能是部分刷新的）刷新策略
     // 默认 false（保守模式）
     bool fastrefresh = false;
+
+    // 翻页 swipe 特效开关（默认 false = 关闭 swipe）
+    bool enable_swipe = false;
 
     // 自动翻页速度，取值范围 1..255，默认 2
     uint8_t autospeed = 2;
