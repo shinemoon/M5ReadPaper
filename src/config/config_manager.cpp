@@ -153,6 +153,9 @@ bool config_save()
         // fastrefresh: whether to use fast partial refresh strategy
         config_file.printf("fastrefresh=%s\n", g_config.fastrefresh ? "true" : "false");
 
+        // enable_swipe: whether to enable swipe animation on page turn
+        config_file.printf("enable_swipe=%s\n", g_config.enable_swipe ? "true" : "false");
+
         // 主菜单文件限制
         config_file.printf("main_menu_file_count=%u\n", (unsigned int)g_config.main_menu_file_count);
 
@@ -386,6 +389,10 @@ static int32_t config_load_from_file(const char* path, GlobalConfig& out_config,
             // 如果已经加载了 dark 模式，确保快刷不会被关闭
             // 注意：这里依赖于配置文件中 dark 在 fastrefresh 之前
         }
+        else if (key == "enable_swipe")
+        {
+            temp_config.enable_swipe = (value == "true" || value == "1");
+        }
         else if (key == "autospeed")
         {
             int v = value.toInt();
@@ -509,6 +516,7 @@ static void init_config_defaults(GlobalConfig& config)
     config.zh_conv_mode = 1;
     config.dark = false;
     config.fastrefresh = false;
+    config.enable_swipe = false;
     config.autospeed = 2;
     config.font_scale_pct = FONT_SCALE_DEFAULT_PCT;
     config.font_render_tradeoff_level = FONT_RENDER_TRADEOFF_DEFAULT;
@@ -698,6 +706,7 @@ void config_reset_to_defaults()
     // UI theme: default to light mode
     g_config.dark = false;
     g_config.fastrefresh = false;
+    g_config.enable_swipe = false;
     g_config.autospeed = 2;
     g_config.font_scale_pct = FONT_SCALE_DEFAULT_PCT;
     g_config.font_render_tradeoff_level = FONT_RENDER_TRADEOFF_DEFAULT;
