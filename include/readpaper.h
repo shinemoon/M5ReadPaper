@@ -10,6 +10,7 @@
 #define REMOVEONLINELOCK 1
 // 优化：使用条件编译而非运行时判断
 //#define DEBUGON
+//#define DBG_LOCKSCREEN 1
 
 // 显示设置
 

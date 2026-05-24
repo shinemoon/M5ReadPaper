@@ -105,35 +105,61 @@ void ui_push_image_to_canvas(const char *img_path, int16_t x, int16_t y, M5Canva
                   img_path, x, y, canvas ? "自定义" : "全局g_canvas", (unsigned)len);
 #endif
 
+#if DBG_LOCKSCREEN
+    unsigned long lck_t0 = millis();
+    Serial.printf("[LCK_CANVAS] ui_push_image_to_canvas begin: %s, len=%u, preClean=%d, freeHeap=%u\n",
+                  img_path, (unsigned)len, (int)preClean, (unsigned)ESP.getFreeHeap());
+#endif
+
     if (preClean)
     {
+#if DBG_LOCKSCREEN
+        Serial.printf("[LCK_CANVAS] preClean: renderCurrentPage/clearDisplay start...\n");
+#endif
         if (g_current_book)
         {
             g_current_book->renderCurrentPage(0, g_canvas, false, false, true);
         }
         else
         {
-            // No book: clear canvas to avoid showing stale content
             g_canvas->clearDisplay(TFT_WHITE);
         }
+#if DBG_LOCKSCREEN
+        Serial.printf("[LCK_CANVAS] preClean done, took %lu ms\n", millis() - lck_t0);
+#endif
     }
+
+#if DBG_LOCKSCREEN
+    Serial.printf("[LCK_CANVAS] about to decode image...\n");
+#endif
 
     // 使用 Stream 重载（fs::File 继承自 Stream）
     if (strstr(img_path, ".bmp"))
     {
-        // reset to beginning just in case
         imgFile.seek(0);
         target_canvas->drawBmp(&imgFile, x, y);
     }
     else if (strstr(img_path, ".jpg") || strstr(img_path, ".jpeg"))
     {
         imgFile.seek(0);
+#if DBG_LOCKSCREEN
+        Serial.printf("[LCK_CANVAS] drawing JPG...\n");
+#endif
         target_canvas->drawJpg(&imgFile, x, y);
+#if DBG_LOCKSCREEN
+        Serial.printf("[LCK_CANVAS] JPG done\n");
+#endif
     }
     else if (strstr(img_path, ".png"))
     {
         imgFile.seek(0);
+#if DBG_LOCKSCREEN
+        Serial.printf("[LCK_CANVAS] drawing PNG...\n");
+#endif
         target_canvas->drawPng(&imgFile, x, y);
+#if DBG_LOCKSCREEN
+        Serial.printf("[LCK_CANVAS] PNG done\n");
+#endif
     }
     else
     {
@@ -141,6 +167,87 @@ void ui_push_image_to_canvas(const char *img_path, int16_t x, int16_t y, M5Canva
         Serial.printf("[UI_IMAGE] 不支持的图片格式: %s\n", img_path);
 #endif
         ui_try_canvas_fallback(img_path, x, y, target_canvas);
+    }
+
+    imgFile.close();
+#if DBG_LOCKSCREEN
+    Serial.printf("[LCK_CANVAS] ui_push_image_to_canvas end: %s, total %lu ms, freeHeap=%u\n",
+                  img_path, millis() - lck_t0, (unsigned)ESP.getFreeHeap());
+#endif
+}
+
+// 将图片按比例缩放后推送到Canvas指定位置
+void ui_push_image_to_canvas_scaled(const char *img_path, int16_t x, int16_t y, float scale_x, float scale_y, M5Canvas *canvas, bool preClean)
+{
+    M5Canvas *target_canvas = canvas ? canvas : g_canvas;
+
+    if (!target_canvas)
+    {
+#if DBG_UI_IMAGE
+        Serial.println("[UI_IMAGE_SCALED] 错误: Canvas尚未初始化!");
+#endif
+        return;
+    }
+
+    bool is_spiffs = strncmp(img_path, "/spiffs/", 8) == 0;
+    bool is_sd    = strncmp(img_path, "/sd/", 4) == 0;
+
+    File imgFile;
+    if (is_spiffs)
+        imgFile = SPIFFS.open(img_path + 7, "r");
+    else if (is_sd)
+        imgFile = SDW::SD.open(img_path + 3, "r");
+    else
+        imgFile = SDW::SD.open(img_path, "r");
+
+    if (!imgFile)
+    {
+#if DBG_UI_IMAGE
+        Serial.printf("[UI_IMAGE_SCALED] 打开图片失败: %s\n", img_path);
+#endif
+        return;
+    }
+
+    size_t len = imgFile.size();
+    if (len == 0)
+    {
+        imgFile.close();
+        return;
+    }
+
+    if (preClean)
+    {
+        if (g_current_book)
+            g_current_book->renderCurrentPage(0, g_canvas, false, false, true);
+        else
+            g_canvas->clearDisplay(TFT_WHITE);
+    }
+
+    // 使用 Stream* 重载进行缩放绘制（File 继承自 Stream）
+    // drawPng(Stream* data, x, y, maxWidth, maxHeight, offX, offY, scale_x, scale_y, datum)
+    // 既避免 template<T> 版本需要 SDW::SDWrapper 完整派生，又无需切换文件系统
+    if (strstr(img_path, ".bmp"))
+    {
+        imgFile.seek(0);
+        target_canvas->drawBmp(&imgFile, x, y, 0, 0, 0, 0, scale_x, scale_y);
+    }
+    else if (strstr(img_path, ".jpg") || strstr(img_path, ".jpeg"))
+    {
+        imgFile.seek(0);
+        target_canvas->drawJpg(&imgFile, x, y, 0, 0, 0, 0, scale_x, scale_y);
+    }
+    else if (strstr(img_path, ".png"))
+    {
+        imgFile.seek(0);
+        target_canvas->drawPng(&imgFile, x, y, 0, 0, 0, 0, scale_x, scale_y);
+    }
+    else
+    {
+#if DBG_UI_IMAGE
+        Serial.printf("[UI_IMAGE_SCALED] 不支持的图片格式: %s\n", img_path);
+#endif
+        // fallback to non-scaled version
+        ui_push_image_to_canvas(img_path, x, y, target_canvas);
     }
 
     imgFile.close();

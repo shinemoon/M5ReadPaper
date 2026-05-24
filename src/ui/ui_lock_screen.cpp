@@ -20,6 +20,7 @@
 #include "ui/toc_display.h"
 
 #include "current_book.h"
+#include "tasks/device_interrupt_task.h"
 extern M5Canvas *g_canvas;
 extern GlobalConfig g_config;
 
@@ -61,14 +62,27 @@ namespace
 
     bool ensure_lock_image_candidates(const char *dirPath)
     {
+#if DBG_LOCKSCREEN
+        unsigned long lck_t0 = millis();
+        Serial.printf("[LCK] ensure_lock_image_candidates enter: dir=%s, valid=%d, freeHeap=%u\n",
+                      dirPath, (int)g_lock_image_cache.valid, (unsigned)ESP.getFreeHeap());
+#endif
         if (g_lock_image_cache.valid)
             return true;
 
         if (!g_lock_image_cache.sd_ready)
         {
             if (!SDW::SD.begin())
+            {
+#if DBG_LOCKSCREEN
+                Serial.println("[LCK] SD begin FAILED");
+#endif
                 return false;
+            }
             g_lock_image_cache.sd_ready = true;
+#if DBG_LOCKSCREEN
+            Serial.println("[LCK] SD begin OK");
+#endif
         }
 
         if (!SDW::SD.exists(dirPath))
@@ -111,6 +125,10 @@ namespace
         }
 
         g_lock_image_cache.valid = true;
+#if DBG_LOCKSCREEN
+        Serial.printf("[LCK] ensure_lock_image_candidates exit: %d candidates, took %lu ms, freeHeap=%u\n",
+                      (int)g_lock_image_cache.candidates.size(), millis() - lck_t0, (unsigned)ESP.getFreeHeap());
+#endif
         return true;
     }
 
@@ -159,6 +177,10 @@ namespace
     // Scan /book directory (recursively) and collect all book basenames (without extension, stripped)
     void scan_book_directory()
     {
+#if DBG_LOCKSCREEN
+        unsigned long lck_t0 = millis();
+        Serial.println("[LCK] scan_book_directory enter");
+#endif
         if (g_lock_image_cache.books_scanned)
             return;
 
@@ -176,6 +198,9 @@ namespace
         if (!SDW::SD.exists(bookDir))
         {
             g_lock_image_cache.books_scanned = true;
+#if DBG_LOCKSCREEN
+            Serial.println("[LCK] scan_book_directory: /book does not exist");
+#endif
             return;
         }
 
@@ -273,6 +298,10 @@ namespace
         }
 
         g_lock_image_cache.books_scanned = true;
+#if DBG_LOCKSCREEN
+        Serial.printf("[LCK] scan_book_directory exit: %d books found, walked %d entries, took %lu ms\n",
+                      (int)g_lock_image_cache.book_basenames.size(), walked_entries, millis() - lck_t0);
+#endif
     }
 
     // Check if an image is dedicated to any book (using same matching logic)
@@ -309,6 +338,10 @@ namespace
     // Build the list of dedicated images
     void identify_dedicated_images()
     {
+#if DBG_LOCKSCREEN
+        unsigned long lck_t0 = millis();
+        Serial.println("[LCK] identify_dedicated_images enter");
+#endif
         if (g_lock_image_cache.dedicated_images.size() > 0)
             return; // Already identified
 
@@ -323,23 +356,283 @@ namespace
             }
         }
 
-#if DBG_UI_IMAGE
-        Serial.printf("[LOCKSCREEN] Identified %d dedicated images out of %d total\n",
+#if DBG_LOCKSCREEN
+        Serial.printf("[LCK] identify_dedicated_images exit: %d dedicated out of %d, took %lu ms\n",
                       (int)g_lock_image_cache.dedicated_images.size(),
-                      (int)g_lock_image_cache.candidates.size());
+                      (int)g_lock_image_cache.candidates.size(),
+                      millis() - lck_t0);
 #endif
     }
 }
 
-static bool push_random_sd_image_if_available(const char *dirPath, int x, int y)
+// 前向声明
+static String pick_book_cover_image(const char *dirPath);
+
+// 打印书籍信息到 canvas（书名/章节/页码/阅读时长/天数/电量），内部调用 bin_font_flush_canvas
+static void print_book_info_on_canvas(bool isshutdown)
 {
+    if (g_current_book == nullptr)
+        return;
+
+    // ---- 书名（去路径、去扩展名） ----
+    std::string book_name = g_current_book->getBookName();
+    {
+        size_t dot = book_name.find_last_of('.');
+        if (dot != std::string::npos)
+            book_name = book_name.substr(0, dot);
+    }
+
+    // ---- 章节名（从 TOC idx 查找，与 drawBottomUI 一致） ----
+    std::string chapter;
+    if (g_current_book->isIndexed())
+    {
+        size_t cur_page_index = g_current_book->getCurrentPageIndex();
+        size_t page_start = g_current_book->getPageStart(cur_page_index);
+        if (page_start == (size_t)-1)
+            page_start = g_current_book->position();
+
+        size_t toc_idx = 0;
+        int toc_page = -1, toc_row = -1;
+        bool on_current = false;
+
+        if (find_toc_entry_for_position(g_current_book->filePath(), page_start,
+                                        toc_idx, toc_page, toc_row, on_current))
+        {
+            get_toc_title_for_index(g_current_book->filePath(), toc_idx, chapter);
+        }
+    }
+
+    // ---- 页数 ----
+    size_t cur_page = 1, total_page = 1;
+    cur_page = g_current_book->getCurrentPageIndex() + 1;
+    total_page = g_current_book->getTotalPages();
+
+    // ---- 阅读时间 ----
+    int16_t read_hour = g_current_book->getReadHour();
+    int16_t read_min = g_current_book->getReadMin();
+
+    // ---- 阅读天数跨度（解析 .rec 文件，统计不同 YYYYMMDD 数量） ----
+    int day_span = 1;
+    {
+        std::string rec_path = getRecordFileName(g_current_book->filePath());
+        std::unordered_set<std::string> unique_days;
+        if (SDW::SD.exists(rec_path.c_str()))
+        {
+            File rf = SDW::SD.open(rec_path.c_str(), "r");
+            if (rf)
+            {
+                if (rf.available())
+                    rf.readStringUntil('\n');
+                while (rf.available())
+                {
+                    String line = rf.readStringUntil('\n');
+                    line.trim();
+                    if (line.length() == 0)
+                        continue;
+                    int colon = line.indexOf(':');
+                    if (colon > 0)
+                    {
+                        String ts = line.substring(0, colon);
+                        std::string ts_str = ts.c_str();
+                        if (ts_str.length() >= 8)
+                        {
+                            unique_days.insert(ts_str.substr(0, 8));
+                        }
+                    }
+                }
+                rf.close();
+            }
+        }
+        day_span = (int)unique_days.size();
+        if (day_span < 1)
+            day_span = 1;
+    }
+
+    // ---- 电量 ----
+    int battery = DeviceInterruptTask::getLastBatteryPercentage();
+
+    // 绘制电池电量标识
+    {
+        int batteryBars = (battery + 19) / 20; // 每20%一格
+        if (batteryBars > 5)
+            batteryBars = 5;
+        if (batteryBars < 1)
+            batteryBars = 1;
+        for (int i = 0; i < batteryBars; i++)
+        {
+            g_canvas->fillRect(16 + i * 9, 820, 6, 16, TFT_DARKGRAY);
+        }
+    }
+
+    // ---- lock / poweroff 标识 ----
+    const char *lock_mode = isshutdown ? "poweroff" : "lock";
+
+    // ---- 组装显示字符串并打印 ----
+    const int pos_x = 0;
+    const int pos_y = 480;
+    const uint8_t fsize = 24;
+    const int line_h = 32;
+
+    char buf[128];
+
+    // Title
+    snprintf(buf, sizeof(buf), "%s", book_name.c_str());
+    bin_font_print(buf, 32, TFT_BLACK, 520, pos_x - 16, pos_y, false, g_canvas, TEXT_ALIGN_CENTER, 520);
+    // Chapter
+    snprintf(buf, sizeof(buf), "%s", chapter.c_str());
+    bin_font_print(buf, fsize, TFT_BLACK, 520, pos_x - 16, pos_y + line_h + 12, false, g_canvas, TEXT_ALIGN_CENTER, 520);
+    // Pages
+    // snprintf(buf, sizeof(buf), "%zu/%zu", cur_page, total_page);
+    snprintf(buf, sizeof(buf), "%zu", cur_page);
+    bin_font_print(buf, 22, TFT_BLACK, 180, pos_x + 330, pos_y + line_h * 4, false, g_canvas, TEXT_ALIGN_CENTER, 180);
+    // Time
+    snprintf(buf, sizeof(buf), "%dh%dm", read_hour, read_min);
+    bin_font_print(buf, 22, TFT_BLACK, 120, pos_x + 196, pos_y + line_h * 4, false, g_canvas, TEXT_ALIGN_CENTER, 120);
+    // Days
+    snprintf(buf, sizeof(buf), "%d天", day_span);
+    bin_font_print(buf, 22, TFT_BLACK, 120, pos_x + 32, pos_y + line_h * 4, false, g_canvas, TEXT_ALIGN_CENTER, 120);
+
+    // ---- 当前日期 YYYY/MM/DD ----
+    {
+        struct tm timeinfo;
+        getLocalTime(&timeinfo, 0);
+        snprintf(buf, sizeof(buf), "%04d/%02d/%02d",
+                 timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+        bin_font_print(buf, 18, TFT_BLACK, 160, pos_x + 370, pos_y + line_h * 12, false, g_canvas, TEXT_ALIGN_CENTER, 160);
+    }
+
+    // ---- 当前阅读百分比 --
+    // Protect against divide-by-zero and clamp progress width to [0,540]
+    int progress_width = 0;
+    if (total_page > 0)
+    {
+        // use 64-bit intermediate just in case, then clamp
+        int64_t pw = (int64_t)290 * (int64_t)cur_page / (int64_t)total_page;
+        if (pw < 0)
+            pw = 0;
+        if (pw > 540)
+            pw = 540;
+        progress_width = (int)pw;
+    }
+
+    // snprintf(buf, sizeof(buf), "%zu/%zu", cur_page, total_page);
+    // g_canvas->fillRoundRect(pos_x + 120, pos_y + line_h * 5 + 8, progress_width,36, 2, TFT_LIGHTGREY);
+    g_canvas->fillRoundRect(pos_x + 124, pos_y + line_h * 5 + 9, progress_width, 36, 8, TFT_LIGHTGREY);
+
+    bin_font_flush_canvas(false, false, true, RECT);
+}
+
+// 推送封面缩略图（1/3 尺寸 或更大），返回是否成功推送
+static bool push_cover_thumbnail_scaled()
+{
+    String cover = pick_book_cover_image("/image");
+    if (cover.length() > 0)
+    {
+        const float scale_factor = 0.4f;
+        ui_push_image_to_canvas(cover.c_str(), 0, 0);
+        ui_push_image_to_canvas_scaled(cover.c_str(), 540 / 2 - 108, 160, scale_factor, scale_factor, nullptr, false);
+        return true;
+    }
+    return false;
+}
+
+// 尝试推送 exlibris.png 作为锁屏背景图片（不含任何追加信息或缩略图）
+// 优先级：1) SD 根目录 /sd/exlibris.png  2) SD /image/ 目录下的 default.png  3) SPIFFS /spiffs/default.png
+static bool try_push_default_lock_image(int x, int y, bool isshutdown)
+{
+#if DBG_LOCKSCREEN
+    unsigned long lck_t0 = millis();
+    Serial.println("[LCK] try_push_default_lock_image enter: attempting /sd/exlibris.png");
+#endif
+    // 第一步：尝试 SD 卡根目录 /sd/exlibris.png
+    if (SDW::SD.exists("/exlibris.png"))
+    {
+#if DBG_LOCKSCREEN
+        Serial.println("[LCK] try_push_default_lock_image: found /sd/exlibris.png, pushing...");
+#endif
+        ui_push_image_to_canvas("/sd/exlibris.png", x, y, nullptr, false);
+#if DBG_LOCKSCREEN
+        Serial.printf("[LCK] try_push_default_lock_image: /sd/exlibris.png done, took %lu ms\n", millis() - lck_t0);
+#endif
+        return true;
+    }
+
+#if DBG_LOCKSCREEN
+    Serial.println("[LCK] try_push_default_lock_image: /sd/exlibris.png not found, trying /image/...");
+#endif
+    // 第二步：fallback 到 SD /image/ 目录下找 exlibris.png
+    if (ensure_lock_image_candidates("/image"))
+    {
+        const auto &candidates = g_lock_image_cache.candidates;
+        for (const String &p : candidates)
+        {
+            String file_with_ext = extract_filename(p);
+            file_with_ext.toLowerCase();
+            if (file_with_ext == "exlibris.png")
+            {
+                ui_push_image_to_canvas(p.c_str(), x, y, nullptr, false);
+#if DBG_LOCKSCREEN
+                Serial.printf("[LCK] try_push_default_lock_image: /image/exlibris.png done, took %lu ms\n", millis() - lck_t0);
+#endif
+                return true;
+            }
+        }
+    }
+
+#if DBG_LOCKSCREEN
+    Serial.println("[LCK] try_push_default_lock_image: no default in /image/, trying SPIFFS...");
+#endif
+
+    // 第三步：fallback 到 SPIFFS /spiffs/exlibris.png
+    if (SPIFFS.exists("/exlibris.png"))
+    {
+#if DBG_LOCKSCREEN
+        Serial.println("[LCK] try_push_default_lock_image: found /spiffs/exlibris.png");
+#endif
+        ui_push_image_to_canvas("/spiffs/exlibris.png", x, y, nullptr, false);
+#if DBG_LOCKSCREEN
+        Serial.printf("[LCK] try_push_default_lock_image: /spiffs/exlibris.png done, took %lu ms\n", millis() - lck_t0);
+#endif
+        return true;
+    }
+
+#if DBG_LOCKSCREEN
+    Serial.println("[LCK] try_push_default_lock_image: all fallbacks FAILED -> returns false");
+#endif
+    return false;
+}
+
+// 挑选一张与当前书籍匹配的封面图
+// 返回图片完整路径；如果没有可用图片则返回空字符串
+// 逻辑流程：
+//   1. 先尝试匹配当前书籍的专属封面
+//   2. 若未命中，查找 image 目录下是否存在 default.png，有则返回
+//   3. 否则进入随机挑选（随机池中排除专属图片和 exlibris.png）
+static String pick_book_cover_image(const char *dirPath)
+{
+#if DBG_LOCKSCREEN
+    unsigned long lck_t0 = millis();
+    Serial.printf("[LCK] pick_book_cover_image enter: dir=%s, mode=%s, freeHeap=%u\n",
+                  dirPath, g_config.lockscreen_mode, (unsigned)ESP.getFreeHeap());
+#endif
     if (!ensure_lock_image_candidates(dirPath))
-        return false;
+    {
+#if DBG_LOCKSCREEN
+        Serial.println("[LCK] pick_book_cover_image: ensure_lock_image_candidates failed -> empty");
+#endif
+        return String();
+    }
 
     const auto &candidates = g_lock_image_cache.candidates;
     if (candidates.empty())
-        return false;
+    {
+#if DBG_LOCKSCREEN
+        Serial.println("[LCK] pick_book_cover_image: candidates empty");
+#endif
+        return String();
+    }
 
+    // 获取当前书的 basename
     String book_base;
     if (g_current_book)
     {
@@ -354,15 +647,14 @@ static bool push_random_sd_image_if_available(const char *dirPath, int x, int y)
         }
     }
 
+    // 如果有当前书籍，尝试匹配专属封面
     if (book_base.length() > 0)
     {
-        // Normalize book base and strip trailing digits/separators
         String book_base_lower = book_base;
         book_base_lower.toLowerCase();
         String book_base_stripped = strip_trailing_digits_and_separators(book_base_lower);
 
         std::vector<String> matched;
-
         for (const String &p : candidates)
         {
             String img_base = extract_basename_no_ext(p);
@@ -378,7 +670,9 @@ static bool push_random_sd_image_if_available(const char *dirPath, int x, int y)
             }
 
             // Fuzzy: stripped image base contained in book base or vice versa
-            if (img_base_stripped.length() > 0 && (book_base_lower.indexOf(img_base_stripped) >= 0 || img_base_lower.indexOf(book_base_stripped) >= 0))
+            if (img_base_stripped.length() > 0 &&
+                (book_base_lower.indexOf(img_base_stripped) >= 0 ||
+                 img_base_lower.indexOf(book_base_stripped) >= 0))
             {
                 matched.push_back(p);
                 continue;
@@ -387,25 +681,30 @@ static bool push_random_sd_image_if_available(const char *dirPath, int x, int y)
 
         if (!matched.empty())
         {
-            // Build a stable series key from the stripped book base
             String series_key = book_base_stripped;
 
-            // If the same series as last time and queue exists, rotate
+#if DBG_LOCKSCREEN
+            Serial.printf("[LCK] pick_book_cover_image: book_base=%s, matched=%d, series_key=%s\n",
+                          book_base_lower.c_str(), (int)matched.size(), series_key.c_str());
+#endif
+
+            // Same series as last time → rotate queue
             if (g_series_queue.size() > 0 && series_key == g_last_series_key)
             {
                 if (g_series_index >= (int)g_series_queue.size())
                     g_series_index = 0;
-                String pick = g_series_queue[g_series_index++];
-                ui_push_image_to_canvas(pick.c_str(), x, y, nullptr, true);
-                return true;
+                String ret = g_series_queue[g_series_index++];
+#if DBG_LOCKSCREEN
+                Serial.printf("[LCK] pick_book_cover_image: rotate queue -> %s\n", ret.c_str());
+#endif
+                return ret;
             }
 
-            // Otherwise build a new shuffled queue from matched
+            // Build new shuffled queue
             g_series_queue.clear();
             for (const String &p : matched)
                 g_series_queue.push_back(p);
 
-            // Shuffle queue
             randomSeed(millis());
             for (int i = (int)g_series_queue.size() - 1; i > 0; --i)
             {
@@ -419,66 +718,118 @@ static bool push_random_sd_image_if_available(const char *dirPath, int x, int y)
 
             if (g_series_queue.size() > 0)
             {
-                String pick = g_series_queue[g_series_index++];
-                ui_push_image_to_canvas(pick.c_str(), x, y, nullptr, true);
-                return true;
+                String ret = g_series_queue[g_series_index++];
+#if DBG_LOCKSCREEN
+                Serial.printf("[LCK] pick_book_cover_image: new series -> %s\n", ret.c_str());
+#endif
+                return ret;
             }
         }
     }
 
-    if (strcmp(g_config.lockscreen_mode, "random") != 0)
+    // 专属封面未命中 → 先查找 image/default.png，找到则直接返回
     {
+        String default_png;
         for (const String &p : candidates)
         {
-            String file_with_ext = extract_filename(p);
-            file_with_ext.toLowerCase();
-            if (file_with_ext == "default.png")
+            String fname = extract_filename(p);
+            fname.toLowerCase();
+            if (fname == "default.png")
             {
-                ui_push_image_to_canvas(p.c_str(), x, y, nullptr, true);
-                return true;
+                default_png = p;
+                break;
             }
         }
-        return false;
+        if (default_png.length() > 0)
+        {
+#if DBG_LOCKSCREEN
+            Serial.printf("[LCK] pick_book_cover_image: found default.png -> %s\n", default_png.c_str());
+#endif
+            return default_png;
+        }
     }
 
-#if DBG_UI_IMAGE
-    Serial.printf("[LOCKSCREEN] FreeHeap before picking image: %u bytes, candidates=%d\n", (unsigned)ESP.getFreeHeap(), (int)candidates.size());
+    // 如果不是 random 模式，不随机选图
+    // 注释掉，由于已经修改过了，没有以前的'default'设置，始终随机选图
+    //    if (strcmp(g_config.lockscreen_mode, "random") != 0)
+    //        return String();
+
+#if DBG_LOCKSCREEN
+    Serial.printf("[LCK] pick_book_cover_image: random mode, freeHeap=%u, candidates=%d\n",
+                  (unsigned)ESP.getFreeHeap(), (int)candidates.size());
 #endif
 
-    // Identify dedicated images to exclude from random selection
+    // 识别专属图片并从随机池中排除
     identify_dedicated_images();
 
-    // Build list of non-dedicated images for random selection
     std::vector<String> available_for_random;
     for (const String &imgPath : candidates)
     {
-        if (g_lock_image_cache.dedicated_image_set.find(std::string(imgPath.c_str())) ==
+        // 排除专属封面图片
+        if (g_lock_image_cache.dedicated_image_set.find(std::string(imgPath.c_str())) !=
             g_lock_image_cache.dedicated_image_set.end())
         {
-            available_for_random.push_back(imgPath);
+            continue;
         }
+        // 排除 exlibris.png（默认锁屏图，不应出现在随机池中）
+        {
+            String fname = extract_filename(imgPath);
+            fname.toLowerCase();
+            if (fname == "exlibris.png")
+            {
+                continue;
+            }
+        }
+        available_for_random.push_back(imgPath);
     }
 
-#if DBG_UI_IMAGE
-    Serial.printf("[LOCKSCREEN] Available for random: %d (excluded %d dedicated)\n",
-                  (int)available_for_random.size(),
-                  (int)g_lock_image_cache.dedicated_images.size());
+#if DBG_LOCKSCREEN
+    Serial.printf("[LCK] pick_book_cover_image: random pool=%d, dedicated=%d\n",
+                  (int)available_for_random.size(), (int)g_lock_image_cache.dedicated_images.size());
 #endif
 
-    // If no non-dedicated images available, fall back to all candidates
     if (available_for_random.empty())
     {
-#if DBG_UI_IMAGE
-        Serial.println("[LOCKSCREEN] No non-dedicated images, using all candidates");
+#if DBG_LOCKSCREEN
+        Serial.println("[LCK] pick_book_cover_image: random pool empty, using ALL candidates");
 #endif
         available_for_random = candidates;
     }
 
     randomSeed(millis());
     int idx = random((int)available_for_random.size());
-    String pick = available_for_random[idx];
-    ui_push_image_to_canvas(pick.c_str(), x, y, nullptr, true);
-    return true;
+    String ret = available_for_random[idx];
+#if DBG_LOCKSCREEN
+    Serial.printf("[LCK] pick_book_cover_image exit: picked=%s, idx=%d/%d, took %lu ms\n",
+                  ret.c_str(), idx, (int)available_for_random.size(), millis() - lck_t0);
+#endif
+    return ret;
+}
+
+// 挑选一张随机图片并全屏推送，**不**回退到 exlibris.png
+// 返回 true 表示成功推送了一张随机图片，false 表示没有可用的随机图片
+static bool push_random_sd_image_if_available(const char *dirPath, int x, int y, bool isshutdown)
+{
+#if DBG_LOCKSCREEN
+    unsigned long lck_t0 = millis();
+    Serial.printf("[LCK] push_random_sd_image_if_available enter: dir=%s, freeHeap=%u\n",
+                  dirPath, (unsigned)ESP.getFreeHeap());
+#endif
+    String pick = pick_book_cover_image(dirPath);
+    if (pick.length() > 0)
+    {
+#if DBG_LOCKSCREEN
+        Serial.printf("[LCK] push_random_sd_image_if_available: picked=%s, took %lu ms\n",
+                      pick.c_str(), millis() - lck_t0);
+#endif
+        ui_push_image_to_canvas(pick.c_str(), x, y, nullptr, true);
+        return true;
+    }
+
+#if DBG_LOCKSCREEN
+    Serial.println("[LCK] push_random_sd_image_if_available: no pick, returning false (no fallback)");
+#endif
+    return false;
 }
 
 // 绘制书名与页码的腰封（Name banner）
@@ -696,6 +1047,14 @@ void show_start_screen(const char *subtitle)
 
 void show_lockscreen(int16_t area_width, int16_t area_height, float font_size, const char *text, bool isshutdown, const char *labelpos, bool forsnapshot)
 {
+#if DBG_LOCKSCREEN
+    Serial.printf("[LCK] show_lockscreen enter: shutdown=%d, forsnapshot=%d, mode=%s, text=%s, labelpos=%s, freeHeap=%u\n",
+                  (int)isshutdown, (int)forsnapshot,
+                  g_config.lockscreen_mode ? g_config.lockscreen_mode : "null",
+                  text ? text : "null",
+                  labelpos ? labelpos : "null",
+                  (unsigned)ESP.getFreeHeap());
+#endif
 #if DBG_POWERMGT
     Serial.println("[POWER] 10分钟无操作，自动关机");
 #endif
@@ -718,14 +1077,39 @@ void show_lockscreen(int16_t area_width, int16_t area_height, float font_size, c
             M5.Display.waitDisplay();
         }
 
-        // Try to show a random SD image from /image; fallback to /spiffs/screen.png
-        if (!push_random_sd_image_if_available("/image", 0, 0))
+        const bool is_default_mode = (strcmp(g_config.lockscreen_mode, "default") == 0);
+
+        if (is_default_mode)
+        {
+            // 如果是关机时刻，则推送start.png先
+            //if (isshutdown)
+            if (false)
+            {
+                ui_push_image_to_canvas("/spiffs/start.png", 0, 0);
+            }
+            push_cover_thumbnail_scaled();
+            // [LCK] default 模式：先画封面缩略图(背景层) → 全屏 exlibris.png(透明开窗露出封面) → 书籍信息
+            if (try_push_default_lock_image(0, 0, isshutdown))
+            {
+                if (isshutdown)
+                    ui_push_image_to_canvas("/spiffs/power-icon.png", 30, 150);
+                else
+                    ui_push_image_to_canvas("/spiffs/lock-icon.png", 30, 150);
+                print_book_info_on_canvas(isshutdown);
+                return;
+            }
+            // exlibris.png 不存在则 fallthrough 到 random（继续展示图片而非白屏）
+        }
+
+        // [LCK] random 模式 / default 回退：挑一张随机图片全屏推送
+        if (!push_random_sd_image_if_available("/image", 0, 0, isshutdown))
         {
             if (g_current_book && g_current_book->getVerticalText())
                 ui_push_image_to_canvas("/spiffs/screen.png", 0, 0, nullptr, true);
             else
                 ui_push_image_to_canvas("/spiffs/screenH.png", 0, 0, nullptr, true);
         }
+        // 继续 label/info/边角绘制（下方现有逻辑）
     }
 
     g_canvas->drawRect(0, 0, 540, 960, TFT_WHITE);
