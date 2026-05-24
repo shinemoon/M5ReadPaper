@@ -330,22 +330,22 @@ bool show_reading_menu(M5Canvas *canvas, bool refresh, readingMenuArea area)
         switch (area)
         {
         case DARKMODE:
-            bin_font_flush_canvas(false, false, false, NOEFFECT, 0, BOTTOMUI_y + 60 + 38, 540, 40);
+            bin_font_flush_canvas(false, false, !g_config.fastrefresh, NOEFFECT, 0, BOTTOMUI_y + 60 + 38, 540, 40);
             break;
         case FASTMODE:
-            bin_font_flush_canvas(false, false, false, NOEFFECT, 40 + 260, BOTTOMUI_y + 60 + 38, 40, 40);
+            bin_font_flush_canvas(false, false, !g_config.fastrefresh, NOEFFECT, 40 + 260, BOTTOMUI_y + 60 + 38, 40, 40);
             break;
         case SKIPCONV:
-            bin_font_flush_canvas(false, false, false, NOEFFECT, 42 + 3, TOPUI_y + 240 + 3, 24, 24);
+            bin_font_flush_canvas(false, false, !g_config.fastrefresh, NOEFFECT, 42 + 3, TOPUI_y + 240 + 3, 24, 24);
             break;
         case UNDERLINE:
-            bin_font_flush_canvas(false, false, false, NOEFFECT, 196 + 3, TOPUI_y + 60 + 3, 24, 24);
+            bin_font_flush_canvas(false, false, !g_config.fastrefresh, NOEFFECT, 196 + 3, TOPUI_y + 60 + 3, 24, 24);
             break;
         case LOCKBM:
-            bin_font_flush_canvas(false, false, false, NOEFFECT, 42 + 3, TOPUI_y + 60 + 3, 24, 24);
+            bin_font_flush_canvas(false, false, !g_config.fastrefresh, NOEFFECT, 30 + 3, TOPUI_y + 60 + 3, 24, 24);
             break;
         case SWIPE:
-            bin_font_flush_canvas(false, false, false, NOEFFECT, 362 + 3, TOPUI_y + 60 + 3, 150, 30);
+            bin_font_flush_canvas(false, false, !g_config.fastrefresh, NOEFFECT, 362 + 3, TOPUI_y + 60 + 3, 24, 24);
             break;
         default:
             /*
@@ -459,17 +459,17 @@ void drawTopUI(M5Canvas *canvas, int16_t x, int16_t y)
 
     // 2. 锁屏书签复选框
     bool showLabel = (g_current_book && g_current_book->getShowLabel());
-    drawCheckbox(canvas, x + 30, y + 60, showLabel, "锁屏书签", 24, 20);
+    drawCheckbox(canvas, x + 30, y + 60, showLabel, "锁屏书签",28,24);
 
     // 2.5. 下划线复选框
     if (g_current_book)
     {
         bool drawBottom = g_current_book->getDrawBottom();
-        drawCheckbox(canvas, x + 196, y + 60, drawBottom, "下划线", 24, 20);
+        drawCheckbox(canvas, x + 196, y + 60, drawBottom, "下划线", 28, 36);
     }
 
     // 2.6. 翻页特效复选框
-    drawCheckbox(canvas, x + 362, y + 60, g_config.enable_swipe, "翻页特效", 24, 20);
+    drawCheckbox(canvas, x + 362, y + 60, g_config.enable_swipe, "翻页特效", 28, 24);
     // 2.6 划线与竖排
 
     // 2.6 跳过繁简转换复选框（移到左下位置）
@@ -1213,12 +1213,12 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
                 p_y = 0;
                 p_h = PAPER_S3_HEIGHT;
                 p_w = 362;
-                bin_font_flush_canvas(false, false, false, NOEFFECT, p_x, p_y, p_w, p_h);
+                bin_font_flush_canvas(false, false, !g_config.fastrefresh, NOEFFECT, p_x, p_y, p_w, p_h);
                 p_x = 370;
                 p_y = 100;
                 p_h = 22;
                 p_w = 170;
-                bin_font_flush_canvas(false, false, false, NOEFFECT, p_x, p_y, p_w, p_h);
+                bin_font_flush_canvas(false, false, !g_config.fastrefresh, NOEFFECT, p_x, p_y, p_w, p_h);
             }
             else if (refInd == 2)
             {
@@ -1226,17 +1226,17 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
                 p_y = 0;
                 p_h = PAPER_S3_HEIGHT;
                 p_w = 362;
-                bin_font_flush_canvas(false, false, false, NOEFFECT, p_x, p_y, p_w, p_h);
+                bin_font_flush_canvas(false, false, !g_config.fastrefresh, NOEFFECT, p_x, p_y, p_w, p_h);
                 p_x = 373;
                 p_y = 300;
                 p_h = 50;
                 p_w = 180;
-                bin_font_flush_canvas(false, false, false, NOEFFECT, p_x, p_y, p_w, p_h);
+                bin_font_flush_canvas(false, false, !g_config.fastrefresh, NOEFFECT, p_x, p_y, p_w, p_h);
                 p_x = 370;
                 p_y = 100;
                 p_h = 22;
                 p_w = 170;
-                bin_font_flush_canvas(false, false, false, NOEFFECT, p_x, p_y, p_w, p_h);
+                bin_font_flush_canvas(false, false, !g_config.fastrefresh, NOEFFECT, p_x, p_y, p_w, p_h);
             }
             else
             {

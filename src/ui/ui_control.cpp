@@ -470,16 +470,14 @@ MenuTouchResult handleMenuTouch(TouchZone zone)
     // Reindex
     case TouchZone::TWO_TWO:
     case TouchZone::TWO_THREE:
-        // case TouchZone::TWO_FOUR:
-        // case TouchZone::TWO_FIVE:
 #if DBG_UI_CONTROL
         Serial.println("[MENU TOUCH] TWO 区域：Reindex");
 #endif
         result.success = true;
         result.message = "TWO 区域：ReIndex";
         break;
-    // ONE_* and TWO_* 区域：暂不处理
     case TouchZone::ONE_ONE:
+    case TouchZone::ONE_TWO:
 #if DBG_UI_CONTROL
         Serial.println("[MENU TOUCH] ONE 区域：label control");
 #endif
@@ -487,32 +485,28 @@ MenuTouchResult handleMenuTouch(TouchZone zone)
         result.message = "Switch Label";
         break;
     // ONE_* and TWO_* 区域：暂不处理
-    case TouchZone::ONE_TWO:
+    case TouchZone::ONE_THREE:
+    case TouchZone::ONE_FOUR:
 #if DBG_UI_CONTROL
         Serial.println("[MENU TOUCH] ONE 区域：drawBottom control");
 #endif
         result.success = true;
         result.message = "Switch DrawBottom";
         break;
-    case TouchZone::ONE_THREE:
+    case TouchZone::ONE_FIVE:
+    case TouchZone::ONE_SIX:
 #if DBG_UI_CONTROL
         Serial.println("[MENU TOUCH] ONE 区域：swipe control");
 #endif
         result.success = true;
         result.message = "Switch Swipe";
         break;
-    case TouchZone::ONE_FOUR:
-    case TouchZone::ONE_FIVE:
-#if DBG_UI_CONTROL
-        Serial.println("[MENU TOUCH] ONE/TWO 区域：无动作");
-#endif
-        result.success = true;
-        result.message = "ONE/TWO 区域：无动作";
-        break;
     case TouchZone::TWO_ONE:
+    case TouchZone::TWO_FOUR:
+    case TouchZone::TWO_FIVE:
     case TouchZone::TWO_SIX:
 #if DBG_UI_CONTROL
-        Serial.println("[MENU TOUCH] ONE/TWO 区域：无动作");
+        Serial.println("[MENU TOUCH] ONE/TWO 区域：不在此处理");
 #endif
         result.success = true;
         result.message = "ONE/TWO 区域：无动作";
