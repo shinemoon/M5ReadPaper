@@ -477,10 +477,10 @@ static void print_book_info_on_canvas(bool isshutdown)
 
     // Title
     snprintf(buf, sizeof(buf), "%s", book_name.c_str());
-    bin_font_print(buf, 32, TFT_BLACK, 540, pos_x-6, pos_y, false, g_canvas, TEXT_ALIGN_CENTER_NEW, 400);
+    bin_font_print(buf, 32, TFT_BLACK, 540, pos_x - 6, pos_y, false, g_canvas, TEXT_ALIGN_CENTER_NEW, 400);
     // Chapter
     snprintf(buf, sizeof(buf), "%s", chapter.c_str());
-    bin_font_print(buf, fsize, TFT_BLACK, 540, pos_x-6, pos_y + line_h + 12, false, g_canvas, TEXT_ALIGN_CENTER_NEW, 400);
+    bin_font_print(buf, fsize, TFT_BLACK, 540, pos_x - 6, pos_y + line_h + 12, false, g_canvas, TEXT_ALIGN_CENTER_NEW, 400);
     // Pages
     // snprintf(buf, sizeof(buf), "%zu/%zu", cur_page, total_page);
     snprintf(buf, sizeof(buf), "%zu", cur_page);
@@ -506,13 +506,18 @@ static void print_book_info_on_canvas(bool isshutdown)
     int progress_width = 0;
     if (total_page > 0)
     {
+        int64_t barwidth = 290;
         // use 64-bit intermediate just in case, then clamp
-        int64_t pw = (int64_t)290 * (int64_t)cur_page / (int64_t)total_page;
+        int64_t pw = barwidth * (int64_t)cur_page / (int64_t)total_page;
         if (pw < 0)
             pw = 0;
-        if (pw > 540)
-            pw = 540;
+        if (pw > barwidth)
+            pw = barwidth;
         progress_width = (int)pw;
+        if (pw == barwidth)
+        {
+            ui_push_image_to_canvas("/spiffs/done.png", 100, 300, nullptr, false);
+        }
     }
 
     // snprintf(buf, sizeof(buf), "%zu/%zu", cur_page, total_page);
@@ -1082,7 +1087,7 @@ void show_lockscreen(int16_t area_width, int16_t area_height, float font_size, c
         if (is_default_mode)
         {
             // 如果是关机时刻，则推送start.png先
-            //if (isshutdown)
+            // if (isshutdown)
             if (false)
             {
                 ui_push_image_to_canvas("/spiffs/start.png", 0, 0);
