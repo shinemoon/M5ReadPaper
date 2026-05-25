@@ -58,7 +58,7 @@ enum display_type {
 #define MARGIN_BOTTOM 18
 #define MARGIN_LEFT 27
 #define MARGIN_RIGHT 18
-#define VERTICAL_TOP_DELTA 0
+#define VERTICAL_TOP_DELTA -10
 #define VERTICAL_RIGHT_DELTA 0
 
 #define LINE_MARGIN 24

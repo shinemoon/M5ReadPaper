@@ -504,9 +504,9 @@ static void print_book_info_on_canvas(bool isshutdown)
     // ---- 当前阅读百分比 --
     // Protect against divide-by-zero and clamp progress width to [0,540]
     int progress_width = 0;
+    int64_t barwidth = 290;
     if (total_page > 0)
     {
-        int64_t barwidth = 290;
         // use 64-bit intermediate just in case, then clamp
         int64_t pw = barwidth * (int64_t)cur_page / (int64_t)total_page;
         if (pw < 0)
@@ -514,15 +514,15 @@ static void print_book_info_on_canvas(bool isshutdown)
         if (pw > barwidth)
             pw = barwidth;
         progress_width = (int)pw;
-        if (pw == barwidth)
-        {
-            ui_push_image_to_canvas("/spiffs/done.png", 100, 300, nullptr, false);
-        }
     }
 
     // snprintf(buf, sizeof(buf), "%zu/%zu", cur_page, total_page);
     // g_canvas->fillRoundRect(pos_x + 120, pos_y + line_h * 5 + 8, progress_width,36, 2, TFT_LIGHTGREY);
     g_canvas->fillRoundRect(pos_x + 124, pos_y + line_h * 5 + 9, progress_width, 36, 8, TFT_LIGHTGREY);
+    if (progress_width == barwidth)
+    {
+        ui_push_image_to_canvas_scaled("/spiffs/done.png", -150, 180, 1.0f, 1.0f, nullptr, false);
+    }
 
     bin_font_flush_canvas(false, false, true, RECT);
 }
