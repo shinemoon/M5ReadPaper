@@ -25,6 +25,175 @@
 #include <mbedtls/base64.h>
 #include "ui/trmnlComponents/comp_history_cache.h"
 
+// Helper: stream request body (either webServer->arg("plain") or client stream) into a SD temp file.
+static bool stream_request_to_temp(WebServer *webServer, const char *tmpPath) {
+    // Open temp file for write (overwrite)
+    File tf = SDW::SD.openWithRetry(tmpPath, FILE_WRITE, 4, 2);
+    if (!tf) return false;
+
+    // If WebServer already parsed into arg("plain"), write from it in chunks to avoid big allocations
+    if (webServer->hasArg("plain") && webServer->arg("plain").length() > 0) {
+        String body = webServer->arg("plain");
+        const size_t CHUNK = 512;
+        size_t written = 0;
+        size_t len = body.length();
+        for (size_t off = 0; off < len; off += CHUNK) {
+            size_t take = (len - off) > CHUNK ? CHUNK : (len - off);
+            tf.write((const uint8_t*)body.c_str() + off, take);
+            written += take;
+            yield();
+        }
+        tf.flush();
+        tf.close();
+        return true;
+    }
+
+    // Otherwise read from underlying client stream
+    WiFiClient client = webServer->client();
+    const size_t SECTOR = 512;
+    const size_t DMA_CAP = 8192; // expected DMA buffer capacity in SDWrapper pool
+
+    // Try to acquire a DMA-capable buffer from SD wrapper pool
+    uint8_t *dma_buf = SDW::SD.acquire_dma_buffer();
+    uint8_t stack_buf[SECTOR];
+    size_t buf_cap = dma_buf ? DMA_CAP : SECTOR;
+    size_t pos = 0;
+
+    unsigned long startMs = millis();
+    unsigned long lastYieldMs = millis();
+    while (client.connected()) {
+        int avail = client.available();
+        if (avail == 0) {
+            if ((millis() - startMs) > 3000) break;
+            yield();
+            continue;
+        }
+        int toRead = avail > (int)SECTOR ? SECTOR : avail;
+        int r;
+        if (dma_buf) {
+            r = client.readBytes((char*)(dma_buf + pos), toRead);
+            if (r <= 0) break;
+            pos += (size_t)r;
+            // If we have at least one sector, flush full sectors to SD
+            if (pos >= SECTOR) {
+                size_t write_sz = (pos / SECTOR) * SECTOR; // write only full sectors
+                size_t w = tf.write(dma_buf, write_sz);
+                if (w != write_sz) { tf.close(); SDW::SD.release_dma_buffer(dma_buf); return false; }
+                // move remaining bytes to start
+                size_t rem = pos - write_sz;
+                if (rem > 0) memmove(dma_buf, dma_buf + write_sz, rem);
+                pos = rem;
+                tf.flush();
+                // pacing: occasional short delay to reduce SDMMC bus pressure
+                if ((millis() - lastYieldMs) > 50) { yield(); delay(1); lastYieldMs = millis(); }
+            }
+        } else {
+            r = client.readBytes((char*)stack_buf, toRead);
+            if (r <= 0) break;
+            size_t w = tf.write(stack_buf, (size_t)r);
+            if (w != (size_t)r) { tf.close(); return false; }
+            tf.flush();
+            yield();
+        }
+        startMs = millis();
+    }
+
+    // flush any remaining bytes in dma_buf
+    if (dma_buf && pos > 0) {
+        size_t w = tf.write(dma_buf, pos);
+        if (w != pos) { tf.close(); SDW::SD.release_dma_buffer(dma_buf); return false; }
+        tf.flush();
+        SDW::SD.release_dma_buffer(dma_buf);
+    }
+
+    tf.close();
+    return true;
+}
+
+// Helper: extract a top-level JSON value (object or array) for `key` from inputPath and write value bytes into outTmpPath (without surrounding key/colon)
+// The output will contain the value exactly as in source (including surrounding '[' ']' or '{' '}').
+static bool extract_top_level_value(const char *inputPath, const char *key, const char *outTmpPath) {
+    if (!SDW::SD.exists(inputPath)) return false;
+    File f = SDW::SD.open(inputPath, FILE_READ);
+    if (!f) return false;
+
+    File out = SDW::SD.openWithRetry(outTmpPath, FILE_WRITE, 4, 2);
+    if (!out) { f.close(); return false; }
+
+    bool inString = false;
+    bool escape = false;
+    String curKey;
+    const char *k = key;
+
+    bool rootOpened = false;
+
+    int ch;
+    while ((ch = f.read()) >= 0) {
+        char c = (char)ch;
+        if (!rootOpened) {
+            if (c == '{') { rootOpened = true; }
+            continue;
+        }
+        if (inString) {
+            if (escape) { escape = false; curKey += c; }
+            else if (c == '\\') { escape = true; }
+            else if (c == '"') {
+                inString = false;
+                // We read a complete string into curKey which may be a key
+                // To ensure it's a top-level key, peek previous non-space char by seeking backwards is complex.
+                // Simpler heuristic: if previous non-space char was '{' or ',' then this was a key at current object level.
+                // We'll assume JSON well-formed and treat this as candidate key.
+                if (curKey.equals(String(k))) {
+                    // After closing quote, skip until ':'
+                    int ch2;
+                    do { ch2 = f.read(); if (ch2 < 0) break; } while (isspace(ch2) || ch2 != ':');
+                    if (ch2 != ':') {
+                        // find colon
+                        while ((ch2 = f.read()) >= 0) { if (ch2 == ':') break; }
+                    }
+                    // skip whitespace to first non-space which is value start
+                    int vch;
+                    do { vch = f.read(); if (vch < 0) break; } while (isspace(vch));
+                    if (vch < 0) { f.close(); out.close(); return false; }
+                    char first = (char)vch;
+                    if (first != '{' && first != '[') { f.close(); out.close(); return false; }
+                    // write value first char
+                    out.write((uint8_t)first);
+                    // stream balanced structure
+                    bool inStrVal = false;
+                    bool escVal = false;
+                    int bal = 1;
+                    while ((ch2 = f.read()) >= 0) {
+                        char cc = (char)ch2;
+                        out.write((uint8_t)cc);
+                        if (inStrVal) {
+                            if (escVal) escVal = false;
+                            else if (cc == '\\') escVal = true;
+                            else if (cc == '"') inStrVal = false;
+                        } else {
+                            if (cc == '"') inStrVal = true;
+                            else if (cc == '{' || cc == '[') bal++;
+                            else if (cc == '}' || cc == ']') {
+                                bal--;
+                                if (bal == 0) { out.flush(); out.close(); f.close(); return true; }
+                            }
+                        }
+                    }
+                    // if we reach here, failure
+                    out.close(); f.close(); return false;
+                }
+                curKey.clear();
+            } else { curKey += c; }
+        } else {
+            if (c == '"') { inString = true; curKey = ""; escape = false; }
+            // else continue scanning
+        }
+    }
+
+    f.close(); out.close();
+    return false;
+}
+
 //#define DBG_WIFI_HOTSPOT 1
 
 extern GlobalConfig g_config;
@@ -3404,47 +3573,78 @@ void WiFiHotspotManager::handleSyncBegin() {
         SDW::SD.mkdir("/xmnote");
     }
 
-    // Try to parse JSON with ArduinoJson (safe for moderate payloads)
-    DynamicJsonDocument doc(32 * 1024);
-    DeserializationError err = deserializeJson(doc, body);
-    if (err) {
-        String msg = String("{\"error\":\"invalid JSON: ") + err.c_str() + "\"}";
-        webServer->send(400, "application/json", msg);
-        return;
-    }
+    // Decide streaming vs in-memory parse based on content length to avoid large allocations
+    String clenStr = webServer->header("Content-Length");
+    long clen = clenStr.length() ? clenStr.toInt() : (long)body.length();
+    const long STREAM_THRESHOLD = 32 * 1024; // 32KB
 
-    // Write books array to /xmnote/books.json
-    if (doc.containsKey("books")) {
-        File bf = SDW::SD.open("/xmnote/books.json", FILE_WRITE);
-        if (!bf) {
-            webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}");
+    if (clen > STREAM_THRESHOLD) {
+        // Stream request to temp file then extract top-level keys without loading into RAM
+        const char *in_tmp = "/xmnote/sync_body.tmp";
+        if (!stream_request_to_temp(webServer, in_tmp)) {
+            webServer->send(500, "application/json", "{\"error\":\"Failed to read request body\"}");
             return;
         }
-        serializeJson(doc["books"], bf);
-        bf.close();
-    }
-
-    // Write reviewSettings if present
-    if (doc.containsKey("reviewSettings") || doc.containsKey("reviewSettings")) {
-        File rf = SDW::SD.open("/xmnote/review_settings.json", FILE_WRITE);
-        if (!rf) {
-            webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}");
+        // Extract books if present
+        const char *books_tmp = "/xmnote/books.json.tmp";
+        const char *books_final = "/xmnote/books.json";
+        if (extract_top_level_value(in_tmp, "books", books_tmp)) {
+            if (SDW::SD.exists(books_final)) SDW::SD.remove(books_final);
+            SDW::SD.rename(books_tmp, books_final);
+        }
+        // Extract reviewSettings
+        const char *rs_tmp = "/xmnote/review_settings.json.tmp";
+        const char *rs_final = "/xmnote/review_settings.json";
+        if (extract_top_level_value(in_tmp, "reviewSettings", rs_tmp)) {
+            if (SDW::SD.exists(rs_final)) SDW::SD.remove(rs_final);
+            SDW::SD.rename(rs_tmp, rs_final);
+        }
+        // Prepare excerpts temp file for batch mode
+        const char *excerpts_tmp = "/xmnote/excerpts.json.tmp";
+        File ef = SDW::SD.openWithRetry(excerpts_tmp, FILE_WRITE, 4, 2);
+        if (!ef) { webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}"); return; }
+        ef.write((const uint8_t*)"[", 1);
+        ef.flush(); ef.close();
+    } else {
+        // Try to parse JSON with ArduinoJson (safe for modest payloads)
+        DynamicJsonDocument doc(32 * 1024);
+        DeserializationError err = deserializeJson(doc, body);
+        if (err) {
+            String msg = String("{\"error\":\"invalid JSON: ") + err.c_str() + "\"}";
+            webServer->send(400, "application/json", msg);
             return;
         }
-        if (doc.containsKey("reviewSettings")) serializeJson(doc["reviewSettings"], rf);
-        else if (doc.containsKey("reviewSettings")) serializeJson(doc["reviewSettings"], rf);
-        rf.close();
-    }
 
-    // Prepare excerpts file for batch mode: create/overwrite and write opening '['
-    File ef = SDW::SD.open("/xmnote/excerpts.json", FILE_WRITE);
-    if (!ef) {
-        webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}");
-        return;
+        // Write books array to /xmnote/books.json (write to temp then rename)
+        if (doc.containsKey("books")) {
+            const char *books_tmp = "/xmnote/books.json.tmp";
+            const char *books_final = "/xmnote/books.json";
+            File bf = SDW::SD.openWithRetry(books_tmp, FILE_WRITE, 4, 2);
+            if (!bf) { webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}"); return; }
+            serializeJson(doc["books"], bf);
+            bf.close();
+            if (SDW::SD.exists(books_final)) SDW::SD.remove(books_final);
+            SDW::SD.rename(books_tmp, books_final);
+        }
+
+        // Write reviewSettings if present (temp then rename)
+        if (doc.containsKey("reviewSettings")) {
+            const char *rs_tmp = "/xmnote/review_settings.json.tmp";
+            const char *rs_final = "/xmnote/review_settings.json";
+            File rf = SDW::SD.openWithRetry(rs_tmp, FILE_WRITE, 4, 2);
+            if (!rf) { webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}"); return; }
+            serializeJson(doc["reviewSettings"], rf);
+            rf.close();
+            if (SDW::SD.exists(rs_final)) SDW::SD.remove(rs_final);
+            SDW::SD.rename(rs_tmp, rs_final);
+        }
+
+        // Prepare excerpts file for batch mode: create/overwrite temp and write opening '['
+        const char *excerpts_tmp = "/xmnote/excerpts.json.tmp";
+        File ef = SDW::SD.openWithRetry(excerpts_tmp, FILE_WRITE, 4, 2);
+        if (!ef) { webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}"); return; }
+        ef.print("["); ef.flush(); ef.close();
     }
-    ef.print("[");
-    ef.flush();
-    ef.close();
 
     // initialize sync session state
     syncInProgress = true;
@@ -3465,11 +3665,12 @@ void WiFiHotspotManager::handleSyncBatch() {
     // Ensure /xmnote exists
     if (!SDW::SD.exists("/xmnote")) SDW::SD.mkdir("/xmnote");
 
-    // Open excerpts file for append (use FILE_WRITE then seek to end)
-    File ef = SDW::SD.open("/xmnote/excerpts.json", FILE_WRITE);
+    // Open excerpts temp file for append (use FILE_WRITE then seek to end)
+    const char *excerpts_tmp = "/xmnote/excerpts.json.tmp";
+    File ef = SDW::SD.openWithRetry(excerpts_tmp, FILE_WRITE, 4, 2);
     if (!ef) {
-        String diag = String("{\"error\":\"SD open failed\",\"path\":\"/xmnote/excerpts.json\"}");
-        Serial.println("[WIFI_HOTSPOT] failed to open /xmnote/excerpts.json for append");
+        String diag = String("{\"error\":\"SD open failed\",\"path\":\"/xmnote/excerpts.json.tmp\"}");
+        Serial.println("[WIFI_HOTSPOT] failed to open /xmnote/excerpts.json.tmp for append");
         webServer->send(500, "application/json", diag);
         return;
     }
@@ -3486,6 +3687,18 @@ void WiFiHotspotManager::handleSyncBatch() {
         size_t objBytes = 0;
         const size_t MAX_OBJ_BYTES = 1024 * 1024; // 1MB per object
 
+        // Buffered writer to reduce small writes
+        const size_t WRITE_BUF_SZ = 2048;
+        char write_buf[WRITE_BUF_SZ];
+        size_t write_pos = 0;
+        auto flush_write_buf = [&](bool doFlush){
+            if (write_pos > 0) {
+                ef.write((const uint8_t*)write_buf, write_pos);
+                write_pos = 0;
+            }
+            if (doFlush) ef.flush();
+        };
+
         for (int idx = 0; idx < body.length(); ++idx) {
             char c = body[idx];
 
@@ -3496,8 +3709,13 @@ void WiFiHotspotManager::handleSyncBatch() {
                     writingObject = true;
                     braceDepth = 1;
                     objBytes = 0;
-                    if (!syncExcerptsFirstItem) ef.print(','); else syncExcerptsFirstItem = false;
-                    ef.print(c);
+                    if (!syncExcerptsFirstItem) {
+                        // write comma before next object
+                        if (write_pos >= WRITE_BUF_SZ - 1) flush_write_buf(false);
+                        write_buf[write_pos++] = ',';
+                    } else syncExcerptsFirstItem = false;
+                    if (write_pos >= WRITE_BUF_SZ - 1) flush_write_buf(false);
+                    write_buf[write_pos++] = c;
                     objBytes++;
                     // reset string/escape state for object body
                     inString = false;
@@ -3506,8 +3724,9 @@ void WiFiHotspotManager::handleSyncBatch() {
                     if (c == '\\' && !escape) escape = true; else escape = false;
                 }
             } else {
-                // already writing an object: stream char to SD
-                ef.print(c);
+                // already writing an object: buffer char
+                if (write_pos >= WRITE_BUF_SZ - 1) flush_write_buf(false);
+                write_buf[write_pos++] = c;
                 objBytes++;
 
                 if (c == '"' && !escape) inString = !inString;
@@ -3520,11 +3739,12 @@ void WiFiHotspotManager::handleSyncBatch() {
                 if (braceDepth == 0) {
                     // object finished
                     writingObject = false;
-                    ef.flush();
+                    flush_write_buf(true);
                     syncTotalExcerpts++;
                 }
 
                 if (objBytes > MAX_OBJ_BYTES) {
+                    flush_write_buf(false);
                     ef.close();
                     String diag = String("{\"error\":\"object too large\",\"bytes\":") + String(objBytes) + String("}");
                     Serial.println(String("[WIFI_HOTSPOT] object too large bytes=") + String(objBytes));
@@ -3535,6 +3755,8 @@ void WiFiHotspotManager::handleSyncBatch() {
             // keep event loop alive
             if ((idx & 0x3FF) == 0) yield();
         }
+        // flush any remaining buffered data
+        flush_write_buf(true);
 
         ef.close();
         String resp = String("{\"status\":\"ok\",\"totalExcerpts\":") + String(syncTotalExcerpts) + String("}");
@@ -3557,6 +3779,18 @@ void WiFiHotspotManager::handleSyncBatch() {
     size_t objBytes = 0;
     const size_t MAX_OBJ_BYTES = 1024 * 1024; // 1MB per object
 
+    // Buffered writer for client stream
+    const size_t WRITE_BUF_SZ = 2048;
+    char write_buf[WRITE_BUF_SZ];
+    size_t write_pos = 0;
+    auto flush_write_buf = [&](bool doFlush){
+        if (write_pos > 0) {
+            ef.write((const uint8_t*)write_buf, write_pos);
+            write_pos = 0;
+        }
+        if (doFlush) ef.flush();
+    };
+
     // Read any available data from the underlying client (if present)
     unsigned long startMs = millis();
     while (client.connected()) {
@@ -3575,46 +3809,52 @@ void WiFiHotspotManager::handleSyncBatch() {
         for (int i = 0; i < r; ++i) {
             char c = buf[i];
 
-            if (!writingObject) {
-                if (c == '"' && !escape) inString = !inString;
-                if (!inString && c == '{') {
-                    writingObject = true;
-                    braceDepth = 1;
-                    objBytes = 0;
-                    if (!syncExcerptsFirstItem) ef.print(','); else syncExcerptsFirstItem = false;
-                    ef.print(c);
-                    objBytes++;
-                    inString = false;
-                    escape = false;
+                if (!writingObject) {
+                    if (c == '"' && !escape) inString = !inString;
+                    if (!inString && c == '{') {
+                        writingObject = true;
+                        braceDepth = 1;
+                        objBytes = 0;
+                        if (!syncExcerptsFirstItem) {
+                            if (write_pos >= WRITE_BUF_SZ - 1) flush_write_buf(false);
+                            write_buf[write_pos++] = ',';
+                        } else syncExcerptsFirstItem = false;
+                        if (write_pos >= WRITE_BUF_SZ - 1) flush_write_buf(false);
+                        write_buf[write_pos++] = c;
+                        objBytes++;
+                        inString = false;
+                        escape = false;
+                    } else {
+                        if (c == '\\' && !escape) escape = true; else escape = false;
+                    }
                 } else {
+                    if (write_pos >= WRITE_BUF_SZ - 1) flush_write_buf(false);
+                    write_buf[write_pos++] = c;
+                    objBytes++;
+
+                    if (c == '"' && !escape) inString = !inString;
+                    if (!inString) {
+                        if (c == '{') braceDepth++;
+                        else if (c == '}') braceDepth--;
+                    }
                     if (c == '\\' && !escape) escape = true; else escape = false;
-                }
-            } else {
-                ef.print(c);
-                objBytes++;
 
-                if (c == '"' && !escape) inString = !inString;
-                if (!inString) {
-                    if (c == '{') braceDepth++;
-                    else if (c == '}') braceDepth--;
-                }
-                if (c == '\\' && !escape) escape = true; else escape = false;
+                    if (braceDepth == 0) {
+                        writingObject = false;
+                        flush_write_buf(true);
+                        syncTotalExcerpts++;
+                    }
 
-                if (braceDepth == 0) {
-                    writingObject = false;
-                    ef.flush();
-                    syncTotalExcerpts++;
+                    if (objBytes > MAX_OBJ_BYTES) {
+                        flush_write_buf(false);
+                        ef.close();
+                        String diag = String("{\"error\":\"object too large\",\"bytes\":") + String(objBytes) + String("}");
+                        Serial.println(String("[WIFI_HOTSPOT] object too large bytes=") + String(objBytes));
+                        webServer->send(500, "application/json", diag);
+                        return;
+                    }
                 }
-
-                if (objBytes > MAX_OBJ_BYTES) {
-                    ef.close();
-                    String diag = String("{\"error\":\"object too large\",\"bytes\":") + String(objBytes) + String("}");
-                    Serial.println(String("[WIFI_HOTSPOT] object too large bytes=") + String(objBytes));
-                    webServer->send(500, "application/json", diag);
-                    return;
-                }
-            }
-            if ((i & 0x3FF) == 0) yield();
+                if ((i & 0x3FF) == 0) yield();
         }
         yield();
     }
@@ -3632,19 +3872,29 @@ void WiFiHotspotManager::handleSyncEnd() {
         return;
     }
 
-    // Close the excerpts JSON array by appending ']'
-    File ef = SDW::SD.open("/xmnote/excerpts.json", FILE_WRITE);
+    // Close the excerpts JSON array by appending ']' to temp file then atomically rename
+    const char *excerpts_tmp = "/xmnote/excerpts.json.tmp";
+    const char *excerpts_final = "/xmnote/excerpts.json";
+    File ef = SDW::SD.open(excerpts_tmp, FILE_WRITE);
     if (!ef) {
-        String diag = String("{\"error\":\"SD open failed\",\"path\":\"/xmnote/excerpts.json\"}");
-        Serial.println("[WIFI_HOTSPOT] failed to open /xmnote/excerpts.json for streaming read");
+        String diag = String("{\"error\":\"SD open failed\",\"path\":\"/xmnote/excerpts.json.tmp\"}");
+        Serial.println("[WIFI_HOTSPOT] failed to open /xmnote/excerpts.json.tmp for streaming close");
         webServer->send(500, "application/json", diag);
         return;
     }
     size_t curSz = ef.size();
     ef.seek(curSz);
-    ef.print("]");
+    ef.write((const uint8_t *)"]", 1);
     ef.flush();
     ef.close();
+
+    // Try to atomically replace final file: remove existing then rename temp
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        // remove any existing final file first (ignore errors)
+        SDW::SD.remove(excerpts_final);
+        if (SDW::SD.rename(excerpts_tmp, excerpts_final)) break;
+        delay(50);
+    }
 
     syncInProgress = false;
 
@@ -3660,37 +3910,80 @@ void WiFiHotspotManager::handleSync() {
         return;
     }
 
-    // parse
-    DynamicJsonDocument doc(64 * 1024);
-    DeserializationError err = deserializeJson(doc, body);
-    if (err) {
-        String msg = String("{\"error\":\"invalid JSON: ") + err.c_str() + "\"}";
-        webServer->send(400, "application/json", msg);
-        return;
-    }
+    // Decide streaming vs in-memory parse based on content length to avoid large allocations
+    String clenStr = webServer->header("Content-Length");
+    long clen = clenStr.length() ? clenStr.toInt() : (long)body.length();
+    const long STREAM_THRESHOLD = 32 * 1024; // 32KB
 
     if (!SDW::SD.exists("/xmnote")) SDW::SD.mkdir("/xmnote");
 
-    if (doc.containsKey("books")) {
-        File bf = SDW::SD.open("/xmnote/books.json", FILE_WRITE);
-        if (!bf) { webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}"); return; }
-        serializeJson(doc["books"], bf);
-        bf.close();
-    }
+    if (clen > STREAM_THRESHOLD) {
+        const char *in_tmp = "/xmnote/sync_body.tmp";
+        if (!stream_request_to_temp(webServer, in_tmp)) {
+            webServer->send(500, "application/json", "{\"error\":\"Failed to read request body\"}");
+            return;
+        }
+        const char *books_tmp = "/xmnote/books.json.tmp";
+        const char *books_final = "/xmnote/books.json";
+        if (extract_top_level_value(in_tmp, "books", books_tmp)) {
+            if (SDW::SD.exists(books_final)) SDW::SD.remove(books_final);
+            SDW::SD.rename(books_tmp, books_final);
+        }
+        const char *rs_tmp = "/xmnote/review_settings.json.tmp";
+        const char *rs_final = "/xmnote/review_settings.json";
+        if (extract_top_level_value(in_tmp, "reviewSettings", rs_tmp)) {
+            if (SDW::SD.exists(rs_final)) SDW::SD.remove(rs_final);
+            SDW::SD.rename(rs_tmp, rs_final);
+        }
+        // excerpts
+        const char *excerpts_tmp = "/xmnote/excerpts.json.tmp";
+        const char *excerpts_final = "/xmnote/excerpts.json";
+        if (extract_top_level_value(in_tmp, "excerpts", excerpts_tmp)) {
+            if (SDW::SD.exists(excerpts_final)) SDW::SD.remove(excerpts_final);
+            SDW::SD.rename(excerpts_tmp, excerpts_final);
+        }
+    } else {
+        // parse small payload in-memory
+        DynamicJsonDocument doc(64 * 1024);
+        DeserializationError err = deserializeJson(doc, body);
+        if (err) {
+            String msg = String("{\"error\":\"invalid JSON: ") + err.c_str() + "\"}";
+            webServer->send(400, "application/json", msg);
+            return;
+        }
 
-    if (doc.containsKey("reviewSettings")) {
-        File rf = SDW::SD.open("/xmnote/review_settings.json", FILE_WRITE);
-        if (!rf) { webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}"); return; }
-        serializeJson(doc["reviewSettings"], rf);
-        rf.close();
-    }
+        if (doc.containsKey("books")) {
+            const char *books_tmp = "/xmnote/books.json.tmp";
+            const char *books_final = "/xmnote/books.json";
+            File bf = SDW::SD.openWithRetry(books_tmp, FILE_WRITE, 4, 2);
+            if (!bf) { webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}"); return; }
+            serializeJson(doc["books"], bf);
+            bf.close();
+            if (SDW::SD.exists(books_final)) SDW::SD.remove(books_final);
+            SDW::SD.rename(books_tmp, books_final);
+        }
 
-    // Write excerpts array entirely
-    if (doc.containsKey("excerpts")) {
-        File ef = SDW::SD.open("/xmnote/excerpts.json", FILE_WRITE);
-        if (!ef) { webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}"); return; }
-        serializeJson(doc["excerpts"], ef);
-        ef.close();
+        if (doc.containsKey("reviewSettings")) {
+            const char *rs_tmp = "/xmnote/review_settings.json.tmp";
+            const char *rs_final = "/xmnote/review_settings.json";
+            File rf = SDW::SD.openWithRetry(rs_tmp, FILE_WRITE, 4, 2);
+            if (!rf) { webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}"); return; }
+            serializeJson(doc["reviewSettings"], rf);
+            rf.close();
+            if (SDW::SD.exists(rs_final)) SDW::SD.remove(rs_final);
+            SDW::SD.rename(rs_tmp, rs_final);
+        }
+
+        if (doc.containsKey("excerpts")) {
+            const char *excerpts_tmp = "/xmnote/excerpts.json.tmp";
+            const char *excerpts_final = "/xmnote/excerpts.json";
+            File ef = SDW::SD.openWithRetry(excerpts_tmp, FILE_WRITE, 4, 2);
+            if (!ef) { webServer->send(500, "application/json", "{\"error\":\"SD write failed\"}"); return; }
+            serializeJson(doc["excerpts"], ef);
+            ef.close();
+            if (SDW::SD.exists(excerpts_final)) SDW::SD.remove(excerpts_final);
+            SDW::SD.rename(excerpts_tmp, excerpts_final);
+        }
     }
 
     webServer->send(200, "application/json", "{\"status\":\"ok\"}");

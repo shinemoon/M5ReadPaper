@@ -75,6 +75,17 @@ namespace SDW
         }
     }
 
+    // Public wrappers
+    uint8_t* SDWrapper::acquire_dma_buffer()
+    {
+        return allocate_dma_buffer();
+    }
+
+    void SDWrapper::release_dma_buffer(uint8_t* buf)
+    {
+        free_dma_buffer(buf);
+    }
+
     bool SDWrapper::begin(uint8_t csPin, SPIClass &spi, uint32_t freq, Interface iface)
     {
         // If already initialized, return success without re-initializing
@@ -276,6 +287,25 @@ namespace SDW
         return ::SD.open(path, mode, create);
     }
 
+    File SDWrapper::openWithRetry(const char *path, const char *mode, int attempts, int reinitAfter)
+    {
+        File f;
+        for (int i = 0; i < attempts; ++i) {
+            f = open(path, mode);
+            if (f) return f;
+            // small backoff
+            delay(50);
+            // if we've reached the reinit threshold, try to reinitialize SD
+            if (i == reinitAfter - 1) {
+                Serial.printf("[SDW] openWithRetry: reinitializing SD after %d failed attempts for %s\n", i+1, path);
+                reinitialize();
+                delay(100);
+            }
+        }
+        // final attempt
+        return open(path, mode);
+    }
+
     File SDWrapper::open(const char *path)
     {
         return open(path, "r", false);
@@ -432,8 +462,20 @@ namespace SDW
         // Fallback: 普通读取（非DMA或分配失败）
         f.seek(offset);
         uint32_t t_seek_end = micros();
-        
-        size_t result = f.read(buffer, read_len);
+
+        // Fallback read with simple retry: sometimes sdmmc returns short reads; retry a few times
+        size_t result = 0;
+        const int MAX_ATTEMPTS = 3;
+        for (int attempt = 0; attempt < MAX_ATTEMPTS; ++attempt) {
+            size_t got = f.read(buffer + result, read_len - result);
+            if (got > 0) result += got;
+            if (result >= read_len) break;
+            // short read: small delay and try again
+            delay(10);
+            // attempt to re-seek to continue from offset + result
+            f.seek(offset + result);
+            yield();
+        }
         uint32_t t_read_end = micros();
         
         uint32_t seek_us = t_seek_end - t_total_start;

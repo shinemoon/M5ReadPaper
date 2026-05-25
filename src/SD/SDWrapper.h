@@ -42,6 +42,8 @@ namespace SDW
         File open(const char *path, const char *mode, const bool create = false);
         // convenience overload when only path is provided
         File open(const char *path);
+        // Open with retries; will call reinitialize() on repeated failures.
+        File openWithRetry(const char *path, const char *mode, int attempts = 3, int reinitAfter = 2);
         // String-friendly overloads
         File open(const String &path, const char *mode) { return open(path.c_str(), mode, false); }
         File open(const String &path) { return open(path.c_str(), "r", false); }
@@ -57,6 +59,11 @@ namespace SDW
         // Low-level utility: read from file at specified offset into provided buffer
         // Returns number of bytes actually read
         size_t readAtOffset(File &f, size_t offset, uint8_t *buffer, size_t read_len);
+
+        // DMA buffer pool accessors: acquire/release a DMA-capable buffer from the pool
+        // Returns nullptr if none available; caller should fallback to stack/buffered writes
+        uint8_t* acquire_dma_buffer();
+        void release_dma_buffer(uint8_t* buf);
 
         // Performance statistics
         void reset_readAtOffset_stats();
