@@ -54,9 +54,10 @@ enum FontFormat {
 
 // 文本对齐方式枚举
 enum TextAlign {
-    TEXT_ALIGN_LEFT = 0,    // 左对齐
-    TEXT_ALIGN_CENTER = 1,  // 居中对齐
-    TEXT_ALIGN_RIGHT = 2    // 右对齐
+    TEXT_ALIGN_LEFT = 0,        // 左对齐
+    TEXT_ALIGN_CENTER = 1,      // 居中对齐（含shift_offset偏移，兼容旧行为）
+    TEXT_ALIGN_RIGHT = 2,       // 右对齐
+    TEXT_ALIGN_CENTER_NEW = 3   // 新的居中对齐：内容/截断内容严格在area_width内居中（不含shift_offset）
 };
 
 // 加载 bin font 文件，返回 true/false

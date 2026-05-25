@@ -2793,7 +2793,8 @@ void bin_font_print(const std::string &text, uint8_t font_size, uint8_t color, i
             switch (text_align)
             {
             case TEXT_ALIGN_CENTER:
-                y = effective_margin_top + (effective_height - total_text_height) / 2;
+            case TEXT_ALIGN_CENTER_NEW:
+                // 垂直模式下，这两个对齐方式使用相同的居中逻辑
                 break;
             case TEXT_ALIGN_RIGHT: // 在垂直模式下，RIGHT对应底部对齐
                 y = effective_height - total_text_height - effective_margin_top;
@@ -3264,6 +3265,14 @@ void bin_font_print(const std::string &text, uint8_t font_size, uint8_t color, i
             case TEXT_ALIGN_CENTER:
                 // 居中对齐：基于area_width计算居中位置，margin_left作为额外偏移，加上shift offset
                 x = (align_width - line_width) / 2 + margin_left + shift_offset;
+                break;
+            case TEXT_ALIGN_CENTER_NEW:
+                // 新的严格居中对齐：基于area_width计算居中位置，仅加margin_left（不含shift_offset）
+                // 当内容<max_length时，实际内容居中；内容被截断后，以max_length为占位宽度居中
+                if (max_length > 0 && text_truncated)
+                    x = (align_width - max_length) / 2 + margin_left;
+                else
+                    x = (align_width - line_width) / 2 + margin_left;
                 break;
             case TEXT_ALIGN_RIGHT:
                 // 右对齐：基于area_width从右边开始，margin_left作为左起点，加上shift offset
