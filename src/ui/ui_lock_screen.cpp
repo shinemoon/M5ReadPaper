@@ -477,10 +477,10 @@ static void print_book_info_on_canvas(bool isshutdown)
 
     // Title
     snprintf(buf, sizeof(buf), "%s", book_name.c_str());
-    bin_font_print(buf, 32, TFT_BLACK, 540, pos_x, pos_y, false, g_canvas, TEXT_ALIGN_CENTER_NEW, 400);
+    bin_font_print(buf, 32, TFT_BLACK, 540, pos_x-6, pos_y, false, g_canvas, TEXT_ALIGN_CENTER_NEW, 400);
     // Chapter
     snprintf(buf, sizeof(buf), "%s", chapter.c_str());
-    bin_font_print(buf, fsize, TFT_BLACK, 520, pos_x - 16, pos_y + line_h + 12, false, g_canvas, TEXT_ALIGN_CENTER, 520);
+    bin_font_print(buf, fsize, TFT_BLACK, 540, pos_x-6, pos_y + line_h + 12, false, g_canvas, TEXT_ALIGN_CENTER_NEW, 400);
     // Pages
     // snprintf(buf, sizeof(buf), "%zu/%zu", cur_page, total_page);
     snprintf(buf, sizeof(buf), "%zu", cur_page);

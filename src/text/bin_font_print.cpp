@@ -3268,11 +3268,8 @@ void bin_font_print(const std::string &text, uint8_t font_size, uint8_t color, i
                 break;
             case TEXT_ALIGN_CENTER_NEW:
                 // 新的严格居中对齐：基于area_width计算居中位置，仅加margin_left（不含shift_offset）
-                // 当内容<max_length时，实际内容居中；内容被截断后，以max_length为占位宽度居中
-                if (max_length > 0 && text_truncated)
-                    x = (align_width - max_length) / 2 + margin_left;
-                else
-                    x = (align_width - line_width) / 2 + margin_left;
+                // 无论是否截断，始终使用 line_width（已含省略号）居中
+                x = (align_width - line_width) / 2 + margin_left;
                 break;
             case TEXT_ALIGN_RIGHT:
                 // 右对齐：基于area_width从右边开始，margin_left作为左起点，加上shift offset
