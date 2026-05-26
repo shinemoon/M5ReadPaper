@@ -1514,6 +1514,7 @@ static void parseRecFileToJson(const std::string &rec_file_path, const std::stri
     // This matches the device-side ui_time_rec logic
     int totalHours = 0;
     int totalMinutes = 0;
+    int rating = 0;
     
     std::string bm_file_path = getBookmarkFileName(book_path);
     
@@ -1549,6 +1550,11 @@ static void parseRecFileToJson(const std::string &rec_file_path, const std::stri
 #if DBG_WIFI_HOTSPOT
                         Serial.printf("[WIFI_HOTSPOT] Found readmin=%d\n", totalMinutes);
 #endif
+                    } else if (key == "rating") {
+                        rating = value.toInt();
+#if DBG_WIFI_HOTSPOT
+                        Serial.printf("[WIFI_HOTSPOT] Found rating=%d\n", rating);
+#endif
                     }
                 }
             }
@@ -1570,6 +1576,8 @@ static void parseRecFileToJson(const std::string &rec_file_path, const std::stri
     
     jsonOutput += "\"total_hours\":" + String(totalHours) + ",";
     jsonOutput += "\"total_minutes\":" + String(totalMinutes) + ",";
+    // Include rating (0 if missing)
+    jsonOutput += "\"rating\":" + String(rating) + ",";
     
     // Parse hourly records
     std::map<std::string, int32_t> hourlyRecords;
