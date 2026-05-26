@@ -139,6 +139,9 @@ public:
     int16_t getReadHour() const { return readhour; }
     int16_t getReadMin() const { return readmin; }
     void setReadTime(int16_t hours, int16_t mins) { readhour = hours; readmin = mins; }
+    // 书籍评分（0-255，0 表示未评分）
+    uint8_t getRating() const { return rating; }
+    void setRating(uint8_t r) { rating = r; saveBookmark(); }
     size_t getCurrentPageCharCount() const;
 
     // Setter方法
@@ -308,6 +311,8 @@ private:
     // 最后阅读时间（小时/分钟），默认初始值为0
     std::int16_t readhour = 0;
     std::int16_t readmin = 0;
+    // 书籍评分（0-255，0 表示未评分）
+    uint8_t rating = 0;
 public:
     // Expose read-only query for whether the book has a sidecar .idx file
     bool isIndexed() const { return is_indexed_; }
@@ -377,11 +382,12 @@ struct BookmarkConfig
     bool verticalText; // 是否竖排显示文字，默认为false
     int16_t readhour; // 最后阅读小时（0-23），默认0
     int16_t readmin;  // 最后阅读分钟（0-59），默认0
+    uint8_t rating;   // 书籍评分（0-255，0 表示未评分）
 
     BookmarkConfig() : current_position(0), file_size(0), area_width(0), area_height(0),
                        font_size(0.0f), font_version(0), font_base_size(0), encoding(TextEncoding::AUTO_DETECT), valid(false),
                        current_page_index(0), total_pages(0), page_completed(false), showlabel(true), keepOrg(true), drawBottom(true), verticalText(false),
-                       readhour(0), readmin(0) {}
+                       readhour(0), readmin(0), rating(0) {}
 };
 
 // 全局配置保存和加载函数

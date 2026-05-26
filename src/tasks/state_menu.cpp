@@ -451,6 +451,41 @@ void StateMachineTask::handleMenuState(const SystemMessage_t *msg)
                 }
                 currentState_ = STATE_SHUTDOWN;
             }
+            else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "Star Row") == 0)
+            {
+                // Star Row: 评分交互
+                // 区域 X: [145,395] （总宽 250），等分为 5 段，每段宽度 50，对应 rating 1..5
+                if (g_current_book != nullptr)
+                {
+                    if (tx >= 145 && tx <= 145+ 250 && ty >= 300 && ty <= 360)
+                    {
+                        int rel = tx - 145;
+                        if (rel < 0)
+                            rel = 0;
+                        int seg = rel / 50; // 0..4 normally, but clamp
+                        if (seg < 0)
+                            seg = 0;
+                        if (seg > 4)
+                            seg = 4;
+                        uint8_t rating = (uint8_t)(seg + 1);
+
+                        // Persist rating to current book (setter会触发保存)
+                        g_current_book->setRating(rating);
+
+                        g_canvas->fillRect(0, 301, 540, 58, TFT_WHITE);
+                        // fillRect(x, y, w, h, color)
+                        int fill_w = 50 * rating;
+                        if (fill_w > 250)
+                            fill_w = 250;
+                        if (fill_w > 0)
+                            g_canvas->fillRect(145, 301, fill_w, 58, TFT_BLACK);
+                        ui_push_image_to_canvas("/spiffs/star.png", 0, 300);
+                        g_canvas->drawLine(145, 300, 145+250, 300, TFT_BLACK);
+                        // 局部刷新区域 (150,300) - (450,360)
+                        bin_font_flush_canvas(false, false, false, NOEFFECT, 145, 301, 250, 58);
+                    }
+                }
+            }
             else if (touch_result.message != nullptr && std::strcmp(touch_result.message, "FBWD 10%") == 0)
             {
 #if DBG_STATE_MACHINE_TASK

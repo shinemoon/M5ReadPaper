@@ -543,6 +543,16 @@ MenuTouchResult handleMenuTouch(TouchZone zone)
         result.panel_clicked = true;
         result.message = "Switch FAST";
         break;
+    case TouchZone::FOUR_ONE:
+    case TouchZone::FOUR_TWO:
+    case TouchZone::FOUR_THREE:
+    case TouchZone::FOUR_FOUR:
+    case TouchZone::FOUR_FIVE:
+    case TouchZone::FOUR_SIX:
+        result.success = true;
+        result.panel_clicked = true;
+        result.message = "Star Row";
+        break;
     case TouchZone::EIGHT_TWO:
     case TouchZone::EIGHT_THREE:
     case TouchZone::EIGHT_FIVE:

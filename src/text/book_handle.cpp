@@ -1931,6 +1931,8 @@ bool saveBookmarkForFile(BookHandle *book)
         // 保存最后阅读时间（小时/分钟），默认0
         f.printf("readhour=%d\n", book->getReadHour());
         f.printf("readmin=%d\n", book->getReadMin());
+        // 保存用户评分（0 表示未评分）
+        f.printf("rating=%u\n", (unsigned)book->getRating());
 
         f.println("valid=true");
         return true; });
@@ -2110,6 +2112,8 @@ bool saveBookmarkForFile(BookHandle *book)
                 // 写入与rec文件第一行同步的总时间
                 f.printf("readhour=%d\n", new_rec_total_hours);
                 f.printf("readmin=%d\n", new_rec_total_mins_remainder);
+                // 保持 rating 同步
+                f.printf("rating=%u\n", (unsigned)book->getRating());
                 
                 f.println("valid=true");
                 return true; });
@@ -2181,6 +2185,8 @@ BookmarkConfig loadBookmarkForFile(const std::string &book_file_path)
             cfg.readhour = (std::int16_t)val.toInt();
         else if (key == "readmin")
             cfg.readmin = (std::int16_t)val.toInt();
+        else if (key == "rating")
+            cfg.rating = (uint8_t)val.toInt();
         else if (key == "valid")
             cfg.valid = (val == "true");
     }
@@ -2355,6 +2361,8 @@ bool BookHandle::loadBookmarkAndJump()
     // 恢复阅读时长（小时/分钟）到 BookHandle 成员，以便继续累积
     this->readhour = cfg.readhour;
     this->readmin = cfg.readmin;
+    // 恢复评分
+    this->rating = cfg.rating;
 
     // 确保分页信息已加载
     if (!pages_loaded)

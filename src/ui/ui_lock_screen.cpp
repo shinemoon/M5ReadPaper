@@ -524,6 +524,21 @@ static void print_book_info_on_canvas(bool isshutdown)
         ui_push_image_to_canvas_scaled("/spiffs/done.png", -150, 180, 1.0f, 1.0f, nullptr, false);
     }
 
+    // ---- 书籍评分 --
+
+    // Push star
+    // Rating value
+    g_canvas->fillRect(145, 800, 250, 58, TFT_WHITE);
+    int rating = g_current_book->getRating();
+    int fill_w = 50 * rating;
+    if (fill_w > 250)
+        fill_w = 250;
+    if (fill_w > 0)
+        g_canvas->fillRect(145, 800, fill_w, 58, TFT_BLACK);
+
+    // Overlay
+    ui_push_image_to_canvas("/spiffs/star.png", 0, 800);
+
     bin_font_flush_canvas(false, false, true, RECT);
 }
 

@@ -443,6 +443,28 @@ void draw_label(M5Canvas *canvas, int16_t cx, int16_t cy, const char *text, bool
 //   x, y   -> 绘制起点坐标
 void drawTopUI(M5Canvas *canvas, int16_t x, int16_t y)
 {
+    // === Pacthes ===
+    // Rating - area
+    canvas->fillRect(x, y + 300, 540, 62, TFT_BLACK);
+    canvas->fillRect(x + 1, y + 301, 538, 59, TFT_LIGHTGRAY);
+    // 绘制四个角落的螺丝
+    //    drawScrew(canvas, x + 15, y + 300 + 35);
+    //    drawScrew(canvas, 525, y + 300 + 35);
+
+    // Push star
+    // Rating value
+    g_canvas->fillRect(0, 301, 540, 58, TFT_WHITE);
+    int rating = g_current_book->getRating();
+    int fill_w = 50 * rating;
+    if (fill_w > 250)
+        fill_w = 250;
+    if (fill_w > 0)
+        g_canvas->fillRect(145, 301, fill_w, 58, TFT_BLACK);
+
+    // Overlay
+    ui_push_image_to_canvas("/spiffs/star.png", x, y + 300);
+    g_canvas->drawLine(145, 300, 145 + 250, 300, TFT_BLACK);
+
     // === 背景 ===
     // 覆盖整个 UI 区域 (宽 540, 高 230，可按需求调整)
     canvas->fillRect(x, y, 540, 300, TFT_WHITE);
@@ -459,7 +481,7 @@ void drawTopUI(M5Canvas *canvas, int16_t x, int16_t y)
 
     // 2. 锁屏书签复选框
     bool showLabel = (g_current_book && g_current_book->getShowLabel());
-    drawCheckbox(canvas, x + 30, y + 60, showLabel, "锁屏书签",28,24);
+    drawCheckbox(canvas, x + 30, y + 60, showLabel, "锁屏书签", 28, 24);
 
     // 2.5. 下划线复选框
     if (g_current_book)
@@ -626,10 +648,10 @@ void drawBottomUI(M5Canvas *canvas, int16_t x, int16_t y)
     canvas->fillCircle(x + 450 + 45, y + 54, 20, TFT_WHITE);
     canvas->fillCircle(x + 450 + 45, y + 54, 18, TFT_BLACK);
 
-    canvas->fillRect(x + 450 + 43, y + 44, 4, 4,  TFT_WHITE);
-    canvas->fillRect(x + 450 + 43, y + 50, 4, 16,  TFT_WHITE);
+    canvas->fillRect(x + 450 + 43, y + 44, 4, 4, TFT_WHITE);
+    canvas->fillRect(x + 450 + 43, y + 50, 4, 16, TFT_WHITE);
 
-//    bin_font_print("?", 32, 0, 50, x + 450 + 6, y + 50 - 16, false, canvas, TEXT_ALIGN_CENTER, 80, true, false, false, true);
+    //    bin_font_print("?", 32, 0, 50, x + 450 + 6, y + 50 - 16, false, canvas, TEXT_ALIGN_CENTER, 80, true, false, false, true);
 
     // ROW II
     y = y + 100;
