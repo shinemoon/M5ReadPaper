@@ -484,13 +484,13 @@ static void print_book_info_on_canvas(bool isshutdown)
     // Pages
     // snprintf(buf, sizeof(buf), "%zu/%zu", cur_page, total_page);
     snprintf(buf, sizeof(buf), "%zu", cur_page);
-    bin_font_print(buf, 22, TFT_BLACK, 180, pos_x + 330, pos_y + line_h * 4, false, g_canvas, TEXT_ALIGN_CENTER, 180);
+    bin_font_print(buf, 22, TFT_BLACK, 170, pos_x + 350, pos_y + line_h * 4, false, g_canvas, TEXT_ALIGN_CENTER_NEW, 150);
     // Time
     snprintf(buf, sizeof(buf), "%dh%dm", read_hour, read_min);
-    bin_font_print(buf, 22, TFT_BLACK, 120, pos_x + 196, pos_y + line_h * 4, false, g_canvas, TEXT_ALIGN_CENTER, 120);
+    bin_font_print(buf, 22, TFT_BLACK, 170, pos_x + 180, pos_y + line_h * 4, false, g_canvas, TEXT_ALIGN_CENTER_NEW, 120);
     // Days
     snprintf(buf, sizeof(buf), "%d天", day_span);
-    bin_font_print(buf, 22, TFT_BLACK, 120, pos_x + 32, pos_y + line_h * 4, false, g_canvas, TEXT_ALIGN_CENTER, 120);
+    bin_font_print(buf, 22, TFT_BLACK, 170, pos_x+22, pos_y + line_h * 4, false, g_canvas, TEXT_ALIGN_CENTER_NEW, 150);
 
     // ---- 当前日期 YYYY/MM/DD ----
     {
@@ -521,7 +521,11 @@ static void print_book_info_on_canvas(bool isshutdown)
     g_canvas->fillRoundRect(pos_x + 124, pos_y + line_h * 5 + 9, progress_width, 36, 8, TFT_LIGHTGREY);
     if (progress_width == barwidth)
     {
-        ui_push_image_to_canvas_scaled("/spiffs/done.png", -150, 180, 1.0f, 1.0f, nullptr, false);
+        // push the done image at a random location: x in [-150,150], y in [80,200]
+        randomSeed(millis());
+        int rx = (int)random(540) - 150; // -150 ..290 
+        int ry = (int)random(700) - 20;  // 180 .. -20
+        ui_push_image_to_canvas_scaled("/spiffs/done.png", rx, ry, 1.0f, 1.0f, nullptr, false);
     }
 
     // ---- 书籍评分 --
