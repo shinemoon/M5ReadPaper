@@ -1231,24 +1231,23 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
         {
             if (refInd == 1)
             { // paging
-                p_x = 0;
-                p_y = 0;
-                p_h = PAPER_S3_HEIGHT;
-                p_w = 362;
-                bin_font_flush_canvas(false, false, !g_config.fastrefresh, NOEFFECT, p_x, p_y, p_w, p_h);
+                /*
                 p_x = 370;
                 p_y = 100;
                 p_h = 22;
                 p_w = 170;
                 bin_font_flush_canvas(false, false, !g_config.fastrefresh, NOEFFECT, p_x, p_y, p_w, p_h);
-            }
-            else if (refInd == 2)
-            {
                 p_x = 0;
                 p_y = 0;
                 p_h = PAPER_S3_HEIGHT;
                 p_w = 362;
                 bin_font_flush_canvas(false, false, !g_config.fastrefresh, NOEFFECT, p_x, p_y, p_w, p_h);
+                */
+                bin_font_flush_canvas();
+            }
+            else if (refInd == 2)
+            {
+                /*
                 p_x = 373;
                 p_y = 300;
                 p_h = 50;
@@ -1259,6 +1258,13 @@ bool show_main_menu(M5Canvas *canvas, bool refresh, int selected, int current_pa
                 p_h = 22;
                 p_w = 170;
                 bin_font_flush_canvas(false, false, !g_config.fastrefresh, NOEFFECT, p_x, p_y, p_w, p_h);
+                p_x = 0;
+                p_y = 0;
+                p_h = PAPER_S3_HEIGHT;
+                p_w = 362;
+                bin_font_flush_canvas(false, false, !g_config.fastrefresh, NOEFFECT, p_x, p_y, p_w, p_h);
+                */
+                bin_font_flush_canvas();
             }
             else
             {
