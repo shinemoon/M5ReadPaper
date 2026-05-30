@@ -273,12 +273,15 @@ void show_2nd_level_menu(M5Canvas *canvas, bool partial, int8_t refInd)
         draw_label(target, 40, y + 2 * 96 + 25, "翻页方式", true); // SIX_ONE/TWO
 
         const int16_t pageStyleRowY = y + 2 * 96 - 1 + 25;
-        if (strcmp(g_config.pageStyle, "default") == 0)
-            target->fillTriangle(210, pageStyleRowY + 4, 210, pageStyleRowY + 4 + 18, 210 + 12, pageStyleRowY + 4 + 9, TFT_BLACK);
+        if (strcmp(g_config.pageStyle, "vertical") == 0)
+            target->fillTriangle(410, pageStyleRowY + 4, 410, pageStyleRowY + 4 + 18, 410 + 12, pageStyleRowY + 4 + 9, TFT_BLACK);
+        else if (strcmp(g_config.pageStyle, "revert") == 0)
+            target->fillTriangle(310, pageStyleRowY + 4, 310, pageStyleRowY + 4 + 18, 310 + 12, pageStyleRowY + 4 + 9, TFT_BLACK);
         else
-            target->fillTriangle(360, pageStyleRowY + 4, 360, pageStyleRowY + 4 + 18, 360 + 12, pageStyleRowY + 4 + 9, TFT_BLACK);
-        bin_font_print("右手习惯", 28, 0, 540, 216, pageStyleRowY, true, target, TEXT_ALIGN_LEFT, 150);
-        bin_font_print("左手习惯", 28, 0, 540, 366, pageStyleRowY, true, target, TEXT_ALIGN_LEFT, 150);
+            target->fillTriangle(210, pageStyleRowY + 4, 210, pageStyleRowY + 4 + 18, 210 + 12, pageStyleRowY + 4 + 9, TFT_BLACK);
+        bin_font_print("右手", 28, 0, 540, 216, pageStyleRowY, true, target, TEXT_ALIGN_LEFT, 100);
+        bin_font_print("左手", 28, 0, 540, 316, pageStyleRowY, true, target, TEXT_ALIGN_LEFT, 100);
+        bin_font_print("上下", 28, 0, 540, 416, pageStyleRowY, true, target, TEXT_ALIGN_LEFT, 100);
         // Button - 书签显示
         draw_label(target, 40, y + 3 * 96 + 25, "书签显示", true); // SIX_ONE/TWO
 

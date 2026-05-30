@@ -131,14 +131,19 @@ void StateMachineTask::handle2ndLevelMenuState(const SystemMessage_t *msg)
 
             if (!updated && inRow(pageStyleRowY))
             {
-                if (inBox(pageStyleRowY, 210, 160) && strcmp(g_config.pageStyle, "default") != 0)
+                if (inBox(pageStyleRowY, 210, 100) && strcmp(g_config.pageStyle, "default") != 0)
                 {
                     strcpy(g_config.pageStyle, "default");
                     updated = true;
                 }
-                else if (inBox(pageStyleRowY, 360, 160) && strcmp(g_config.pageStyle, "revert") != 0)
+                else if (inBox(pageStyleRowY, 310, 100) && strcmp(g_config.pageStyle, "revert") != 0)
                 {
                     strcpy(g_config.pageStyle, "revert");
+                    updated = true;
+                }
+                else if (inBox(pageStyleRowY, 410, 100) && strcmp(g_config.pageStyle, "vertical") != 0)
+                {
+                    strcpy(g_config.pageStyle, "vertical");
                     updated = true;
                 }
                 updateInd = 2;

@@ -400,6 +400,46 @@ void StateMachineTask::handleReadingState(const SystemMessage_t *msg)
                         currentState_ = STATE_READING_QUICK_MENU;
                         return;
                 }
+                // 上下翻页模式：override 左右点击区域（保持高优先级操作和中间列MENU不变）
+                if (strcmp(g_config.pageStyle, "vertical") == 0)
+                {
+                        TouchZone verticalZone = getTouchZoneGrid(msg->data.touch.x, msg->data.touch.y);
+                        // MENU触发区（FIVE_THREE/FIVE_FOUR/SIX_THREE/SIX_FOUR）→ handleReadingTouch 处理MENU
+                        if (verticalZone == TouchZone::FIVE_THREE ||
+                            verticalZone == TouchZone::FIVE_FOUR ||
+                            verticalZone == TouchZone::SIX_THREE ||
+                            verticalZone == TouchZone::SIX_FOUR)
+                        {
+                                PageTurnResult result = handleReadingTouch(verticalZone);
+                                if (result.success && result.message != nullptr && std::strcmp(result.message, "MENU") == 0)
+                                {
+                                        currentState_ = STATE_MENU;
+                                        (void)show_reading_menu(g_canvas, false);
+                                }
+                        }
+                        else
+                        {
+                                // 点击屏幕上部1/3（y<320）为上一页，其余为下一页
+                                if (msg->data.touch.y < 320)
+                                {
+                                        if (g_current_book->prevPage().success)
+                                        {
+                                                g_current_book->renderCurrentPage(font_size, nullptr, true, false, false, 0, g_config.enable_swipe ? display_type::TEXT_PRE : display_type::NO_SWIPE_TEXT);
+                                                g_current_book->saveBookmark();
+                                        }
+                                }
+                                else
+                                {
+                                        if (g_current_book->nextPage().success)
+                                        {
+                                                g_current_book->renderCurrentPage(font_size, nullptr, true, false, false, 0, g_config.enable_swipe ? display_type::TEXT_NEXT : display_type::NO_SWIPE_TEXT);
+                                                g_current_book->saveBookmark();
+                                        }
+                                }
+                                s_one_sec_ticks = 0;
+                        }
+                        return;
+                }
                 TouchZone zone = getTouchZoneGrid(msg->data.touch.x, msg->data.touch.y);
                 PageTurnResult result = handleReadingTouch(zone);
 #if DBG_STATE_MACHINE_TASK
