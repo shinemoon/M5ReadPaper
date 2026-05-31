@@ -519,16 +519,7 @@ static void print_book_info_on_canvas(bool isshutdown)
     // snprintf(buf, sizeof(buf), "%zu/%zu", cur_page, total_page);
     // g_canvas->fillRoundRect(pos_x + 120, pos_y + line_h * 5 + 8, progress_width,36, 2, TFT_LIGHTGREY);
     g_canvas->fillRoundRect(pos_x + 124, pos_y + line_h * 5 + 9, progress_width, 36, 8, TFT_LIGHTGREY);
-    if (progress_width == barwidth)
-    {
-        // push the done image at a random location: x in [-150,150], y in [80,200]
-        randomSeed(millis());
-        int rx = (int)random(540) - 150; // -150 ..290 
-        int ry = (int)random(700) - 20;  // 180 .. -20
-        ui_push_image_to_canvas_scaled("/spiffs/done.png", rx, ry, 1.0f, 1.0f, nullptr, false);
-    }
-
-    // ---- 书籍评分 --
+   // ---- 书籍评分 --
 
     // Push star
     // Rating value
@@ -543,6 +534,17 @@ static void print_book_info_on_canvas(bool isshutdown)
     // Overlay
     ui_push_image_to_canvas("/spiffs/star.png", 0, 800);
 
+
+    if (progress_width == barwidth)
+    {
+        // push the done image at a random location: x in [-150,150], y in [80,200]
+        randomSeed(millis());
+        int rx = (int)random(540) - 150; // -150 ..290 
+        int ry = (int)random(700) - 20;  // 180 .. -20
+        ui_push_image_to_canvas_scaled("/spiffs/done.png", rx, ry, 1.0f, 1.0f, nullptr, false);
+    }
+
+ 
     bin_font_flush_canvas(false, false, true, RECT);
 }
 
